@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AC-HRA-PAY | 人資薪資分析平台</title>
+<style>
+:root{
+  --navy:#0f2a4a;--navy2:#16375e;--gold:#c9a227;--gold2:#e3c25a;
+  --bg:#f4f6f9;--card:#ffffff;--txt:#1e293b;--sub:#64748b;--line:#e2e8f0;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Noto Sans TC","Segoe UI",sans-serif;}
+body{background:var(--bg);min-height:100vh;color:var(--txt);}
+header{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;padding:26px 20px 22px;}
+.hwrap{max-width:1080px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between;}
+.brand h1{font-size:1.45rem;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+.brand h1 .g{color:var(--gold2);}
+.brand p{font-size:.82rem;opacity:.72;margin-top:5px;}
+.hright{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.lang{display:flex;background:rgba(255,255,255,.12);border-radius:8px;overflow:hidden;}
+.lang button{background:none;border:none;color:#fff;padding:7px 13px;font-size:.82rem;cursor:pointer;opacity:.65;}
+.lang button.on{background:var(--gold);color:#132;font-weight:700;opacity:1;}
+.gas{font-size:.78rem;padding:7px 12px;border-radius:8px;background:rgba(255,255,255,.12);display:flex;align-items:center;gap:7px;}
+.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8;}
+.dot.ok{background:#22c55e;box-shadow:0 0 8px #22c55e;}
+.dot.err{background:#ef4444;}
+main{max-width:1080px;margin:0 auto;padding:26px 20px 50px;}
+.sect{font-size:.8rem;color:var(--sub);text-transform:uppercase;letter-spacing:1.5px;margin:22px 0 12px;display:flex;align-items:center;gap:10px;}
+.sect::after{content:'';flex:1;height:1px;background:var(--line);}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:14px;}
+a.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;text-decoration:none;color:var(--txt);
+  display:flex;gap:14px;align-items:flex-start;transition:.18s;position:relative;overflow:hidden;}
+a.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold);opacity:0;transition:.18s;}
+a.card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(15,42,74,.13);border-color:var(--gold);}
+a.card:hover::before{opacity:1;}
+.ic{font-size:1.7rem;line-height:1;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-radius:11px;
+  width:52px;height:52px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ci h3{font-size:1rem;margin-bottom:3px;}
+.ci p{font-size:.78rem;color:var(--sub);line-height:1.45;}
+.badge{position:absolute;top:10px;right:10px;font-size:.62rem;background:#fef3c7;color:#92400e;
+  padding:2px 8px;border-radius:20px;font-weight:700;}
+footer{text-align:center;color:#94a3b8;font-size:.75rem;padding:20px;border-top:1px solid var(--line);}
+footer a{color:var(--sub);}
+@media(max-width:520px){.grid{grid-template-columns:1fr 1fr;}.ic{width:44px;height:44px;font-size:1.4rem;}.ci h3{font-size:.9rem;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="brand">
+      <h1>💼 AC-HRA-<span class="g">PAY</span></h1>
+      <p data-i="sub">人資薪資分析平台 · Vantage River Textiles Co., Ltd.</p>
+    </div>
+    <div class="hright">
+      <div class="gas" id="gas"><span class="dot" id="gdot"></span><span id="gtxt">GAS…</span></div>
+      <div class="lang">
+        <button data-l="tc" class="on">中</button><button data-l="en">EN</button><button data-l="km">ខ្មែរ</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="sect" data-i="s1">薪資核心 Payroll Core</div>
+  <div class="grid">
+    <a class="card" href="./payroll.html"><div class="ic">💵</div><div class="ci"><h3 data-i="m1">薪資 Payroll</h3><p data-i="m1d">預支＋月結雙檔匯入、交叉稽核、Projection 輸出</p></div></a>
+    <a class="card" href="./advance_pay.html"><div class="ic">💰</div><div class="ci"><h3 data-i="m2">預支 Advance</h3><p data-i="m2d">首期發放清冊（整合於 Payroll Stage 1）</p></div></a>
+    <a class="card" href="./meal_fee.html"><div class="ic">🍱</div><div class="ci"><h3 data-i="m3">餐費 Meal Fee</h3><p data-i="m3d">上／下半月雙批發放、匯率換算、異常偵測</p></div></a>
+    <a class="card" href="./ot_bonus.html"><div class="ic">⏱</div><div class="ci"><h3 data-i="m4">OT &amp; Bonus</h3><p data-i="m4d">部門級加班與獎金歷年追蹤（2020–2026）</p></div></a>
+  </div>
+
+  <div class="sect" data-i="s2">人事管理 HR Management</div>
+  <div class="grid">
+    <a class="card" href="./employee_hr.html"><div class="ic">👥</div><div class="ci"><h3 data-i="m5">員工 HR</h3><p data-i="m5d">員工主檔、工號／姓名／部門對照</p></div></a>
+    <a class="card" href="./transfer.html"><div class="ic">🔄</div><div class="ci"><h3 data-i="m6">職位異動 Transfer</h3><p data-i="m6d">調職／調薪申請與核可流程（Telegram 通知）</p></div></a>
+    <a class="card" href="./warning.html"><div class="ic">⚠️</div><div class="ci"><h3 data-i="m7">警告 Warning</h3><p data-i="m7d">警告信登錄、失效追蹤、核可／退件</p></div></a>
+    <a class="card" href="./shutdown.html"><div class="ic">🛑</div><div class="ci"><h3 data-i="m8">停工 Shutdown</h3><p data-i="m8d">停工事件登錄與年度統計</p></div></a>
+  </div>
+
+  <div class="sect" data-i="s3">總覽 Overview</div>
+  <div class="grid">
+    <a class="card" href="./summary_center.html"><div class="ic">📊</div><div class="ci"><h3 data-i="m9">總覽 Summary Center</h3><p data-i="m9d">跨模組 Projection 交叉核對與異常清單</p></div></a>
+  </div>
+</main>
+
+<footer>
+  AC-HRA-PAY Platform · <a href="https://saintdou-weng.github.io/ac-hra-pay/">saintdou-weng.github.io/ac-hra-pay</a> · Bot @psjweng_bot
+</footer>
+
+<script>
+const GAS_URL = localStorage.getItem('hrpay_gas_url') || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+
+/* ── 三語 ── */
+const I18N={
+ tc:{sub:'人資薪資分析平台 · Vantage River Textiles Co., Ltd.',s1:'薪資核心 Payroll Core',s2:'人事管理 HR Management',s3:'總覽 Overview',
+  m1:'薪資 Payroll',m1d:'預支＋月結雙檔匯入、交叉稽核、Projection 輸出',m2:'預支 Advance',m2d:'首期發放清冊（整合於 Payroll Stage 1）',
+  m3:'餐費 Meal Fee',m3d:'上／下半月雙批發放、匯率換算、異常偵測',m4:'OT & Bonus',m4d:'部門級加班與獎金歷年追蹤（2020–2026）',
+  m5:'員工 HR',m5d:'員工主檔、工號／姓名／部門對照',m6:'職位異動 Transfer',m6d:'調職／調薪申請與核可流程（Telegram 通知）',
+  m7:'警告 Warning',m7d:'警告信登錄、失效追蹤、核可／退件',m8:'停工 Shutdown',m8d:'停工事件登錄與年度統計',
+  m9:'總覽 Summary Center',m9d:'跨模組 Projection 交叉核對與異常清單'},
+ en:{sub:'HR & Payroll Analytics Platform · Vantage River Textiles Co., Ltd.',s1:'Payroll Core',s2:'HR Management',s3:'Overview',
+  m1:'Payroll',m1d:'Advance + monthly import, cross-audit, projection export',m2:'Advance Pay',m2d:'First-phase payment (inside Payroll Stage 1)',
+  m3:'Meal Fee',m3d:'Semi-monthly batches, FX conversion, anomaly detection',m4:'OT & Bonus',m4d:'Department-level OT & bonus history (2020–2026)',
+  m5:'Employee HR',m5d:'Employee master: ID / name / department',m6:'Transfer',m6d:'Position & salary change approval (Telegram notify)',
+  m7:'Warning',m7d:'Warning letters, expiry tracking, approval flow',m8:'Shutdown',m8d:'Shutdown events & yearly statistics',
+  m9:'Summary Center',m9d:'Cross-module projection reconciliation'},
+ km:{sub:'វេទិកាវិភាគប្រាក់ខែ · Vantage River Textiles Co., Ltd.',s1:'ស្នូលប្រាក់ខែ',s2:'ការគ្រប់គ្រងធនធានមនុស្ស',s3:'ទិដ្ឋភាពរួម',
+  m1:'ប្រាក់ខែ Payroll',m1d:'នាំចូលឯកសារ បុរេប្រទាន+ប្រចាំខែ និងសវនកម្ម',m2:'បុរេប្រទាន Advance',m2d:'ការទូទាត់ដំណាក់កាលទី១ (ក្នុង Payroll)',
+  m3:'ថ្លៃអាហារ Meal Fee',m3d:'ការទូទាត់ពីរដងក្នុងមួយខែ និងអត្រាប្តូរប្រាក់',m4:'OT & Bonus',m4d:'ម៉ោងបន្ថែម និងប្រាក់រង្វាន់តាមផ្នែក',
+  m5:'បុគ្គលិក HR',m5d:'ទិន្នន័យបុគ្គលិក: លេខ / ឈ្មោះ / ផ្នែក',m6:'ផ្លាស់ប្តូរតំណែង',m6d:'ការស្នើសុំ និងអនុម័ត (ជូនដំណឹង Telegram)',
+  m7:'ការព្រមាន Warning',m7d:'លិខិតព្រមាន និងការតាមដាន',m8:'ការផ្អាកការងារ',m8d:'ព្រឹត្តិការណ៍ផ្អាក និងស្ថិតិប្រចាំឆ្នាំ',
+  m9:'មជ្ឈមណ្ឌលសង្ខេប',m9d:'ការផ្ទៀងផ្ទាត់ទិន្នន័យឆ្លងម៉ូឌុល'}
+};
+function setLang(l){
+  localStorage.setItem('hrpay_lang',l);
+  document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
+  document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});
+}
+document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>setLang(b.dataset.l));
+setLang(localStorage.getItem('hrpay_lang')||'tc');
+
+/* ── GAS 連線狀態 ── */
+(async()=>{
+  const dot=document.getElementById('gdot'),txt=document.getElementById('gtxt');
+  try{
+    const r=await fetch(GAS_URL+'?action=status',{method:'GET'});
+    const d=await r.json();
+    if(d&&(d.ok||d.status)){dot.className='dot ok';txt.textContent='GAS 已連線';}
+    else{dot.className='dot err';txt.textContent='GAS 回應異常';}
+  }catch(e){dot.className='dot err';txt.textContent='GAS 離線';}
+})();
+</script>
+</body>
+</html>

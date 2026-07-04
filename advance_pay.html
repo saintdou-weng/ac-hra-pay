@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 Advance Pay | AC-HRA-PAY</title>
+<style>
+:root{--navy:#0f2a4a;--navy2:#16375e;--gold:#c9a227;--bg:#f4f6f9;--txt:#1e293b;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Noto Sans TC","Segoe UI",sans-serif;}
+body{background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(15,42,74,.12);max-width:520px;width:100%;overflow:hidden;}
+.hd{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:26px 28px;}
+.hd h1{font-size:1.35rem;display:flex;align-items:center;gap:10px;}
+.hd p{opacity:.75;font-size:.85rem;margin-top:6px;}
+.bd{padding:28px;color:var(--txt);line-height:1.8;font-size:.95rem;}
+.bd .km{color:#64748b;font-size:.85rem;}
+.btn{display:block;text-align:center;background:var(--gold);color:#1e293b;font-weight:700;text-decoration:none;
+  padding:14px;border-radius:10px;margin-top:22px;font-size:1rem;transition:.2s;}
+.btn:hover{filter:brightness(1.08);}
+.count{text-align:center;color:#94a3b8;font-size:.8rem;margin-top:14px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hd">
+    <h1>💰 預支管理 Advance Pay</h1>
+    <p>AC-HRA-PAY · Vantage River Textiles</p>
+  </div>
+  <div class="bd">
+    <p><b>預支（首期發放）功能已整合在「薪資 Payroll」模組內。</b><br>
+    進入 Payroll 模組後，直接上傳 <code>Advance_pay_on_XXX.xlsx</code> 即為 Stage 1（預支清冊），再上傳 <code>Payroll_pay_on_XXX.xlsx</code> 即為 Stage 2（月結＋交叉稽核）。</p>
+    <p style="margin-top:12px;">Advance (first-phase) payment is handled inside the <b>Payroll module</b> — upload the Advance file as Stage 1, then the Payroll file as Stage 2 for cross-audit.</p>
+    <p class="km" style="margin-top:12px;">ការទូទាត់ប្រាក់បុរេប្រទាន ត្រូវបានរួមបញ្ចូលនៅក្នុងម៉ូឌុល Payroll ។</p>
+    <a class="btn" href="./payroll.html">➜ 前往 Payroll 模組 Go to Payroll</a>
+    <div class="count">3 秒後自動跳轉 Auto-redirect in <span id="s">3</span>s</div>
+  </div>
+</div>
+<script>
+let s=3;const el=document.getElementById('s');
+const t=setInterval(()=>{s--;el.textContent=s;if(s<=0){clearInterval(t);location.href='./payroll.html';}},1000);
+</script>
+</body>
+</html>

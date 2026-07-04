@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 Summary Center | AC-HRA-PAY</title>
+<style>
+:root{--navy:#0f2a4a;--navy2:#16375e;--gold:#c9a227;--bg:#f4f6f9;--card:#fff;--txt:#1e293b;--sub:#64748b;--line:#e2e8f0;
+--ok:#16a34a;--warn:#d97706;--err:#dc2626;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Noto Sans TC","Segoe UI",sans-serif;}
+body{background:var(--bg);color:var(--txt);min-height:100vh;}
+header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:20px;}
+.hw{max-width:1080px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;}
+.hw h1{font-size:1.25rem;}
+.hw p{font-size:.78rem;opacity:.7;margin-top:4px;}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{border:none;border-radius:8px;padding:9px 15px;font-size:.85rem;cursor:pointer;font-weight:600;}
+.btn.gold{background:var(--gold);color:#132;}
+.btn.ghost{background:rgba(255,255,255,.14);color:#fff;}
+.btn:disabled{opacity:.5;cursor:wait;}
+main{max-width:1080px;margin:0 auto;padding:20px;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px;}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px;}
+.kpi .t{font-size:.75rem;color:var(--sub);display:flex;justify-content:space-between;align-items:center;}
+.kpi .v{font-size:1.45rem;font-weight:800;margin-top:5px;}
+.kpi .s{font-size:.72rem;color:var(--sub);margin-top:3px;}
+.src{font-size:.62rem;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:700;}
+.src.cloud{background:#fef9c3;color:#854d0e;}
+.src.none{background:#fee2e2;color:#991b1b;}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden;}
+.ph{padding:13px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ph h2{font-size:.98rem;flex:1;}
+.pill{font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:700;}
+.pill.ok{background:#dcfce7;color:#166534;}
+.pill.warn{background:#fef3c7;color:#92400e;}
+.pill.err{background:#fee2e2;color:#991b1b;}
+.pb{padding:15px 17px;font-size:.86rem;line-height:1.7;}
+table{width:100%;border-collapse:collapse;font-size:.8rem;}
+th{background:#f8fafc;text-align:left;padding:8px 10px;color:var(--sub);font-weight:600;border-bottom:1px solid var(--line);}
+td{padding:7px 10px;border-bottom:1px solid #f1f5f9;}
+tr:hover td{background:#f8fafc;}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.mono{font-family:"IBM Plex Mono",monospace;font-size:.76rem;}
+.empty{color:var(--sub);text-align:center;padding:24px;font-size:.85rem;}
+select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;background:#fff;}
+.note{font-size:.75rem;color:var(--sub);padding:10px 17px;background:#f8fafc;border-top:1px solid var(--line);}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;
+padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:none;transition:.3s;z-index:99;}
+#toast.on{opacity:1;}
+@media(max-width:560px){.kpis{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hw">
+    <div><h1>📊 Summary Center 總覽核對中心</h1><p>跨模組 Projection 交叉核對 · AC-HRA-PAY</p></div>
+    <div class="hbtns">
+      <button class="btn ghost" id="btn-pull">☁ 從雲端拉取</button>
+      <button class="btn gold" id="btn-run">▶ 執行交叉核對</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <div class="ph"><h2>核對期間 Period</h2>
+      <select id="sel-period"><option value="">（載入中…）</option></select>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="panel">
+    <div class="ph"><h2>📦 Projection 資料來源狀態</h2></div>
+    <div class="pb" id="src-list"></div>
+    <div class="note">本頁只做交叉核對，不重新計算薪資。資料來源：各模組輸出的 hrpay:result:*（localStorage）；按「從雲端拉取」可同步 GAS Drive 上的 hrpay_result_*.json。</div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const GAS_URL = localStorage.getItem('hrpay_gas_url') || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+const TOL = 0.01;
+const $=s=>document.querySelector(s);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2600);}
+function fmt(n){return (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+/* ── 資料容器：MOD[module] = { items:{key:{period,payPhase,mealBatch,rows,totals,updatedAt,sourceFile}}, src } ── */
+const MOD={payroll:null,advance:null,meal:null};
+
+function loadLocal(){
+  // payroll / advance：單筆最新 → 轉 items
+  ['payroll','advance'].forEach(m=>{
+    try{
+      const raw=localStorage.getItem('hrpay:result:'+m); if(!raw)return;
+      const d=JSON.parse(raw);
+      const key=(d.period||'NA')+(d.payPhase?(':'+d.payPhase):'');
+      MOD[m]={src:'local',items:{[key]:{period:d.period,payPhase:d.payPhase||'',mealBatch:'',
+        rows:d.rows||[],totals:d.totals||{},updatedAt:d.updatedAt||'',sourceFile:d.sourceFile||''}}};
+    }catch(e){console.warn(m,e);}
+  });
+  // meal：batches 陣列
+  try{
+    const raw=localStorage.getItem('hrpay:result:meal');
+    if(raw){
+      const d=JSON.parse(raw);const items={};
+      (d.batches||[]).forEach(b=>{
+        items[(b.period||'NA')+':B'+(b.mealBatch||'?')]={period:b.period,payPhase:'',mealBatch:b.mealBatch,
+          rows:b.rows||[],totals:b.totals||{},updatedAt:b.updatedAt||'',sourceFile:b.sourceFile||''};
+      });
+      if(Object.keys(items).length)MOD.meal={src:'local',items};
+    }
+  }catch(e){console.warn('meal',e);}
+}
+
+async function pullCloud(){
+  const btn=$('#btn-pull');btn.disabled=true;btn.textContent='☁ 拉取中…';
+  let got=0;
+  for(const m of ['payroll','advance','meal']){
+    try{
+      const r=await fetch(GAS_URL+'?action=pullProjection&module='+m);
+      const d=await r.json();
+      const store=d&&d.data;
+      if(store&&store.items&&Object.keys(store.items).length){
+        MOD[m]={src:'cloud',items:store.items};got++;
+      }
+    }catch(e){console.warn('pull',m,e);}
+  }
+  btn.disabled=false;btn.textContent='☁ 從雲端拉取';
+  toast(got?('已從雲端取得 '+got+' 個模組的 Projection'):'雲端尚無 Projection 資料');
+  render();
+}
+
+/* ── 期間選單：以 payroll(final) 的期間為主 ── */
+function periods(){
+  const set=new Set();
+  Object.values(MOD).forEach(m=>{if(m)Object.values(m.items).forEach(it=>{if(it.period)set.add(it.period);});});
+  return [...set].sort().reverse();
+}
+function pick(module,period,phase,batch){
+  const m=MOD[module];if(!m)return null;
+  let best=null;
+  Object.values(m.items).forEach(it=>{
+    if(period&&it.period!==period)return;
+    if(phase&&it.payPhase!==phase)return;
+    if(batch&&String(it.mealBatch)!==String(batch))return;
+    if(!best||String(it.updatedAt)>String(best.updatedAt))best=it;
+  });
+  return best;
+}
+
+/* ── KPI ── */
+function render(){
+  const ps=periods();
+  const sel=$('#sel-period');const cur=sel.value;
+  sel.innerHTML=ps.length?ps.map(p=>`<option value="${p}">${p}</option>`).join(''):'<option value="">（無資料）</option>';
+  if(cur&&ps.includes(cur))sel.value=cur;
+  const P=sel.value;
+
+  const pay=pick('payroll',P,'final'), adv=pick('advance',P,'advance'),
+        m1=pick('meal',P,null,1), m2=pick('meal',P,null,2);
+  const srcTag=m=>{const d=MOD[m];return d?`<span class="src ${d.src==='cloud'?'cloud':''}">${d.src==='cloud'?'雲端':'本機'}</span>`:'<span class="src none">無</span>';};
+
+  $('#kpis').innerHTML=`
+    <div class="kpi"><div class="t">💵 Payroll 實領合計 ${srcTag('payroll')}</div>
+      <div class="v">$${fmt(pay?.totals?.netPay)}</div><div class="s">${pay?(pay.rows.length+' 人 · '+(pay.sourceFile||'')):'尚無資料'}</div></div>
+    <div class="kpi"><div class="t">💰 Advance 首期發放 ${srcTag('advance')}</div>
+      <div class="v">$${fmt(adv?.totals?.advanceAmount)}</div><div class="s">${adv?(adv.rows.length+' 人'):'尚無資料'}</div></div>
+    <div class="kpi"><div class="t">🍱 Meal B1（1–15）${srcTag('meal')}</div>
+      <div class="v">$${fmt(m1?.totals?.mealFee)}</div><div class="s">${m1?(m1.rows.length+' 人'):'尚無資料'}</div></div>
+    <div class="kpi"><div class="t">🍱 Meal B2（16–月底）</div>
+      <div class="v">$${fmt(m2?.totals?.mealFee)}</div><div class="s">${m2?(m2.rows.length+' 人'):'尚無資料'}</div></div>`;
+
+  $('#src-list').innerHTML=['payroll','advance','meal'].map(m=>{
+    const d=MOD[m];
+    if(!d)return `<div>❌ <b>${m}</b>：尚無 Projection（請先到對應模組匯入 Excel）</div>`;
+    const ks=Object.keys(d.items).sort().reverse().slice(0,6).map(k=>`<span class="mono">${k}</span>`).join('、');
+    return `<div>✅ <b>${m}</b>（${d.src==='cloud'?'雲端':'本機'}）：${Object.keys(d.items).length} 期 → ${ks}</div>`;
+  }).join('');
+}
+
+/* ── 交叉核對 ── */
+function runAudit(){
+  const P=$('#sel-period').value;
+  if(!P){toast('請先選擇期間');return;}
+  const pay=pick('payroll',P,'final'), adv=pick('advance',P,'advance'),
+        m1=pick('meal',P,null,1), m2=pick('meal',P,null,2);
+  const R=$('#results');R.innerHTML='';
+  const panels=[];
+
+  /* Rule 1+2：Advance ↔ Payroll 扣回核對 */
+  if(pay&&adv){
+    const payMap={};pay.rows.forEach(r=>payMap[String(r.employeeId)]=r);
+    const missing=[],mismatch=[];
+    adv.rows.forEach(a=>{
+      const p=payMap[String(a.employeeId)];
+      if(!p){missing.push(a);return;}
+      const diff=Math.abs((p.advance||0)-(a.advanceAmount||0));
+      if(diff>TOL)mismatch.push({id:a.employeeId,name:a.name,dept:a.dept,adv:a.advanceAmount,ded:p.advance,diff});
+    });
+    const bad=missing.length+mismatch.length;
+    panels.push(`
+      <div class="panel"><div class="ph"><h2>規則 1｜預支發放 vs Payroll 扣回</h2>
+        <span class="pill ${bad?'err':'ok'}">${bad?bad+' 筆異常':'全部一致 ✓'}</span></div>
+      <div class="pb">
+        Advance ${adv.rows.length} 人，其中 ${missing.length} 人未出現在 Payroll、${mismatch.length} 人金額不符（容差 $${TOL}）。
+        ${mismatch.length?`<table style="margin-top:10px"><tr><th>ID</th><th>姓名</th><th>部門</th><th class="num">預支發放</th><th class="num">Payroll 扣回</th><th class="num">差額</th></tr>
+          ${mismatch.slice(0,50).map(x=>`<tr><td class="mono">${x.id}</td><td>${x.name}</td><td>${x.dept}</td>
+          <td class="num">$${fmt(x.adv)}</td><td class="num">$${fmt(x.ded)}</td><td class="num" style="color:var(--err)">$${fmt(x.diff)}</td></tr>`).join('')}</table>
+          ${mismatch.length>50?`<div class="s">…僅顯示前 50 筆</div>`:''}`:''}
+        ${missing.length?`<div style="margin-top:8px">未在 Payroll 出現：${missing.slice(0,30).map(x=>`<span class="mono">${x.employeeId}</span>`).join('、')}${missing.length>30?' …':''}
+        （可能為離職員工，請對照 Resigned Advancepay 表）</div>`:''}
+      </div></div>`);
+  }else{
+    panels.push(`<div class="panel"><div class="ph"><h2>規則 1｜預支 vs 扣回</h2><span class="pill warn">資料不足</span></div>
+      <div class="pb">需要同期間的 Advance 與 Payroll(final) Projection 才能核對。目前：Advance ${adv?'✓':'✗'}、Payroll ${pay?'✓':'✗'}</div></div>`);
+  }
+
+  /* Rule 3：Payroll 內部稽核異常 */
+  if(pay){
+    const an=pay.rows.filter(r=>r.auditFlag);
+    panels.push(`<div class="panel"><div class="ph"><h2>規則 2｜Payroll 內部稽核（小計/實領重算）</h2>
+      <span class="pill ${an.length?'warn':'ok'}">${an.length?an.length+' 筆待查':'無異常 ✓'}</span></div>
+      <div class="pb">${an.length?`<table><tr><th>ID</th><th>姓名</th><th>部門</th><th class="num">實領</th></tr>
+        ${an.slice(0,50).map(r=>`<tr><td class="mono">${r.employeeId}</td><td>${r.name}</td><td>${r.dept}</td><td class="num">$${fmt(r.netPay)}</td></tr>`).join('')}</table>
+        <div class="s" style="margin-top:6px">明細請回 Payroll 模組的稽核頁查看差異原因。</div>`
+        :'Payroll 模組匯入時的重算稽核未標記任何異常。'}</div></div>`);
+  }
+
+  /* Rule 4：Meal ↔ Payroll 名單比對 */
+  [[m1,'B1（1–15）'],[m2,'B2（16–月底）']].forEach(([mb,label])=>{
+    if(!mb)return;
+    if(!pay){panels.push(`<div class="panel"><div class="ph"><h2>規則 3｜Meal ${label} 名單比對</h2><span class="pill warn">缺 Payroll</span></div>
+      <div class="pb">同期間無 Payroll Projection，僅列出 Meal 統計：${mb.rows.length} 人、$${fmt(mb.totals.mealFee)}</div></div>`);return;}
+    const payIds=new Set(pay.rows.map(r=>String(r.employeeId)));
+    const notInPay=mb.rows.filter(r=>!payIds.has(String(r.employeeId)));
+    panels.push(`<div class="panel"><div class="ph"><h2>規則 3｜Meal ${label} vs Payroll 名單</h2>
+      <span class="pill ${notInPay.length?'warn':'ok'}">${notInPay.length?notInPay.length+' 人不在 Payroll':'名單一致 ✓'}</span></div>
+      <div class="pb">Meal ${mb.rows.length} 人 / Payroll ${pay.rows.length} 人。
+      ${notInPay.length?`不在 Payroll 名單：${notInPay.slice(0,30).map(x=>`<span class="mono">${x.employeeId}</span>`).join('、')}${notInPay.length>30?' …':''}
+      <div class="s">注意：Meal 與 Payroll 期間月份不同時（如 5 月薪資、6 月餐費）屬正常，請以同月資料核對。</div>`:''}</div></div>`);
+  });
+
+  R.innerHTML=panels.join('');
+  toast('核對完成');
+}
+
+$('#btn-pull').onclick=pullCloud;
+$('#btn-run').onclick=runAudit;
+$('#sel-period').onchange=render;
+loadLocal();render();
+</script>
+</body>
+</html>
