@@ -4429,7 +4429,7 @@ async function sendTelegramNotify(r, event){
   let panelOpen = false;
 
   function hcInit(){
-    gasUrl = localStorage.getItem(LS_GAS) || '';
+    gasUrl = localStorage.getItem(LS_GAS) || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
     document.getElementById('hcGasInput').value = gasUrl;
     hcShowStatus();
   }
@@ -4561,7 +4561,7 @@ async function sendTelegramNotify(r, event){
   });
 
   // Also expose getGasUrl for other functions
-  window.getGasUrl = function(){ return localStorage.getItem(LS_GAS)||''; };
+  window.getGasUrl = function(){ return localStorage.getItem(LS_GAS)||'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec'; };
 
   hcInit();
 })();
