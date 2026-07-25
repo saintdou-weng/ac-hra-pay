@@ -1,1023 +1,1015 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VRT 停工管理系統</title>
+<title>🛑 Shutdown Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Segoe UI', system-ui, sans-serif; }
-  .tab-btn.active { background:#1e40af; color:#fff; }
-  .tab-btn { transition: background .15s, color .15s; }
-  .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding-top:40px; }
-  .spin { animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  input[type=number]::-webkit-inner-spin-button { opacity:.4; }
-  .line-row:hover td { background:#f1f5f9; }
-  th { font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
-  .badge { display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:600; }
+  body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
+  .jmono{font-family:'IBM Plex Mono',monospace;}
+  .tab-active{border-bottom:2.5px solid #dc2626;color:#b91c1c;font-weight:700;}
+  .tab-inactive{border-bottom:2.5px solid transparent;color:#64748b;}
+  .ch260{height:260px;} .ch300{height:300px;}
+  .anim{animation:fade .35s ease both;} .anim-1{animation-delay:.05s;} .anim-2{animation-delay:.1s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  @media print{.no-print{display:none!important}}
 </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
+<body class="text-slate-800">
 
-<!-- ===== HEADER ===== -->
-<header class="bg-blue-800 text-white shadow-lg">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">V</div>
-      <div>
-        <div class="font-bold text-lg leading-tight" id="h-title">VRT 停工管理系統</div>
-        <div class="text-blue-300 text-xs">Vantage River Textiles · Sihanoukville</div>
-      </div>
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-red-700 flex items-center justify-center text-white font-bold text-lg shrink-0">🛑</div>
+    <div class="mr-2">
+      <h1 class="text-base font-bold leading-tight">Shutdown Analytics</h1>
+      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
     </div>
-    <div class="flex items-center gap-3">
-      <div id="conn-badge" class="badge bg-slate-600 text-white text-xs">⚙ 未連線</div>
-      <button onclick="toggleLang()" class="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded-lg border border-blue-500 transition">
-        <span id="lang-btn">EN</span>
-      </button>
+    <div class="flex items-center gap-1.5 ml-auto flex-wrap">
+      <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
+        <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="hidden md:inline" data-en="Upload">上傳</span></button>
+        <span class="w-px h-4 bg-sky-200"></span>
+        <button id="btn-cloud-down" onclick="cloudDownload()" title="從雲端下載"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span class="hidden md:inline" data-en="Download">下載</span></button>
+      </div>
+      <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
+        ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
+        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
+      <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+        ⬇ <span class="hidden sm:inline" data-en="Export">匯出</span></button>
+      <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition">中/EN</button>
     </div>
   </div>
 </header>
 
-<!-- ===== NAV TABS ===== -->
-<div class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-  <div class="max-w-7xl mx-auto px-4 flex gap-1 py-2">
-    <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium" onclick="showTab('dash')" id="tab-dash">📊 <span data-i="dashboard">儀表板</span></button>
-    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" onclick="showTab('events')" id="tab-events">📋 <span data-i="records">停工紀錄</span></button>
-    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" onclick="showTab('import')" id="tab-import">📥 <span data-i="importExcel">匯入 Excel</span></button>
-    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" onclick="showTab('tg')" id="tab-tg">✈ Telegram</button>
-    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" onclick="showTab('settings')" id="tab-settings">⚙ <span data-i="settings">設定</span></button>
+<div class="bg-gradient-to-r from-rose-50 via-white to-amber-50 border-b border-slate-100 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3">
+    <label id="dz-smart" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-rose-300 rounded-xl px-4 py-3 cursor-pointer hover:border-rose-500 hover:bg-rose-50/60 transition group">
+      <div class="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0 group-hover:bg-rose-200 transition"><span class="text-xl">🪄</span></div>
+      <div class="flex-1 min-w-[220px]">
+        <p class="text-sm font-bold text-rose-800" data-en="Smart Import — drop or click to select">智慧匯入 — 拖進來或點擊選檔</p>
+        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Shutdown workbooks with one sheet per year. Years and events are detected automatically.">
+          停工記錄活頁簿（每年一張工作表）。系統自動辨識年度與各筆停工事件，其他無關工作表會自動略過。</p>
+        <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
+      </div>
+      <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-rose-600 text-white shrink-0 group-hover:bg-rose-700 transition" data-en="Choose files">選擇檔案</span>
+      <input type="file" accept=".xlsx,.xls,.xlsm,.csv" multiple class="hidden" onchange="smartImport(this)">
+    </label>
+    <div id="smart-report" class="hidden mt-2 text-[11px] bg-white border border-slate-200 rounded-lg p-2.5 space-y-1"></div>
   </div>
 </div>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-
-<!-- ===== DASHBOARD TAB ===== -->
-<div id="tab-dash-content">
-  <!-- KPI Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-slate-500 text-xs mb-1" data-i="totalEvents">總停工次數</div>
-      <div class="text-3xl font-bold text-blue-700" id="kpi-events">—</div>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-slate-500 text-xs mb-1" data-i="thisYear">本年度停工天數</div>
-      <div class="text-3xl font-bold text-amber-600" id="kpi-days">—</div>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-slate-500 text-xs mb-1" data-i="latestEvent">最近停工日期</div>
-      <div class="text-lg font-semibold text-slate-700" id="kpi-latest">—</div>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-slate-500 text-xs mb-1" data-i="avgPct">平均停工人員比</div>
-      <div class="text-3xl font-bold text-red-600" id="kpi-pct">—</div>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Bar Chart -->
-    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
-      <h2 class="font-semibold text-slate-700 mb-4" data-i="yearlyChart">歷年停工天數比較</h2>
-      <div style="height:280px; position:relative;">
-        <canvas id="yearChart" role="img" aria-label="Yearly shutdown days comparison chart">年度停工天數圖表</canvas>
-      </div>
-    </div>
-
-    <!-- Monthly Table -->
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="font-semibold text-slate-700" data-i="monthlyBreakdown">月份明細</h2>
-        <select id="stat-year-sel" onchange="renderMonthly()" class="text-sm border border-slate-300 rounded-lg px-2 py-1"></select>
-      </div>
-      <div id="monthly-table"></div>
-    </div>
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-30 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button id="tab-dash"   onclick="goTab('dash')"   class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
+    <button id="tab-time"   onclick="goTab('time')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
+    <button id="tab-events" onclick="goTab('events')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📋 Event List">📋 事件清單</button>
+    <button id="tab-pattern"onclick="goTab('pattern')"class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔍 Pattern">🔍 型態分析</button>
+    <button id="tab-report" onclick="goTab('report')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📈 Period Report">📈 期間報表</button>
   </div>
 </div>
 
-<!-- ===== EVENTS TAB ===== -->
-<div id="tab-events-content" class="hidden">
-  <div class="flex items-center justify-between mb-4">
-    <div class="flex items-center gap-3">
-      <select id="ev-year-filter" onchange="loadEvents()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-        <option value="">全部年份</option>
+<main class="max-w-screen-2xl mx-auto px-4 py-4">
+
+<div id="empty-state" class="flex flex-col items-center justify-center py-28 text-center">
+  <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">🛑</span></div>
+  <p class="text-slate-400 font-medium" data-en="Upload the shutdown workbook to begin">上傳停工記錄表後開始分析</p>
+  <p class="text-slate-300 text-xs mt-2" data-en="Drag the file here or click to choose.">可直接把檔案拖進上方區域</p>
+</div>
+
+<div id="app" class="hidden">
+
+  <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="stepPeriod(-1)" title="上一期"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-rose-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
+      <select id="nav-period" onchange="jumpPeriod(this.value)"
+        class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200 min-w-[170px] text-center"></select>
+      <button onclick="stepPeriod(1)" title="下一期"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-rose-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
+      <span id="nav-hint" class="text-[11px] ml-1 text-slate-400"></span>
+      <select id="sel-scale" onchange="renderAll()"
+        class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+        <option value="" data-en="All shutdowns">全部停工 All</option>
+        <option value="full" data-en="Full shutdown only">全廠停工 Full</option>
+        <option value="partial" data-en="Partial only">部分停工 Partial</option>
       </select>
-      <div class="text-sm text-slate-500" id="ev-count"></div>
+      <select id="sel-dur" onchange="renderAll()"
+        class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+        <option value="" data-en="Any duration">不限天數 Any</option>
+        <option value="1" data-en="1 day">1 天</option>
+        <option value="2-3" data-en="2–3 days">2–3 天</option>
+        <option value="4-7" data-en="4–7 days">4–7 天</option>
+        <option value="8+" data-en="8+ days">8 天以上</option>
+      </select>
     </div>
-    <button onclick="openEventModal('new')" class="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
-      <span class="text-lg leading-none">+</span> <span data-i="addEvent">新增停工事件</span>
-    </button>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14" data-en="Time">時間</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="cu-day"     onclick="setUnit('day')"     data-en="Daily"     class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+        <button id="cu-week"    onclick="setUnit('week')"    data-en="Weekly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+        <button id="cu-month"   onclick="setUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-rose-700 transition">每月</button>
+        <button id="cu-quarter" onclick="setUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
+        <button id="cu-year"    onclick="setUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+      </div>
+      <span id="scope-txt" class="text-[11px] text-slate-400 ml-auto"></span>
+    </div>
   </div>
 
-  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 border-b border-slate-200">
-        <tr>
-          <th class="text-left px-4 py-3 text-slate-500">#</th>
-          <th class="text-left px-4 py-3 text-slate-500" data-i="startDate">起始日期</th>
-          <th class="text-left px-4 py-3 text-slate-500" data-i="endDate">結束日期</th>
-          <th class="text-right px-4 py-3 text-slate-500" data-i="days">停工天數</th>
-          <th class="text-right px-4 py-3 text-slate-500" data-i="shutdownLines">停工產線</th>
-          <th class="text-right px-4 py-3 text-slate-500" data-i="shutdownPpl">停工人數</th>
-          <th class="text-right px-4 py-3 text-slate-500" data-i="pct">停工比%</th>
-          <th class="text-left px-4 py-3 text-slate-500" data-i="notes">備註</th>
-          <th class="px-4 py-3"></th>
-        </tr>
-      </thead>
-      <tbody id="ev-tbody" class="divide-y divide-slate-100"></tbody>
-    </table>
-    <div id="ev-empty" class="hidden text-center py-16 text-slate-400">
-      <div class="text-4xl mb-2">📋</div>
-      <div data-i="noRecords">尚無停工紀錄</div>
+  <!-- DASHBOARD -->
+  <div id="pane-dash" class="pane">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="EVENTS">停工次數 EVENTS</p>
+        <p id="k-cnt" class="text-2xl font-bold jmono mt-1 text-rose-600">—</p>
+        <p id="k-cnt-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="SHUTDOWN DAYS">停工天數 DAYS</p>
+        <p id="k-days" class="text-2xl font-bold jmono mt-1">—</p>
+        <p id="k-days-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="LOST PERSON-DAYS">停工人日 PERSON-DAYS</p>
+        <p id="k-pd" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
+        <p id="k-pd-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="AVG AFFECTED">平均停工人數 AVG PPL</p>
+        <p id="k-ppl" class="text-2xl font-bold jmono mt-1 text-sky-600">—</p>
+        <p id="k-ppl-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="FULL SHUTDOWN RATE">全廠停工比例 FULL</p>
+        <p id="k-full" class="text-2xl font-bold jmono mt-1 text-emerald-600">—</p>
+        <p id="k-full-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Trend">停工趨勢</p>
+        <p id="trend-note" class="text-[11px] text-slate-400 mb-3"></p>
+        <div class="ch300"><canvas id="trend-chart"></canvas></div>
+      </div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Shutdown Line Ratio">停工組數比例分布</p>
+        <p class="text-[11px] text-slate-400 mb-3" data-en="How much of the factory stopped each time">每次停工影響的產線占比</p>
+        <div class="ch300"><canvas id="scale-chart"></canvas></div>
+      </div>
     </div>
   </div>
+
+  <!-- TIME DETAIL -->
+  <div id="pane-time" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p id="time-title" class="text-sm font-semibold text-slate-700 flex-1">📅 每月明細</p>
+        <button onclick="exportCSV('time')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div id="time-note" class="px-4 py-2 text-[11px] text-slate-500 bg-slate-50 border-b border-slate-100"></div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="time-thead"></tr></thead>
+        <tbody id="time-tbody"></tbody>
+        <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr id="time-tfoot"></tr></tfoot>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- EVENTS -->
+  <div id="pane-events" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <input id="ev-q" oninput="renderEvents()" placeholder="搜尋日期 / 星期…"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-rose-200 flex-1 min-w-[180px]">
+        <select id="ev-scope" onchange="renderEvents()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+          <option value="period" data-en="Current period">本期間 Current</option>
+          <option value="all" data-en="All periods">全部期間 All</option>
+        </select>
+        <span id="ev-count" class="text-[11px] text-slate-400"></span>
+        <button onclick="exportCSV('events')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr id="ev-thead"></tr></thead>
+        <tbody id="ev-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- PATTERN -->
+  <div id="pane-pattern" class="pane hidden"><div id="pattern-body"></div></div>
+
+  <!-- REPORT -->
+  <div id="pane-report" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p class="text-sm font-semibold text-slate-700 flex-1" data-en="📈 Period Report">📈 期間報表</p>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="rp-month"   onclick="setReportMode('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-rose-700 transition">月報</button>
+          <button id="rp-quarter" onclick="setReportMode('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">季報</button>
+          <button id="rp-year"    onclick="setReportMode('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">年報</button>
+        </div>
+        <span id="rp-count" class="text-[11px] text-slate-400"></span>
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="rp-thead"></tr></thead>
+        <tbody id="rp-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
 </div>
+</main>
 
-<!-- ===== IMPORT TAB ===== -->
-<div id="tab-import-content" class="hidden">
-  <div class="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-    <h2 class="font-semibold text-slate-700 mb-1" data-i="importTitle">匯入歷史 Excel 資料</h2>
-    <p class="text-sm text-slate-500 mb-5" data-i="importDesc">支援 .xlsx / .xls 格式。請先下載匯入範本，填寫後上傳。</p>
-
-    <div class="flex gap-3 mb-5">
-      <button onclick="downloadTemplate()" class="border border-blue-600 text-blue-700 hover:bg-blue-50 px-4 py-2 rounded-lg text-sm font-medium transition">
-        ⬇ <span data-i="downloadTemplate">下載匯入範本</span>
-      </button>
+<div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✈️</span>
+      <div class="flex-1">
+        <p class="text-sm font-bold text-slate-800" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" data-en="Shutdown Summary">停工摘要</p>
+      </div>
+      <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
-
-    <!-- Drop Zone -->
-    <div id="drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
-         onclick="document.getElementById('file-input').click()"
-         ondragover="event.preventDefault();this.classList.add('border-blue-400','bg-blue-50')"
-         ondragleave="this.classList.remove('border-blue-400','bg-blue-50')"
-         ondrop="handleDrop(event)">
-      <div class="text-4xl mb-3">📂</div>
-      <div class="text-slate-600 font-medium" data-i="dropHere">拖曳 Excel 檔案至此，或點擊選取</div>
-      <div class="text-slate-400 text-sm mt-1">.xlsx / .xls</div>
-      <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" onchange="handleFile(this.files[0])">
-    </div>
-  </div>
-
-  <!-- Preview -->
-  <div id="import-preview" class="hidden bg-white rounded-xl border border-slate-200 p-6">
-    <div class="flex items-center justify-between mb-4">
+    <div class="px-5 py-4 space-y-3">
       <div>
-        <h3 class="font-semibold text-slate-700" data-i="importPreview">匯入預覽</h3>
-        <div class="text-sm text-slate-500 mt-0.5" id="preview-count"></div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Report Scope">報表範圍 Scope</label>
+        <select id="tg-scope" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+          <option value="month" data-en="Selected month">指定月份 Month</option>
+          <option value="year" data-en="Selected year">整個年度 Year</option>
+        </select>
       </div>
-      <button onclick="confirmImport()" id="import-btn" class="bg-green-700 hover:bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
-        ✓ <span data-i="confirmImport">確認匯入</span>
-      </button>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Select Period">選擇期間 Period</label>
+        <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200"></select>
+      </div>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre>
+      </div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-xs">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="text-left px-3 py-2 text-slate-500">#</th>
-            <th class="text-left px-3 py-2 text-slate-500" data-i="startDate">起始</th>
-            <th class="text-left px-3 py-2 text-slate-500" data-i="endDate">結束</th>
-            <th class="text-right px-3 py-2 text-slate-500" data-i="days">天數</th>
-            <th class="text-right px-3 py-2 text-slate-500">停工線</th>
-            <th class="text-right px-3 py-2 text-slate-500" data-i="shutdownPpl">停工人數</th>
-            <th class="text-right px-3 py-2 text-slate-500" data-i="totalPpl">總人數</th>
-            <th class="text-left px-3 py-2 text-slate-500" data-i="notes">備註</th>
-          </tr>
-        </thead>
-        <tbody id="preview-tbody" class="divide-y divide-slate-100"></tbody>
-      </table>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeTgModal()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" data-en="Send" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">確認傳送</button>
     </div>
   </div>
 </div>
 
-<!-- ===== TELEGRAM TAB ===== -->
-<div id="tab-tg-content" class="hidden">
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div class="bg-white rounded-xl border border-slate-200 p-6">
-      <h2 class="font-semibold text-slate-700 mb-4" data-i="sendReport">發送停工摘要報告</h2>
-      <div class="mb-3">
-        <label class="text-sm text-slate-600 block mb-1" data-i="selectEvent">選擇停工事件</label>
-        <select id="tg-event-sel" onchange="buildTgMsg()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
-      </div>
-      <div class="mb-4">
-        <label class="text-sm text-slate-600 block mb-1" data-i="message">訊息內容</label>
-        <textarea id="tg-msg" rows="12" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono" style="resize:vertical;"></textarea>
-      </div>
-      <div class="flex gap-3">
-        <button onclick="sendTgMsg()" class="bg-blue-700 hover:bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
-          ✈ <span data-i="send">發送</span>
-        </button>
-        <button onclick="buildTgMsg()" class="border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm transition" data-i="refresh">重新產生</button>
-      </div>
-      <div id="tg-result" class="mt-3 text-sm hidden"></div>
-    </div>
-
-    <div class="bg-white rounded-xl border border-slate-200 p-6">
-      <h2 class="font-semibold text-slate-700 mb-4">Bot 資訊</h2>
-      <div class="bg-slate-50 rounded-lg p-4 text-xs font-mono space-y-1 mb-4">
-        <div><span class="text-slate-500">Bot:</span> VRTHRBOT</div>
-        <div><span class="text-slate-500">Token:</span> 8651537941:AAGNpfBoF-...</div>
-        <div><span class="text-slate-500">Chat ID:</span> -4176934779</div>
-      </div>
-      <button onclick="testTg()" class="border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm transition">
-        🔔 <span data-i="testBot">測試 Bot 連線</span>
-      </button>
-      <div id="tg-test-result" class="mt-3 text-sm"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SETTINGS TAB ===== -->
-<div id="tab-settings-content" class="hidden">
-  <div class="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-    <h2 class="font-semibold text-slate-700 mb-1" data-i="gasConfig">GAS 連線設定</h2>
-    <p class="text-xs text-slate-500 mb-4" data-i="gasDesc">貼上 Google Apps Script 部署後的 Web App URL</p>
-    <div class="flex gap-3">
-      <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm">
-      <button onclick="saveGasUrl()" class="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition" data-i="save">儲存</button>
-      <button onclick="initGas()" class="border border-green-600 text-green-700 hover:bg-green-50 px-4 py-2 rounded-lg text-sm transition" data-i="initSheets">初始化 Sheets</button>
-    </div>
-    <div id="settings-msg" class="mt-2 text-sm hidden"></div>
-  </div>
-
-  <div class="bg-white rounded-xl border border-slate-200 p-6">
-    <h2 class="font-semibold text-slate-700 mb-4" data-i="exportAll">匯出全部資料</h2>
-    <button onclick="exportAllExcel()" class="border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm transition">
-      📊 <span data-i="exportExcel">匯出 Excel</span>
-    </button>
-  </div>
-</div>
-
-</div><!-- end max-w -->
-
-<!-- ===== EVENT MODAL ===== -->
-<div id="event-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 mb-8 overflow-hidden" onclick="event.stopPropagation()">
-    <!-- Modal Header -->
-    <div class="bg-blue-800 text-white px-6 py-4 flex items-center justify-between">
-      <h3 class="font-semibold text-lg" id="modal-title">新增停工事件</h3>
-      <button onclick="closeModal()" class="text-blue-200 hover:text-white text-2xl leading-none">×</button>
-    </div>
-    <div class="overflow-y-auto" style="max-height:80vh;">
-      <!-- Basic Info -->
-      <div class="p-6 border-b border-slate-200">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <label class="text-xs text-slate-500 block mb-1" data-i="eventNo">次數 #</label>
-            <input type="number" id="f-event-no" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="1">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1" data-i="startDate">起始日期</label>
-            <input type="date" id="f-start" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" onchange="calcDays()">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1" data-i="endDate">結束日期</label>
-            <input type="date" id="f-end" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" onchange="calcDays()">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1" data-i="days">停工天數</label>
-            <input type="number" id="f-days" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50" readonly>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">總產線數 TTL Lines</label>
-            <input type="number" id="f-ttl-lines" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" value="18" onchange="calcSummary()">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">停工產線數 Shutdown Lines</label>
-            <input type="number" id="f-shut-lines" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" onchange="calcSummary()">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">停工線% Line Pct</label>
-            <input type="text" id="f-line-pct" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50" readonly>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">全廠人數 Total PPL</label>
-            <input type="number" id="f-ttl-ppl" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-blue-50 font-semibold" readonly>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">停工人數 Shutdown PPL</label>
-            <input type="number" id="f-shut-ppl" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-red-50 font-semibold" readonly>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">留守人數 Remain PPL</label>
-            <input type="number" id="f-rem-ppl" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-green-50 font-semibold" readonly>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500 block mb-1">停工人員% PPL Pct</label>
-            <input type="text" id="f-ppl-pct" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50" readonly>
-          </div>
-          <div class="md:col-span-1">
-            <label class="text-xs text-slate-500 block mb-1" data-i="notes">備註</label>
-            <input type="text" id="f-notes" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="...">
-          </div>
-        </div>
-      </div>
-
-      <!-- Line Stats Grid -->
-      <div class="p-6">
-        <div class="flex items-center justify-between mb-3">
-          <h4 class="font-semibold text-slate-700 text-sm" data-i="lineStatsTitle">各組停工人數明細</h4>
-          <div class="text-xs text-slate-400">輸入各組人數後，合計自動計算</div>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-100">
-              <tr>
-                <th class="text-left px-3 py-2 text-slate-500">組別 / Line</th>
-                <th class="text-left px-3 py-2 text-slate-500">部門</th>
-                <th class="text-right px-3 py-2 text-slate-500">基準人數</th>
-                <th class="text-right px-3 py-2 text-slate-500 bg-red-50">停工人數</th>
-                <th class="text-right px-3 py-2 text-slate-500 bg-green-50">留守人數</th>
-                <th class="text-right px-3 py-2 text-slate-500">停工率%</th>
-              </tr>
-            </thead>
-            <tbody id="line-stats-tbody" class="divide-y divide-slate-100"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <!-- Modal Footer -->
-    <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-      <button onclick="closeModal()" class="border border-slate-300 hover:bg-slate-100 px-4 py-2 rounded-lg text-sm transition" data-i="cancel">取消</button>
-      <div class="flex gap-3">
-        <button onclick="saveEvent()" class="bg-blue-700 hover:bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition" data-i="save">儲存</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== LOADING OVERLAY ===== -->
-<div id="loading" class="hidden fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-  <div class="bg-white rounded-xl px-8 py-5 flex items-center gap-4 shadow-xl">
-    <div class="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full spin" style="border-width:3px;"></div>
-    <span class="text-slate-700 text-sm font-medium" id="loading-msg">處理中…</span>
-  </div>
-</div>
-
-<!-- ===== TOAST ===== -->
-<div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-medium transition-all"></div>
+<div id="toast" class="fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border border-slate-100 px-4 py-3 hidden no-print text-sm"></div>
 
 <script>
-// ================================================================
-// CONFIG
-// ================================================================
-let GAS_URL = localStorage.getItem('vrt_gas_url') || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+'use strict';
+// ═══════════════════════════════════════════════════════
+//  AC-HRA-PAY · Shutdown Analytics v2.0
+//  資料粒度：每筆停工事件（起訖日、天數、停工組數、停工人數）
+// ═══════════════════════════════════════════════════════
+const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
+  'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+const IDB_NAME='ac_hra_shutdown', IDB_VER=1, IDB_STORE='events';
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WD_ZH={Sun:'日',Mon:'一',Tue:'二',Wed:'三',Thu:'四',Fri:'五',Sat:'六'};
+const WD_ORDER=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const PALETTE=['#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#10b981','#ec4899','#14b8a6','#6366f1'];
 
-// ================================================================
-// i18n
-// ================================================================
-const LANG = { cur: localStorage.getItem('vrt_lang') || 'zh' };
-const T = {
-  zh: {
-    dashboard:'儀表板', records:'停工紀錄', importExcel:'匯入 Excel', settings:'設定',
-    totalEvents:'總停工次數', thisYear:'本年度停工天數', latestEvent:'最近停工日期', avgPct:'平均停工人員比',
-    yearlyChart:'歷年停工天數比較', monthlyBreakdown:'月份明細',
-    addEvent:'新增停工事件', startDate:'起始日期', endDate:'結束日期', days:'停工天數',
-    shutdownLines:'停工產線', shutdownPpl:'停工人數', totalPpl:'全廠人數', pct:'停工比%', notes:'備註',
-    noRecords:'尚無停工紀錄', eventNo:'次數 #', lineStatsTitle:'各組停工人數明細',
-    cancel:'取消', save:'儲存', send:'發送', refresh:'重新產生',
-    importTitle:'匯入歷史 Excel 資料', importDesc:'支援 .xlsx / .xls 格式，請先下載範本',
-    downloadTemplate:'下載匯入範本', dropHere:'拖曳 Excel 至此，或點擊選取',
-    importPreview:'匯入預覽', confirmImport:'確認匯入',
-    sendReport:'發送停工摘要報告', selectEvent:'選擇停工事件', message:'訊息內容', testBot:'測試 Bot 連線',
-    gasConfig:'GAS 連線設定', gasDesc:'貼上 Google Apps Script 部署後的 Web App URL',
-    initSheets:'初始化 Sheets', exportAll:'匯出全部資料', exportExcel:'匯出 Excel',
-    addNew:'新增停工事件', edit:'編輯', delete:'刪除', confirm:'確認刪除此紀錄？'
-  },
-  en: {
-    dashboard:'Dashboard', records:'Shutdown Records', importExcel:'Import Excel', settings:'Settings',
-    totalEvents:'Total Events', thisYear:'This Year (days)', latestEvent:'Latest Shutdown', avgPct:'Avg Shutdown %',
-    yearlyChart:'Yearly Shutdown Days', monthlyBreakdown:'Monthly Breakdown',
-    addEvent:'Add New Event', startDate:'Start Date', endDate:'End Date', days:'Days',
-    shutdownLines:'Shutdown Lines', shutdownPpl:'Shutdown PPL', totalPpl:'Total PPL', pct:'Pct %', notes:'Notes',
-    noRecords:'No records found', eventNo:'Event #', lineStatsTitle:'Line-Level Shutdown Details',
-    cancel:'Cancel', save:'Save', send:'Send', refresh:'Regenerate',
-    importTitle:'Import Historical Excel Data', importDesc:'Supports .xlsx / .xls. Download template first.',
-    downloadTemplate:'Download Template', dropHere:'Drag & drop Excel file here, or click to browse',
-    importPreview:'Import Preview', confirmImport:'Confirm Import',
-    sendReport:'Send Shutdown Summary', selectEvent:'Select Event', message:'Message', testBot:'Test Bot',
-    gasConfig:'GAS Connection', gasDesc:'Paste your Google Apps Script Web App URL',
-    initSheets:'Init Sheets', exportAll:'Export All Data', exportExcel:'Export Excel',
-    addNew:'Add Event', edit:'Edit', delete:'Delete', confirm:'Confirm delete this record?'
-  }
-};
+let LANG='zh', EVENTS=[], ACTIVE=null, UNIT='month', REPORT_MODE='month', charts={};
 
-function t(key) { return T[LANG.cur][key] || key; }
-function applyLang() {
-  document.querySelectorAll('[data-i]').forEach(el => { el.textContent = t(el.dataset.i); });
-  document.getElementById('lang-btn').textContent = LANG.cur === 'zh' ? 'EN' : '中';
+const qs=s=>document.querySelector(s);
+const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const fmt=n=>(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const int=n=>Math.round(n||0).toLocaleString('en-US');
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const T=(zh,en)=>LANG==='en'?en:zh;
+const pad=n=>String(n).padStart(2,'0');
+function _nowISO(){const d=new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+function toast(msg,kind){
+  const t=qs('#toast');
+  const c={success:'border-emerald-200 text-emerald-700',error:'border-rose-200 text-rose-700',
+           warning:'border-amber-200 text-amber-700'}[kind]||'border-slate-100 text-slate-700';
+  t.className='fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border px-4 py-3 no-print text-sm '+c;
+  t.textContent=msg; t.classList.remove('hidden');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.add('hidden'),3200);
 }
-function toggleLang() {
-  LANG.cur = LANG.cur === 'zh' ? 'en' : 'zh';
-  localStorage.setItem('vrt_lang', LANG.cur);
+function toggleLang(){LANG=LANG==='zh'?'en':'zh';applyLang();}
+function applyLang(){
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.zhOrig===undefined) el.dataset.zhOrig=el.textContent;
+    el.textContent=LANG==='en'?el.dataset.en:el.dataset.zhOrig;
+  });
+  if(EVENTS.length){try{renderAll();}catch(e){console.warn(e);}}
+}
+
+// ━━━━ IndexedDB ━━━━
+let _dbReady=null;
+function idbOpen(){
+  if(_dbReady)return _dbReady;
+  _dbReady=new Promise(res=>{
+    const rq=indexedDB.open(IDB_NAME,IDB_VER);
+    rq.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE,{keyPath:'k'});};
+    rq.onsuccess=e=>res(e.target.result); rq.onerror=()=>res(null);
+  });
+  return _dbReady;
+}
+async function idbSaveAll(){
+  const db=await idbOpen(); if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put({k:'all',events:EVENTS,updatedAt:_nowISO()});
+    tx.oncomplete=()=>r(); tx.onerror=()=>r();});
+}
+async function idbLoad(){
+  const db=await idbOpen(); if(!db)return [];
+  return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get('all');
+    rq.onsuccess=()=>r((rq.result&&rq.result.events)||[]); rq.onerror=()=>r([]);});
+}
+async function idbClear(){
+  const db=await idbOpen(); if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).clear(); tx.oncomplete=()=>r(); tx.onerror=()=>r();});
+}
+
+// ━━━━ 日期工具（一律使用本地 getter，不用 toISOString）━━━━
+function toDate(v){
+  if(v instanceof Date) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'&&v>20000){
+    const p=XLSX.SSF.parse_date_code(v);
+    if(p) return new Date(p.y,p.m-1,p.d);
+  }
+  if(typeof v==='string'){
+    const m=v.trim().match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+    const d=new Date(v); if(!isNaN(d)) return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  }
+  return null;
+}
+const dStr=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const wdName=d=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+function isoWeek(d){
+  const t=new Date(d.valueOf());
+  t.setDate(t.getDate()+3-((d.getDay()+6)%7));
+  const w1=new Date(t.getFullYear(),0,4);
+  return {y:t.getFullYear(),w:1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7)};
+}
+
+// ━━━━ 解析停工工作表 ━━━━
+//  版面：表頭列含 Date / TTl Day / Shutdown Line 等英文標籤（其下一列為中文）
+//        每筆事件佔兩列：第一列 col2='Start'（含全部數值），第二列 col2='End'（僅日期）
+//        欄位：1=次數 2=Start/End 3=中文 4=日期 5=星期 6=停工天數 7=總組數
+//              8=停工組數 9=組數比例 10=停工人數 11=人數比例 12=未停工 13=總人數
+function parseShutdownSheet(ws, sheetName){
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  if(raw.length<4)return null;
+
+  // 表頭列：含 Date 且含 Shutdown Line / TTl Day
+  let hr=-1;
+  for(let i=0;i<8;i++){
+    const r=(raw[i]||[]).map(x=>String(x||'').trim().toLowerCase());
+    if(r.some(x=>/^date$/.test(x)) && r.some(x=>/shutdown\s*line|ttl\s*day/.test(x))){hr=i;break;}
+  }
+  if(hr<0)return null;
+  const hdr=raw[hr];
+
+  // 依標籤定位欄位
+  let cDate=-1,cWd=-1,cDays=-1,cTtlLine=-1,cShutLine=-1,cShutPPL=-1,cRemain=-1,cTtlPPL=-1;
+  for(let c=0;c<hdr.length;c++){
+    const v=String(hdr[c]||'').trim().toLowerCase();
+    if(/^date$/.test(v))cDate=c;
+    else if(/^weekday$/.test(v))cWd=c;
+    else if(/ttl\s*day/.test(v))cDays=c;
+    else if(/^ttl\s*line$/.test(v))cTtlLine=c;
+    else if(/shutdown\s*line/.test(v))cShutLine=c;
+    else if(/shutdown\s*ppl/.test(v))cShutPPL=c;
+    else if(/remain\s*ppl/.test(v))cRemain=c;
+    else if(/^ttl\s*ppl$/.test(v))cTtlPPL=c;
+  }
+  if(cDate<0)return null;
+
+  // Start/End 標記欄：不同讀取器的欄位起點可能相差一格，故動態偵測
+  let cTag=-1;
+  for(let i=hr+1;i<Math.min(raw.length,hr+30)&&cTag<0;i++){
+    const r=raw[i]||[];
+    for(let c=0;c<Math.min(5,r.length);c++)
+      if(String(r[c]||'').trim().toLowerCase()==='start'){cTag=c;break;}
+  }
+  if(cTag<0)return null;
+  const cSeq=Math.max(0,cTag-1);
+
+  // 年度：工作表名優先
+  let sheetYear=0;
+  const my=String(sheetName).match(/(20\d{2})/);
+  if(my)sheetYear=+my[1];
+
+  const out=[];
+  for(let i=hr+1;i<raw.length;i++){
+    const r=raw[i]||[];
+    const tag=String(r[cTag]||'').trim().toLowerCase();
+    if(tag!=='start')continue;
+    const sd=toDate(r[cDate]);
+    if(!sd)continue;
+    // 結束列：往下找最近的 End
+    let ed=sd;
+    for(let j=i+1;j<Math.min(i+4,raw.length);j++){
+      const t2=String((raw[j]||[])[cTag]||'').trim().toLowerCase();
+      if(t2==='end'){const e=toDate((raw[j]||[])[cDate]); if(e)ed=e; break;}
+      if(t2==='start')break;
+    }
+    const days=cDays>=0?N(r[cDays]):0;
+    const ttlLine=cTtlLine>=0?N(r[cTtlLine]):0;
+    const shutLine=cShutLine>=0?N(r[cShutLine]):0;
+    const shutPPL=cShutPPL>=0?N(r[cShutPPL]):0;
+    const remain=cRemain>=0?N(r[cRemain]):0;
+    const ttlPPL=cTtlPPL>=0?N(r[cTtlPPL]):0;
+    if(!days&&!shutPPL&&!shutLine)continue;
+    const spanDays=Math.round((ed-sd)/86400000)+1;
+    out.push({
+      year:sheetYear||sd.getFullYear(),
+      seq:N(r[cSeq])||out.length+1,
+      start:dStr(sd), end:dStr(ed),
+      wdStart:cWd>=0?String(r[cWd]||'').trim()||wdName(sd):wdName(sd),
+      wdEnd:wdName(ed),
+      days: days||spanDays,
+      spanDays,
+      ttlLine, shutLine,
+      lineRatio: ttlLine? shutLine/ttlLine : 0,
+      shutPPL, remainPPL:remain,
+      ttlPPL: ttlPPL || (shutPPL+remain),
+      personDays: (days||spanDays)*shutPPL
+    });
+  }
+  return out.length?out:null;
+}
+function parseWorkbook(wb,fileName){
+  // ⚠ 活頁簿中同時存在「各年度分頁」與「shutdown update」總表，兩者資料重疊。
+  //    以年度分頁為權威（欄位較新，例如 2026 的總組數為 13 而非舊表的 12）；
+  //    總表只補上沒有專屬分頁的年度。
+  const byYearSheet={}, fromMaster=[];
+  wb.SheetNames.forEach(sn=>{
+    const r=parseShutdownSheet(wb.Sheets[sn],sn);
+    if(!r)return;
+    r.forEach(x=>{x.sheet=sn;x.src=fileName||'';});
+    if(/^\s*20\d{2}\s*$/.test(sn)) (byYearSheet[+sn]=byYearSheet[+sn]||[]).push(...r);
+    else fromMaster.push(...r);
+  });
+  const covered=new Set(Object.keys(byYearSheet).map(Number));
+  let all=[];
+  Object.keys(byYearSheet).sort().forEach(y=>all=all.concat(byYearSheet[y]));
+  all=all.concat(fromMaster.filter(x=>!covered.has(x.year)));
+  // 再以「起始日＋結束日」保險去重
+  const seen=new Set();
+  all=all.filter(x=>{const k=x.start+'|'+x.end;if(seen.has(k))return false;seen.add(k);return true;});
+  return all.length?all:null;
+}
+
+// ━━━━ 智慧匯入 ━━━━
+async function smartImport(input){
+  const files=[...input.files]; input.value='';
+  if(!files.length)return;
+  const st=qs('#smart-status'), rep=qs('#smart-report');
+  st.textContent=T(`⏳ 解析 ${files.length} 個檔案中…`,`⏳ Parsing ${files.length} file(s)…`);
+  st.style.color='#b91c1c'; rep.classList.add('hidden'); rep.innerHTML='';
+
+  const log=[];
+  for(const file of files){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
+      const recs=parseWorkbook(wb,file.name);
+      if(!recs){ log.push({ok:false,f:file.name,msg:T('找不到停工資料（需含 Date / Shutdown Line 表頭）','No shutdown data found')}); continue; }
+      // 以「年度＋起始日」為鍵去重，重覆匯入會覆蓋
+      const keys=new Set(recs.map(r=>r.year+'|'+r.start));
+      EVENTS=EVENTS.filter(e=>!keys.has(e.year+'|'+e.start));
+      EVENTS=EVENTS.concat(recs);
+      const sheets=[...new Set(recs.map(r=>r.sheet))];
+      log.push({ok:true,f:file.name,n:recs.length,sheets,
+        years:[...new Set(recs.map(r=>r.year))].sort(),
+        pd:recs.reduce((s,r)=>s+r.personDays,0),
+        skipped:wb.SheetNames.length-sheets.length});
+    }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
+  }
+  EVENTS.sort((a,b)=>a.start<b.start?-1:1);
+  await idbSaveAll();
+  const ps=periods(); if(ps.length)ACTIVE=ps[ps.length-1];
+  showApp(); renderAll(); pushProjection();
+
+  const okN=log.filter(l=>l.ok).length;
+  st.textContent = okN===log.length
+    ? T(`✅ ${okN} 個檔案全部匯入成功`,`✅ All ${okN} file(s) imported`)
+    : T(`⚠ ${okN}/${log.length} 個成功`,`⚠ ${okN}/${log.length} succeeded`);
+  st.style.color = okN===log.length?'#059669':'#b45309';
+
+  rep.innerHTML=log.map(l=>l.ok
+    ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${l.n} ${T('筆停工事件','shutdown events')} · ${T('年度','years')} ${l.years.join(', ')} · ${T('停工人日','person-days')} ${int(l.pd)}
+       <span class="text-slate-400">（${T('採用工作表','sheets used')}：${l.sheets.join('、')}${l.skipped?T(`；另略過 ${l.skipped} 張無關工作表`,`; ${l.skipped} unrelated sheets skipped`):''}）</span></span></div>`
+    : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
+  ).join('');
+  rep.classList.remove('hidden');
   applyLang();
 }
 
-// ================================================================
-// GAS API
-// ================================================================
-async function api(params) {
-  if (!GAS_URL) { toast('⚠ 請先在設定頁填入 GAS URL', 'amber'); throw new Error('No GAS URL'); }
-  const body = new URLSearchParams(params).toString();
-  const r = await fetch(GAS_URL, { method:'POST', body, headers:{'Content-Type':'application/x-www-form-urlencoded'} });
-  const text = await r.text();
-  return JSON.parse(text);
-}
-
-// ================================================================
-// STATE
-// ================================================================
-let state = { events:[], stats:[], lines:[], previewData:[], editId:null };
-
-// ================================================================
-// TABS
-// ================================================================
-function showTab(name) {
-  ['dash','events','import','tg','settings'].forEach(t => {
-    document.getElementById('tab-'+t+'-content').classList.toggle('hidden', t !== name);
-    const btn = document.getElementById('tab-'+t);
-    btn.classList.toggle('active', t === name);
-    btn.classList.toggle('text-slate-600', t !== name);
-    btn.classList.toggle('hover:bg-slate-100', t !== name);
+// ━━━━ 篩選 ━━━━
+function filtered(){
+  const scale=qs('#sel-scale')?qs('#sel-scale').value:'';
+  const dur=qs('#sel-dur')?qs('#sel-dur').value:'';
+  return EVENTS.filter(e=>{
+    if(scale==='full'&&e.lineRatio<0.999)return false;
+    if(scale==='partial'&&e.lineRatio>=0.999)return false;
+    if(dur==='1'&&e.days!==1)return false;
+    if(dur==='2-3'&&!(e.days>=2&&e.days<=3))return false;
+    if(dur==='4-7'&&!(e.days>=4&&e.days<=7))return false;
+    if(dur==='8+'&&e.days<8)return false;
+    return true;
   });
-  if (name === 'events') loadEvents();
-  if (name === 'dash') loadStats();
-  if (name === 'tg') loadTgEventList();
+}
+function periods(){ return [...new Set(filtered().map(e=>e.start.slice(0,7)))].sort(); }
+function allPeriods(){ return [...new Set(EVENTS.map(e=>e.start.slice(0,7)))].sort(); }
+function spanEvents(){
+  const evs=filtered(); if(!ACTIVE)return evs;
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return evs.filter(e=>+e.start.slice(0,4)===ay);
+  if(UNIT==='quarter'){const q=Math.floor((am-1)/3);
+    return evs.filter(e=>+e.start.slice(0,4)===ay&&Math.floor((+e.start.slice(5,7)-1)/3)===q);}
+  return evs.filter(e=>e.start.slice(0,7)===ACTIVE);
+}
+function spanLabel(){
+  if(!ACTIVE)return '';
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return String(ay);
+  if(UNIT==='quarter')return `${ay} Q${Math.floor((am-1)/3)+1}`;
+  return `${MS[am-1]} ${ay}`;
 }
 
-// ================================================================
-// DASHBOARD
-// ================================================================
-let yearChart = null;
-async function loadStats() {
-  if (!GAS_URL) return;
-  loading('載入統計中…');
-  try {
-    const r = await api({action:'getStats'});
-    if (!r.ok) throw new Error(r.error);
-    state.stats = r.data;
-    renderKpi();
-    renderYearChart();
-    renderYearSel();
-    renderMonthly();
-  } catch(e) { toast('❌ ' + e.message, 'red'); }
-  finally { hideLoading(); }
+function _btn(on,color){return on
+  ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setUnit(u){UNIT=u;['day','week','month','quarter','year'].forEach(k=>qs('#cu-'+k).className=_btn(k===u,'rose'));renderAll();}
+function setReportMode(m){REPORT_MODE=m;['month','quarter','year'].forEach(k=>qs('#rp-'+k).className=_btn(k===m,'rose'));renderReport();}
+function jumpPeriod(p){if(p){ACTIVE=p;renderAll();}}
+function stepPeriod(dir){
+  const ps=periods(); if(!ps.length)return;
+  const i=ps.indexOf(ACTIVE);
+  const n=Math.min(ps.length-1,Math.max(0,(i<0?ps.length-1:i)+dir));
+  if(n!==i)jumpPeriod(ps[n]);
+}
+const TABS=['dash','time','events','pattern','report'];
+function goTab(name){
+  TABS.forEach(t=>{
+    qs('#pane-'+t).classList.toggle('hidden',t!==name);
+    qs('#tab-'+t).className=(t===name?'tab-active':'tab-inactive')+' text-sm px-4 py-3 whitespace-nowrap transition';
+  });
+  renderAll();
+}
+function showApp(){
+  const has=EVENTS.length>0;
+  qs('#empty-state').classList.toggle('hidden',has);
+  qs('#app').classList.toggle('hidden',!has);
+}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ━━━━ 渲染 ━━━━
+function renderAll(){
+  if(!EVENTS.length){showApp();return;}
+  showApp();
+  const ps=periods();
+  if(!ACTIVE||!ps.includes(ACTIVE))ACTIVE=ps[ps.length-1];
+  renderNav(); renderDash(); renderTime(); renderEvents(); renderPattern(); renderReport();
+}
+function renderNav(){
+  const ps=periods(), sel=qs('#nav-period');
+  sel.innerHTML=ps.slice().reverse().map(p=>{
+    const [y,m]=p.split('-');
+    const n=filtered().filter(e=>e.start.slice(0,7)===p).length;
+    return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('次','ev')}</option>`;
+  }).join('');
+  if(ACTIVE)sel.value=ACTIVE;
+  const i=ps.indexOf(ACTIVE);
+  const yrs=[...new Set(EVENTS.map(e=>e.year))].sort();
+  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span>
+    <span class="text-slate-400 ml-1">${T('已匯入年度','Years')}: ${yrs.join(', ')}</span>`;
 }
 
-function renderKpi() {
-  const s = state.stats;
-  const total = s.reduce((a,b)=>a+b.count,0);
-  const curYear = new Date().getFullYear();
-  const cy = s.find(y=>y.year===curYear);
-  const latest = state.events.length ? state.events[0].start_date : '—';
-  document.getElementById('kpi-events').textContent = total;
-  document.getElementById('kpi-days').textContent = cy ? cy.totalDays : '0';
-  document.getElementById('kpi-latest').textContent = latest !== '—' ? latest : (s.length ? '—' : '—');
-  document.getElementById('kpi-pct').textContent = '—';
-}
+function renderDash(){
+  const evs=spanEvents();
+  const cnt=evs.length;
+  const days=evs.reduce((s,e)=>s+e.days,0);
+  const pd=evs.reduce((s,e)=>s+e.personDays,0);
+  const avgPPL=cnt?evs.reduce((s,e)=>s+e.shutPPL,0)/cnt:0;
+  const full=evs.filter(e=>e.lineRatio>=0.999).length;
 
-function renderYearChart() {
-  const s = state.stats;
-  const colors = ['#1d4ed8','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2'];
-  if (yearChart) yearChart.destroy();
-  yearChart = new Chart(document.getElementById('yearChart'), {
+  qs('#k-cnt').textContent=int(cnt);
+  qs('#k-cnt-s').textContent=spanLabel();
+  qs('#k-days').textContent=int(days);
+  qs('#k-days-s').textContent=cnt?T(`平均 ${(days/cnt).toFixed(1)} 天/次`,`avg ${(days/cnt).toFixed(1)} d/event`):'';
+  qs('#k-pd').textContent=int(pd);
+  qs('#k-pd-s').textContent=T('停工天數 × 停工人數','days × affected staff');
+  qs('#k-ppl').textContent=int(avgPPL);
+  qs('#k-ppl-s').textContent=T('每次受影響人數','per event');
+  qs('#k-full').textContent=cnt?Math.round(full/cnt*100)+'%':'—';
+  qs('#k-full-s').textContent=T(`${full} / ${cnt} 次為全廠停工`,`${full} of ${cnt} were full`);
+
+  const sc=qs('#sel-scale').selectedOptions[0], du=qs('#sel-dur').selectedOptions[0];
+  qs('#scope-txt').textContent=`${spanLabel()} · ${sc?sc.textContent:''} · ${du?du.textContent:''} · ${T('共','')} ${cnt} ${T('次','events')}`;
+
+  // 趨勢
+  const series=timeSeries();
+  qs('#trend-note').textContent=T(`以「${T(UNIT_ZH[UNIT],UNIT_EN[UNIT])}」彙總 · 共 ${series.length} 組`,`Grouped · ${series.length} groups`);
+  const asc=series.slice().reverse();
+  destroyChart('trend-chart');
+  charts['trend-chart']=new Chart(qs('#trend-chart'),{
     type:'bar',
-    data: {
-      labels: s.map(y=>y.year),
-      datasets:[{
-        label: LANG.cur==='zh'?'停工天數':'Shutdown Days',
-        data: s.map(y=>y.totalDays),
-        backgroundColor: s.map((_,i)=>colors[i%colors.length]),
-        borderRadius: 6,
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{ y:{beginAtZero:true, ticks:{stepSize:10}, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }
+    data:{labels:asc.map(s=>s.label),datasets:[
+      {type:'bar',label:T('停工人日','Person-days'),data:asc.map(s=>Math.round(s.pd)),
+       backgroundColor:'#dc262699',borderColor:'#dc2626',borderWidth:1,borderRadius:4,yAxisID:'y'},
+      {type:'line',label:T('停工次數','Events'),data:asc.map(s=>s.cnt),
+       borderColor:'#0ea5e9',backgroundColor:'#0ea5e9',tension:.3,pointRadius:2,yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}}},
+              y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{font:{size:10},precision:0}},
+              x:{grid:{display:false},ticks:{font:{size:9},maxRotation:60}}}}
+  });
+
+  // 停工規模分布
+  const buckets=[[0,0.25,'1–25%'],[0.25,0.5,'26–50%'],[0.5,0.75,'51–75%'],[0.75,0.999,'76–99%'],[0.999,2,T('全廠 100%','Full 100%')]];
+  const counts=buckets.map(([lo,hi])=>evs.filter(e=>e.lineRatio>lo&&e.lineRatio<=hi).length);
+  destroyChart('scale-chart');
+  charts['scale-chart']=new Chart(qs('#scale-chart'),{
+    type:'doughnut',
+    data:{labels:buckets.map(b=>b[2]),datasets:[{data:counts,
+      backgroundColor:PALETTE.slice(0,5).map(c=>c+'cc'),borderColor:'#fff',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw} ${T('次','events')}`}}}}
+  });
+}
+
+const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
+const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
+
+// 依單位分組（每日＝把事件依天數攤平）
+function timeSeries(){
+  const evs=filtered(), g={};
+  const add=(gk,label,e,dayShare)=>{
+    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,evs:new Set(),full:0});
+    t.days+=dayShare;
+    t.pd+=e.shutPPL*dayShare;
+    if(!t.evs.has(e.start+'|'+e.seq)){t.evs.add(e.start+'|'+e.seq);t.cnt++;t.ppl+=e.shutPPL;
+      if(e.lineRatio>=0.999)t.full++;}
+  };
+  evs.forEach(e=>{
+    if(UNIT==='day'||UNIT==='week'){
+      const sd=new Date(+e.start.slice(0,4),+e.start.slice(5,7)-1,+e.start.slice(8,10));
+      const n=Math.max(1,Math.round(e.days));
+      for(let k=0;k<n;k++){
+        const d=new Date(sd.getFullYear(),sd.getMonth(),sd.getDate()+k);
+        if(UNIT==='day') add(dStr(d),dStr(d),e,1);
+        else{const w=isoWeek(d); add(`${w.y}-W${pad(w.w)}`,`${w.y}-W${pad(w.w)}`,e,1);}
+      }
+    }else{
+      const y=+e.start.slice(0,4), m=+e.start.slice(5,7);
+      const q=Math.floor((m-1)/3)+1;
+      if(UNIT==='year')add(String(y),String(y),e,e.days);
+      else if(UNIT==='quarter')add(`${y}-Q${q}`,`${y} Q${q}`,e,e.days);
+      else add(`${y}-${pad(m)}`,`${MS[m-1]} ${y}`,e,e.days);
     }
   });
+  return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
 }
 
-function renderYearSel() {
-  const sel = document.getElementById('stat-year-sel');
-  sel.innerHTML = state.stats.map(y=>`<option value="${y.year}">${y.year}</option>`).join('');
-  if (state.stats.length) sel.value = state.stats[state.stats.length-1].year;
+function renderTime(){
+  const series=timeSeries();
+  const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
+  qs('#time-title').textContent=T(`📅 ${UNIT_ZH[UNIT]}明細`,`📅 ${UNIT_EN[UNIT]} Detail`);
+  qs('#time-note').textContent = (UNIT==='day'||UNIT==='week')
+    ? T('每筆停工事件已依其停工天數，自起始日逐日攤開計算。','Each event is expanded day-by-day from its start date.')
+    : T(`以「${uZh}」彙總所有已匯入年度。停工人日 = 停工天數 × 當次停工人數。`,
+        `Aggregated by ${uZh}. Person-days = shutdown days × affected staff.`);
+
+  qs('#time-thead').innerHTML=[T('區間','Period'),T('停工次數','Events'),T('停工天數','Days'),
+    T('全廠停工','Full'),T('停工人日','Person-days'),T('平均人數','Avg staff'),T('平均天數','Avg days')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#time-tbody').innerHTML=series.map((s,i)=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-rose-50/40':''}">
+      <td class="px-3 py-2 font-semibold ${i===0?'text-rose-700':'text-slate-700'}">${s.label}</td>
+      <td class="px-3 py-2 text-right jmono">${s.cnt}</td>
+      <td class="px-3 py-2 text-right jmono">${int(s.days)}</td>
+      <td class="px-3 py-2 text-right jmono ${s.full?'text-rose-600':'text-slate-300'}">${s.full||'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">${int(s.pd)}</td>
+      <td class="px-3 py-2 text-right jmono">${int(s.ppl/(s.cnt||1))}</td>
+      <td class="px-3 py-2 text-right jmono">${(s.days/(s.cnt||1)).toFixed(1)}</td></tr>`).join('')
+    ||`<tr><td colspan="7" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  const TT=series.reduce((a,s)=>({cnt:a.cnt+s.cnt,days:a.days+s.days,pd:a.pd+s.pd,full:a.full+s.full,ppl:a.ppl+s.ppl}),{cnt:0,days:0,pd:0,full:0,ppl:0});
+  qs('#time-tfoot').innerHTML=`
+    <td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.cnt}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.days)}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.full}</td>
+    <td class="px-3 py-2 text-right jmono text-amber-700">${int(TT.pd)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.ppl/(TT.cnt||1))}</td>
+    <td class="px-3 py-2 text-right jmono">${(TT.days/(TT.cnt||1)).toFixed(1)}</td>`;
 }
 
-function renderMonthly() {
-  const year = parseInt(document.getElementById('stat-year-sel').value);
-  const yd = state.stats.find(y=>y.year===year);
-  if (!yd) { document.getElementById('monthly-table').innerHTML = '<div class="text-slate-400 text-sm text-center py-4">無資料</div>'; return; }
-  const months = LANG.cur==='zh'
-    ? ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
-    : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const rows = months.map((m,i) => {
-    const days = yd.byMonth[i+1] || 0;
-    const pct = yd.totalDays > 0 ? Math.round(days/yd.totalDays*100) : 0;
-    return `<tr class="border-b border-slate-100 hover:bg-slate-50">
-      <td class="py-1.5 px-2 text-xs text-slate-600">${m}</td>
-      <td class="py-1.5 px-2 text-right text-xs font-semibold ${days>0?'text-blue-700':'text-slate-300'}">${days}</td>
-      <td class="py-1.5 px-2">
-        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div class="h-2 rounded-full bg-blue-500" style="width:${pct}%"></div>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-  document.getElementById('monthly-table').innerHTML = `<table class="w-full"><thead><tr>
-    <th class="text-left text-xs text-slate-400 pb-1 px-2">${LANG.cur==='zh'?'月份':'Month'}</th>
-    <th class="text-right text-xs text-slate-400 pb-1 px-2">${LANG.cur==='zh'?'天數':'Days'}</th>
-    <th class="px-2"></th>
-  </tr></thead><tbody>${rows}</tbody></table>`;
+function renderEvents(){
+  const all=qs('#ev-scope').value==='all';
+  let list=all?filtered():spanEvents();
+  const q=(qs('#ev-q').value||'').trim().toLowerCase();
+  if(q)list=list.filter(e=>(e.start+' '+e.end+' '+e.wdStart).toLowerCase().includes(q));
+  list=list.slice().sort((a,b)=>a.start<b.start?1:-1);
+  qs('#ev-count').textContent=`${list.length} ${T('筆','events')}`;
+  qs('#ev-thead').innerHTML=[T('起始日','Start'),T('星期','Day'),T('結束日','End'),T('停工天數','Days'),
+    T('停工組數','Lines'),T('停工比例','Line %'),T('停工人數','Staff'),T('未停工','Remain'),T('停工人日','Person-days')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i>2?'text-right':'text-left'} font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
+  qs('#ev-tbody').innerHTML=list.map(e=>{
+    const isFull=e.lineRatio>=0.999;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 jmono font-semibold text-slate-700">${e.start}</td>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${LANG==='zh'?(WD_ZH[e.wdStart]||e.wdStart):e.wdStart}</span></td>
+      <td class="px-3 py-2 jmono text-slate-500">${e.end}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold">${e.days}</td>
+      <td class="px-3 py-2 text-right jmono">${e.shutLine||'—'}${e.ttlLine?`<span class="text-slate-300"> / ${e.ttlLine}</span>`:''}</td>
+      <td class="px-3 py-2 text-right jmono ${isFull?'text-rose-600 font-semibold':''}">${e.ttlLine?(e.lineRatio*100).toFixed(0)+'%':'—'}</td>
+      <td class="px-3 py-2 text-right jmono">${int(e.shutPPL)}</td>
+      <td class="px-3 py-2 text-right jmono ${e.remainPPL?'text-emerald-600':'text-slate-300'}">${e.remainPPL?int(e.remainPPL):'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">${int(e.personDays)}</td></tr>`;
+  }).join('')||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
 }
 
-// ================================================================
-// EVENTS LIST
-// ================================================================
-async function loadEvents() {
-  if (!GAS_URL) return;
-  const year = document.getElementById('ev-year-filter').value;
-  loading('載入停工紀錄…');
-  try {
-    const r = await api({action:'getEvents', ...(year?{year}:{})});
-    if (!r.ok) throw new Error(r.error);
-    state.events = r.data;
-    renderEventTable();
-    updateKpiLatest();
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
+function renderPattern(){
+  const evs=filtered();
+  // 星期分布
+  const wd={}; WD_ORDER.forEach(w=>wd[w]={cnt:0,pd:0});
+  evs.forEach(e=>{const w=e.wdStart;if(!wd[w])wd[w]={cnt:0,pd:0};wd[w].cnt++;wd[w].pd+=e.personDays;});
+  // 月份分布
+  const mo={}; for(let i=1;i<=12;i++)mo[i]={cnt:0,pd:0};
+  evs.forEach(e=>{const m=+e.start.slice(5,7);mo[m].cnt++;mo[m].pd+=e.personDays;});
+  // 天數分布
+  const du=[['1',e=>e.days===1],['2-3',e=>e.days>=2&&e.days<=3],['4-7',e=>e.days>=4&&e.days<=7],['8+',e=>e.days>=8]];
+  const maxWd=Math.max(1,...WD_ORDER.map(w=>wd[w].cnt));
+  const maxMo=Math.max(1,...Object.values(mo).map(v=>v.cnt));
+
+  qs('#pattern-body').innerHTML=`
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('星期分布 By Weekday','By Weekday')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('停工多從星期幾開始','Which weekday shutdowns start on')}</p>
+      ${WD_ORDER.map(w=>`
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="w-10 text-xs text-slate-500">${LANG==='zh'?'週'+WD_ZH[w]:w}</span>
+          <div class="flex-1 bg-slate-100 rounded h-5 overflow-hidden">
+            <div class="h-full bg-rose-500/80 rounded" style="width:${wd[w].cnt/maxWd*100}%"></div></div>
+          <span class="w-10 text-right text-xs jmono">${wd[w].cnt}</span>
+          <span class="w-16 text-right text-[11px] jmono text-amber-600">${int(wd[w].pd)}</span>
+        </div>`).join('')}
+      <p class="text-[10px] text-slate-400 mt-2">${T('數字為：次數 · 停工人日','count · person-days')}</p>
+    </div>
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('月份分布 By Month','By Month')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('全部已匯入年度合計','All imported years combined')}</p>
+      ${Object.keys(mo).map(m=>`
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-9 text-xs text-slate-500">${MS[m-1]}</span>
+          <div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden">
+            <div class="h-full bg-sky-500/80 rounded" style="width:${mo[m].cnt/maxMo*100}%"></div></div>
+          <span class="w-8 text-right text-xs jmono">${mo[m].cnt}</span>
+          <span class="w-16 text-right text-[11px] jmono text-amber-600">${int(mo[m].pd)}</span>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100"><p class="text-sm font-semibold text-slate-700">${T('停工時長分布 Duration','Duration Distribution')}</p></div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        ${[T('停工天數','Duration'),T('次數','Events'),T('占比','Share'),T('停工人日','Person-days'),T('平均人數','Avg staff')]
+          .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold">${h}</th>`).join('')}
+      </tr></thead><tbody>
+      ${du.map(([lbl,f])=>{
+        const s=evs.filter(f);
+        const pd=s.reduce((a,e)=>a+e.personDays,0);
+        return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="px-3 py-2 font-medium text-slate-700">${lbl} ${T('天','days')}</td>
+          <td class="px-3 py-2 text-right jmono">${s.length}</td>
+          <td class="px-3 py-2 text-right jmono">${evs.length?(s.length/evs.length*100).toFixed(0):0}%</td>
+          <td class="px-3 py-2 text-right jmono text-amber-700">${int(pd)}</td>
+          <td class="px-3 py-2 text-right jmono">${s.length?int(s.reduce((a,e)=>a+e.shutPPL,0)/s.length):'—'}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>
+  </div>`;
 }
 
-function updateKpiLatest() {
-  if (state.events.length) document.getElementById('kpi-latest').textContent = state.events[0].start_date;
-}
-
-function renderEventTable() {
-  const tbody = document.getElementById('ev-tbody');
-  const empty = document.getElementById('ev-empty');
-  if (!state.events.length) { tbody.innerHTML=''; empty.classList.remove('hidden'); return; }
-  empty.classList.add('hidden');
-  document.getElementById('ev-count').textContent = `共 ${state.events.length} 筆`;
-  tbody.innerHTML = state.events.map(ev => {
-    const pct = parseFloat(ev.shutdown_ppl_pct)||0;
-    const pctColor = pct>80?'bg-red-100 text-red-700':pct>50?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700';
-    return `<tr class="hover:bg-slate-50 cursor-pointer line-row" onclick="openEventModal('${ev.id}')">
-      <td class="px-4 py-3 font-medium text-slate-500">${ev.event_no||'—'}</td>
-      <td class="px-4 py-3 text-blue-700 font-medium">${ev.start_date||'—'}</td>
-      <td class="px-4 py-3 text-slate-600">${ev.end_date||'—'}</td>
-      <td class="px-4 py-3 text-right font-semibold">${ev.shutdown_days||0}</td>
-      <td class="px-4 py-3 text-right">${ev.shutdown_lines||0}/${ev.ttl_lines||0}</td>
-      <td class="px-4 py-3 text-right text-red-600 font-semibold">${ev.shutdown_ppl||0}</td>
-      <td class="px-4 py-3 text-right"><span class="badge ${pctColor}">${(pct*100).toFixed(1)}%</span></td>
-      <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">${ev.notes||''}</td>
-      <td class="px-4 py-3 text-right">
-        <button onclick="event.stopPropagation();deleteEvent('${ev.id}')" class="text-red-400 hover:text-red-600 px-2 py-1 rounded text-xs transition">✕</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-// ================================================================
-// EVENT MODAL (Add / Edit)
-// ================================================================
-async function openEventModal(id) {
-  state.editId = id;
-  document.getElementById('event-modal').classList.remove('hidden');
-  document.getElementById('modal-title').textContent = id === 'new' ? t('addNew') : t('edit')+' #'+id;
-
-  // Load lines if needed
-  if (!state.lines.length) await loadLines();
-  renderLineStatsGrid();
-
-  if (id === 'new') {
-    clearForm();
-  } else {
-    loading('載入事件資料…');
-    try {
-      const r = await api({action:'getEvent', id});
-      if (!r.ok) throw new Error(r.error);
-      fillForm(r.data.event, r.data.lineStats);
-    } catch(e) { toast('❌ '+e.message,'red'); }
-    finally { hideLoading(); }
-  }
-}
-
-function closeModal() { document.getElementById('event-modal').classList.add('hidden'); }
-
-async function loadLines() {
-  const r = await api({action:'getLines'});
-  if (r.ok) state.lines = r.data;
-}
-
-function renderLineStatsGrid() {
-  document.getElementById('line-stats-tbody').innerHTML = state.lines.map(l => `
-    <tr class="line-row" data-line="${l.line_code}" data-dept="${l.dept_code}" data-tc="${l.name_tc}" data-en="${l.name_en}">
-      <td class="px-3 py-2 font-medium text-slate-700">${l.line_code} <span class="text-xs text-slate-400">${l.name_tc}</span></td>
-      <td class="px-3 py-2 text-xs text-slate-500">${l.dept_code}</td>
-      <td class="px-3 py-2 text-right">
-        <input type="number" min="0" class="w-16 border border-slate-200 rounded px-2 py-1 text-right text-sm line-hd" data-line="${l.line_code}" value="${l.default_headcount||0}" onchange="calcLinePct(this);calcSummary()">
-      </td>
-      <td class="px-3 py-2 bg-red-50 text-right">
-        <input type="number" min="0" class="w-16 border border-red-200 rounded px-2 py-1 text-right text-sm line-sp" data-line="${l.line_code}" value="0" onchange="calcLinePct(this);calcSummary()">
-      </td>
-      <td class="px-3 py-2 bg-green-50 text-right">
-        <input type="number" min="0" class="w-16 border border-green-200 rounded px-2 py-1 text-right text-sm line-rp" data-line="${l.line_code}" value="0" onchange="calcSummary()">
-      </td>
-      <td class="px-3 py-2 text-right text-xs text-slate-500 line-pct-cell" id="pct-${l.line_code}">—</td>
-    </tr>`).join('');
-}
-
-function calcLinePct(inp) {
-  const row = inp.closest('tr');
-  const code = inp.dataset.line;
-  const hd = parseFloat(row.querySelector('.line-hd').value)||0;
-  const sp = parseFloat(row.querySelector('.line-sp').value)||0;
-  const pct = hd > 0 ? (sp/hd*100).toFixed(1)+'%' : '—';
-  document.getElementById('pct-'+code).textContent = pct;
-}
-
-function calcSummary() {
-  let totHd=0, totSp=0, totRp=0;
-  document.querySelectorAll('#line-stats-tbody tr').forEach(row => {
-    totHd += parseFloat(row.querySelector('.line-hd')?.value)||0;
-    totSp += parseFloat(row.querySelector('.line-sp')?.value)||0;
-    totRp += parseFloat(row.querySelector('.line-rp')?.value)||0;
+function renderReport(){
+  const evs=filtered(), g={};
+  evs.forEach(e=>{
+    const y=+e.start.slice(0,4), m=+e.start.slice(5,7), q=Math.floor((m-1)/3)+1;
+    let gk,label;
+    if(REPORT_MODE==='year'){gk=String(y);label=String(y);}
+    else if(REPORT_MODE==='quarter'){gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else{gk=`${y}-${pad(m)}`;label=`${MS[m-1]} ${y}`;}
+    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,full:0,maxPPL:0});
+    t.cnt++;t.days+=e.days;t.pd+=e.personDays;t.ppl+=e.shutPPL;
+    if(e.lineRatio>=0.999)t.full++;
+    if(e.shutPPL>t.maxPPL)t.maxPPL=e.shutPPL;
   });
-  document.getElementById('f-ttl-ppl').value  = totHd;
-  document.getElementById('f-shut-ppl').value = totSp;
-  document.getElementById('f-rem-ppl').value  = totRp;
-  const pplPct = totHd>0?(totSp/totHd*100).toFixed(1)+'%':'—';
-  document.getElementById('f-ppl-pct').value  = pplPct;
-  const ttlLines = parseInt(document.getElementById('f-ttl-lines').value)||0;
-  const shutLines = parseInt(document.getElementById('f-shut-lines').value)||0;
-  document.getElementById('f-line-pct').value = ttlLines>0?(shutLines/ttlLines*100).toFixed(1)+'%':'—';
+  const list=Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
+  qs('#rp-count').textContent=`${list.length} ${T('組','groups')}`;
+  qs('#rp-thead').innerHTML=[T('區間','Period'),T('停工次數','Events'),T('停工天數','Days'),
+    T('全廠停工','Full'),T('停工人日','Person-days'),T('平均人數','Avg staff'),T('最大影響人數','Peak staff')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#rp-tbody').innerHTML=list.map(t=>{
+    const isAct=(REPORT_MODE==='month'&&t.key===ACTIVE);
+    return `<tr onclick="${REPORT_MODE==='month'?`jumpPeriod('${t.key}')`:''}"
+      class="border-b border-slate-50 ${REPORT_MODE==='month'?'cursor-pointer':''} ${isAct?'bg-rose-50/60':'hover:bg-slate-50'}">
+      <td class="px-3 py-2 font-semibold ${isAct?'text-rose-700':'text-slate-700'}">${t.label}${isAct?' ◀':''}</td>
+      <td class="px-3 py-2 text-right jmono">${t.cnt}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.days)}</td>
+      <td class="px-3 py-2 text-right jmono ${t.full?'text-rose-600':'text-slate-300'}">${t.full||'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-bold text-amber-700">${int(t.pd)}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.ppl/(t.cnt||1))}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.maxPPL)}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
 }
 
-function calcDays() {
-  const s = document.getElementById('f-start').value;
-  const e = document.getElementById('f-end').value;
-  if (s && e) {
-    const diff = Math.round((new Date(e)-new Date(s))/(1000*60*60*24))+1;
-    document.getElementById('f-days').value = diff > 0 ? diff : 0;
-  }
-}
-
-function clearForm() {
-  ['f-event-no','f-start','f-end','f-days','f-ttl-lines','f-shut-lines','f-line-pct','f-ttl-ppl','f-shut-ppl','f-rem-ppl','f-ppl-pct','f-notes'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = id==='f-ttl-lines'?18:'';
+// ━━━━ TELEGRAM ━━━━
+function buildTgText(scope,period){
+  const evs=filtered().filter(e=> scope==='year'
+    ? e.start.slice(0,4)===period.slice(0,4)
+    : e.start.slice(0,7)===period);
+  if(!evs.length)return{err:T('此期間無停工記錄','No shutdown records for this period')};
+  const [y,m]=period.split('-');
+  const label = scope==='year' ? y : `${MS[+m-1]} ${y}`;
+  const days=evs.reduce((s,e)=>s+e.days,0);
+  const pd=evs.reduce((s,e)=>s+e.personDays,0);
+  const full=evs.filter(e=>e.lineRatio>=0.999).length;
+  let t=`🛑 <b>停工記錄 Shutdown Report</b>\n`
+   +`📅 期間 Period：${esc(label)}\n`
+   +`🔁 停工次數 Events：${evs.length}　（${T('全廠','full')} ${full}）\n`
+   +`📆 停工天數 Days：${int(days)}\n`
+   +`👥 停工人日 Person-days：<b>${int(pd)}</b>\n`
+   +`— — — — — — — — — —\n<b>各次明細 Event Detail</b>\n`
+   +`<i>日期 Date ｜ 天數 Days ｜ 人數 Staff</i>\n`;
+  evs.slice().sort((a,b)=>a.start<b.start?-1:1).forEach(e=>{
+    const same=e.start===e.end;
+    t+=`${e.start}${same?'':' ~ '+e.end}（${LANG==='zh'?WD_ZH[e.wdStart]||e.wdStart:e.wdStart}）：${e.days} 天 · ${int(e.shutPPL)} 人`
+      +(e.ttlLine?` · ${e.shutLine}/${e.ttlLine} 組`:'')+`\n`;
   });
-  document.querySelectorAll('.line-sp,.line-rp').forEach(inp => inp.value=0);
+  t+=`— — — — — — — — — —\n合計 TOTAL：${evs.length} 次 · ${int(days)} 天 · <b>${int(pd)} 人日</b>`;
+  return {text:t};
 }
-
-function fillForm(ev, lineStats) {
-  document.getElementById('f-event-no').value  = ev.event_no||'';
-  document.getElementById('f-start').value     = ev.start_date||'';
-  document.getElementById('f-end').value       = ev.end_date||'';
-  document.getElementById('f-days').value      = ev.shutdown_days||0;
-  document.getElementById('f-ttl-lines').value = ev.ttl_lines||18;
-  document.getElementById('f-shut-lines').value= ev.shutdown_lines||0;
-  document.getElementById('f-ttl-ppl').value   = ev.total_ppl||0;
-  document.getElementById('f-shut-ppl').value  = ev.shutdown_ppl||0;
-  document.getElementById('f-rem-ppl').value   = ev.remain_ppl||0;
-  document.getElementById('f-ppl-pct').value   = ev.shutdown_ppl_pct||'';
-  document.getElementById('f-line-pct').value  = ev.shutdown_line_pct||'';
-  document.getElementById('f-notes').value     = ev.notes||'';
-  // Fill line stats
-  lineStats.forEach(ls => {
-    const row = document.querySelector(`tr[data-line="${ls.line_code}"]`);
-    if (!row) return;
-    const hdInp = row.querySelector('.line-hd');
-    const spInp = row.querySelector('.line-sp');
-    const rpInp = row.querySelector('.line-rp');
-    if (hdInp) hdInp.value = ls.headcount||0;
-    if (spInp) spInp.value = ls.shutdown_ppl||0;
-    if (rpInp) rpInp.value = ls.remain_ppl||0;
-    calcLinePct(spInp||hdInp);
-  });
-}
-
-function collectLineStats() {
-  const stats = [];
-  document.querySelectorAll('#line-stats-tbody tr').forEach(row => {
-    const code  = row.dataset.line;
-    const dept  = row.dataset.dept;
-    const tc    = row.dataset.tc;
-    const en    = row.dataset.en;
-    const hd    = parseFloat(row.querySelector('.line-hd')?.value)||0;
-    const sp    = parseFloat(row.querySelector('.line-sp')?.value)||0;
-    const rp    = parseFloat(row.querySelector('.line-rp')?.value)||0;
-    const pct   = hd>0?sp/hd:0;
-    stats.push({line_code:code, name_tc:tc, name_en:en, dept_code:dept, headcount:hd, shutdown_ppl:sp, remain_ppl:rp, shutdown_pct:pct});
-  });
-  return stats;
-}
-
-async function saveEvent() {
-  const lineStats = collectLineStats();
-  const params = {
-    action:'saveEvent',
-    id: state.editId,
-    event_no: document.getElementById('f-event-no').value,
-    start_date: document.getElementById('f-start').value,
-    end_date: document.getElementById('f-end').value,
-    shutdown_days: document.getElementById('f-days').value,
-    ttl_lines: document.getElementById('f-ttl-lines').value,
-    shutdown_lines: document.getElementById('f-shut-lines').value,
-    shutdown_line_pct: parseFloat(document.getElementById('f-line-pct').value)||0,
-    total_ppl: document.getElementById('f-ttl-ppl').value,
-    shutdown_ppl: document.getElementById('f-shut-ppl').value,
-    remain_ppl: document.getElementById('f-rem-ppl').value,
-    shutdown_ppl_pct: parseFloat(document.getElementById('f-ppl-pct').value)||0,
-    notes: document.getElementById('f-notes').value,
-    line_stats: JSON.stringify(lineStats)
-  };
-  loading('儲存中…');
-  try {
-    const r = await api(params);
-    if (!r.ok) throw new Error(r.error);
-    toast('✓ 儲存成功', 'green');
-    closeModal();
-    loadEvents();
-    loadStats();
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-async function deleteEvent(id) {
-  if (!confirm(t('confirm'))) return;
-  loading('刪除中…');
-  try {
-    const r = await api({action:'deleteEvent', id});
-    if (!r.ok) throw new Error(r.error);
-    toast('✓ 已刪除', 'green');
-    loadEvents(); loadStats();
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-// ================================================================
-// EXCEL IMPORT
-// ================================================================
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('drop-zone').classList.remove('border-blue-400','bg-blue-50');
-  handleFile(e.dataTransfer.files[0]);
-}
-
-function handleFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
-    const sh = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sh, {header:1, defval:''});
-    parseImportRows(rows);
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function parseImportRows(rows) {
-  // Expected template columns: event_no, start_date, end_date, shutdown_days, ttl_lines, shutdown_lines, total_ppl, shutdown_ppl, remain_ppl, notes
-  const header = rows[0] ? rows[0].map(c=>String(c).trim().toLowerCase()) : [];
-  const dataRows = rows.slice(1).filter(r => r[0] !== '' && r[0] !== null && r[0] !== undefined);
-
-  state.previewData = dataRows.map(row => {
-    const obj = {};
-    header.forEach((h,i) => obj[h] = row[i]);
-    const sd = obj['start_date']||obj['start']||'';
-    const ed = obj['end_date']||obj['end']||'';
-    return {
-      event_no:   obj['event_no']||obj['次數']||'',
-      start_date: formatImportDate(sd),
-      end_date:   formatImportDate(ed),
-      shutdown_days: parseInt(obj['shutdown_days']||obj['停工天數'])||0,
-      ttl_lines:  parseInt(obj['ttl_lines']||obj['總線數'])||18,
-      shutdown_lines: parseInt(obj['shutdown_lines']||obj['停工線數'])||0,
-      total_ppl:  parseInt(obj['total_ppl']||obj['全廠人數'])||0,
-      shutdown_ppl: parseInt(obj['shutdown_ppl']||obj['停工人數'])||0,
-      remain_ppl: parseInt(obj['remain_ppl']||obj['留守人數'])||0,
-      notes: obj['notes']||obj['備註']||'',
-      lineStats: []
-    };
-  }).filter(ev => ev.start_date);
-
-  renderPreview();
-}
-
-function formatImportDate(v) {
-  if (!v) return '';
-  if (v instanceof Date) return v.toISOString().split('T')[0];
-  if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
-    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+function openTgModal(){
+  const ps=allPeriods().reverse();
+  if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
+  fillTgPeriods();
+  const sel=qs('#tg-period');
+  if(ACTIVE){
+    const want=qs('#tg-scope').value==='year'?ACTIVE.slice(0,4):ACTIVE;
+    if([...sel.options].some(o=>o.value===want))sel.value=want;
   }
-  return String(v).split('T')[0];
-}
-
-function renderPreview() {
-  if (!state.previewData.length) { toast('⚠ 未讀取到有效資料，請確認欄位格式', 'amber'); return; }
-  document.getElementById('preview-count').textContent = `共 ${state.previewData.length} 筆`;
-  document.getElementById('preview-tbody').innerHTML = state.previewData.map((ev,i) =>
-    `<tr class="hover:bg-slate-50">
-      <td class="px-3 py-2">${ev.event_no||i+1}</td>
-      <td class="px-3 py-2 text-blue-700">${ev.start_date}</td>
-      <td class="px-3 py-2">${ev.end_date}</td>
-      <td class="px-3 py-2 text-right">${ev.shutdown_days}</td>
-      <td class="px-3 py-2 text-right">${ev.shutdown_lines}</td>
-      <td class="px-3 py-2 text-right text-red-600 font-semibold">${ev.shutdown_ppl}</td>
-      <td class="px-3 py-2 text-right">${ev.total_ppl}</td>
-      <td class="px-3 py-2 text-slate-500">${ev.notes}</td>
-    </tr>`).join('');
-  document.getElementById('import-preview').classList.remove('hidden');
-}
-
-async function confirmImport() {
-  if (!state.previewData.length) return;
-  loading('批量匯入中…');
-  try {
-    const r = await api({action:'batchImport', events: JSON.stringify(state.previewData)});
-    if (!r.ok) throw new Error(r.error);
-    toast(`✓ 成功匯入 ${r.imported} 筆`, 'green');
-    state.previewData = [];
-    document.getElementById('import-preview').classList.add('hidden');
-    loadStats();
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-function downloadTemplate() {
-  const headers = ['event_no','start_date','end_date','shutdown_days','ttl_lines','shutdown_lines','total_ppl','shutdown_ppl','remain_ppl','notes'];
-  const example = [1,'2018-01-13','2018-01-15',2,18,18,732,726,6,'首次停工'];
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
-  XLSX.utils.book_append_sheet(wb, ws, 'Shutdown Data');
-  XLSX.writeFile(wb, 'VRT_Shutdown_Import_Template.xlsx');
-}
-
-// ================================================================
-// TELEGRAM
-// ================================================================
-async function loadTgEventList() {
-  if (!GAS_URL) return;
-  try {
-    const r = await api({action:'getEvents'});
-    if (!r.ok) return;
-    const sel = document.getElementById('tg-event-sel');
-    sel.innerHTML = '<option value="">— 選擇事件 —</option>' +
-      r.data.map(ev=>`<option value="${ev.id}">#${ev.event_no} ${ev.start_date} ~ ${ev.end_date}</option>`).join('');
-  } catch(e) {}
-}
-
-function buildTgMsg() {
-  const sel = document.getElementById('tg-event-sel');
-  const evId = sel.value;
-  const evText = sel.options[sel.selectedIndex]?.text || '';
-  const now = new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-
-  const ev = state.events.find(e=>String(e.id)===String(evId));
-  let msg = `🏭 <b>VRT 停工摘要通報</b>\n`;
-  msg += `📅 ${now}\n`;
-  msg += `━━━━━━━━━━━━━━━━━\n`;
-  if (ev) {
-    msg += `🔢 事件次數：第 ${ev.event_no} 次\n`;
-    msg += `📆 停工期間：${ev.start_date} ～ ${ev.end_date}\n`;
-    msg += `⏱ 停工天數：${ev.shutdown_days} 天\n`;
-    msg += `🏭 停工產線：${ev.shutdown_lines} / ${ev.ttl_lines} 線\n`;
-    msg += `👥 全廠人數：${ev.total_ppl} 人\n`;
-    msg += `🔴 停工人員：${ev.shutdown_ppl} 人\n`;
-    msg += `🟢 留守人員：${ev.remain_ppl} 人\n`;
-    const pct = ev.total_ppl>0?(ev.shutdown_ppl/ev.total_ppl*100).toFixed(1):'—';
-    msg += `📊 停工比例：${pct}%\n`;
-    if (ev.notes) msg += `📝 備註：${ev.notes}\n`;
-  } else {
-    msg += `（請選擇上方事件以自動填入資料）\n`;
-  }
-  msg += `━━━━━━━━━━━━━━━━━\n`;
-  msg += `VRT Admin Center · VRTHRBOT`;
-  document.getElementById('tg-msg').value = msg;
-}
-
-async function sendTgMsg() {
-  const msg = document.getElementById('tg-msg').value.trim();
-  if (!msg) return;
-  loading('發送中…');
-  try {
-    const r = await api({action:'sendTg', message:msg, triggered_by:'manual'});
-    const el = document.getElementById('tg-result');
-    if (r.ok) { el.textContent='✓ 發送成功'; el.className='mt-3 text-sm text-green-700'; el.classList.remove('hidden'); toast('✓ Telegram 發送成功','green'); }
-    else { el.textContent='❌ 發送失敗：'+JSON.stringify(r.tg); el.className='mt-3 text-sm text-red-600'; el.classList.remove('hidden'); }
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-async function testTg() {
-  loading('測試中…');
-  const msg = `🔔 VRT HRBOT 連線測試\n${new Date().toLocaleString('zh-TW')}\n✓ 系統運作正常`;
-  try {
-    const r = await api({action:'sendTg', message:msg, triggered_by:'test'});
-    document.getElementById('tg-test-result').textContent = r.ok ? '✓ Bot 連線正常，訊息已發送' : '❌ 失敗：'+JSON.stringify(r.tg);
-    document.getElementById('tg-test-result').className = 'mt-3 text-sm ' + (r.ok?'text-green-700':'text-red-600');
-  } catch(e) { document.getElementById('tg-test-result').textContent = '❌ '+e.message; }
-  finally { hideLoading(); }
-}
-
-// ================================================================
-// SETTINGS
-// ================================================================
-function saveGasUrl() {
-  const url = document.getElementById('gas-url-input').value.trim();
-  if (!url) return;
-  GAS_URL = url;
-  localStorage.setItem('vrt_gas_url', url);
-  document.getElementById('conn-badge').textContent = '✓ 已連線';
-  document.getElementById('conn-badge').className = 'badge bg-green-600 text-white text-xs';
-  const msg = document.getElementById('settings-msg');
-  msg.textContent = '✓ GAS URL 已儲存'; msg.className='mt-2 text-sm text-green-700'; msg.classList.remove('hidden');
-  loadStats(); loadEvYearFilter();
-}
-
-async function initGas() {
-  loading('初始化 Google Sheets…');
-  try {
-    const r = await api({action:'init'});
-    toast(r.ok ? '✓ Sheets 初始化完成' : '❌ '+r.error, r.ok?'green':'red');
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-async function exportAllExcel() {
-  if (!GAS_URL) return;
-  loading('匯出中…');
-  try {
-    const r = await api({action:'getEvents'});
-    if (!r.ok) throw new Error(r.error);
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(r.data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Shutdown Events');
-    XLSX.writeFile(wb, `VRT_Shutdown_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast('✓ 已匯出 Excel', 'green');
-  } catch(e) { toast('❌ '+e.message,'red'); }
-  finally { hideLoading(); }
-}
-
-// ================================================================
-// YEAR FILTER POPULATION
-// ================================================================
-async function loadEvYearFilter() {
-  if (!GAS_URL) return;
-  try {
-    const r = await api({action:'getStats'});
-    if (!r.ok) return;
-    const sel = document.getElementById('ev-year-filter');
-    const cur = sel.value;
-    sel.innerHTML = `<option value="">${LANG.cur==='zh'?'全部年份':'All Years'}</option>` +
-      r.data.map(y=>`<option value="${y.year}">${y.year}</option>`).join('');
-    if (cur) sel.value = cur;
-  } catch(e) {}
-}
-
-// ================================================================
-// UTILITIES
-// ================================================================
-function loading(msg) {
-  document.getElementById('loading-msg').textContent = msg || '處理中…';
-  document.getElementById('loading').classList.remove('hidden');
-}
-function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
-
-let toastTimer;
-function toast(msg, color='blue') {
-  const colors = {green:'#15803d', red:'#dc2626', amber:'#b45309', blue:'#1d4ed8'};
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.background = colors[color]||colors.blue;
-  el.classList.remove('hidden');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>el.classList.add('hidden'), 3500);
-}
-
-// ================================================================
-// INIT
-// ================================================================
-document.addEventListener('DOMContentLoaded', () => {
+  previewTg();
+  const md=qs('#tg-modal'); md.classList.remove('hidden'); md.classList.add('flex');
   applyLang();
-
-  // Restore GAS URL
-  if (GAS_URL) {
-    document.getElementById('gas-url-input').value = GAS_URL;
-    document.getElementById('conn-badge').textContent = '✓ 已連線';
-    document.getElementById('conn-badge').className = 'badge bg-green-600 text-white text-xs';
-    loadStats();
-    loadEvYearFilter();
+}
+function fillTgPeriods(){
+  const scope=qs('#tg-scope').value, sel=qs('#tg-period');
+  if(scope==='year'){
+    const ys=[...new Set(EVENTS.map(e=>e.start.slice(0,4)))].sort().reverse();
+    sel.innerHTML=ys.map(y=>{
+      const n=EVENTS.filter(e=>e.start.slice(0,4)===y).length;
+      return `<option value="${y}-01">${y} · ${n} ${T('次','ev')}</option>`;}).join('');
+  }else{
+    const ps=allPeriods().reverse();
+    sel.innerHTML=ps.map(p=>{const [y,m]=p.split('-');
+      const n=EVENTS.filter(e=>e.start.slice(0,7)===p).length;
+      return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('次','ev')}</option>`;}).join('');
   }
+}
+function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function previewTg(){
+  if(qs('#tg-preview')._scope!==qs('#tg-scope').value){
+    qs('#tg-preview')._scope=qs('#tg-scope').value; fillTgPeriods();
+  }
+  const r=buildTgText(qs('#tg-scope').value,qs('#tg-period').value);
+  const pv=qs('#tg-preview'), btn=qs('#tg-send');
+  if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
+    btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
+  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
+    btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition';}
+}
+async function confirmSendTg(){
+  const r=buildTgText(qs('#tg-scope').value,qs('#tg-period').value);
+  if(r.err){toast(r.err,'error');return;}
+  const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
+  const ok=await sendTG(r.text);
+  btn.disabled=false; btn.textContent=T('確認傳送','Send');
+  if(ok)closeTgModal();
+}
+async function sendTG(text){
+  if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
+  if(!text||!text.trim()){toast(T('訊息內容是空的，未送出','Message empty'),'error');return false;}
+  try{
+    const r=await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'notify',text})});
+    let d=null; try{d=await r.json();}catch(e){}
+    if(d&&d.sent===false){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
+    toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
+  }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
+}
 
-  // Populate year filter for events tab
-  const curYear = new Date().getFullYear();
-  const evSel = document.getElementById('ev-year-filter');
-  for (let y = curYear; y >= 2018; y--) evSel.innerHTML += `<option value="${y}">${y}</option>`;
-});
+// ━━━━ 雲端 ━━━━
+async function pushProjection(){
+  try{
+    localStorage.setItem('hrpay:result:shutdown',JSON.stringify({
+      module:'shutdown',updatedAt:_nowISO(),level:'event',
+      events:EVENTS.map(e=>({period:e.start.slice(0,7),start:e.start,end:e.end,
+        days:e.days,shutPPL:e.shutPPL,personDays:e.personDays,
+        shutLine:e.shutLine,ttlLine:e.ttlLine}))
+    }));
+  }catch(e){console.warn(e);}
+}
+async function cloudUpload(){
+  if(!EVENTS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
+  const b=qs('#btn-cloud-up'); b.disabled=true; b.classList.add('opacity-50');
+  try{
+    await pushProjection();
+    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({tool:'hrpay_shutdown',updatedAt:_nowISO(),events:EVENTS})});
+    toast(T('☁ 已上傳雲端','☁ Uploaded'),'success');
+  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
+  b.disabled=false; b.classList.remove('opacity-50');
+}
+async function cloudDownload(){
+  const b=qs('#btn-cloud-down'); b.disabled=true; b.classList.add('opacity-50');
+  try{
+    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_shutdown');
+    const d=await r.json();
+    const arr=(d&&d.data&&d.data.events)||[];
+    if(!arr.length)toast(T('雲端尚無資料','No cloud data'),'warning');
+    else{
+      EVENTS=arr; await idbSaveAll();
+      const ps=periods(); ACTIVE=ps[ps.length-1];
+      renderAll();
+      toast(T(`☁ 已載入 ${arr.length} 筆停工記錄`,`☁ Loaded ${arr.length} events`),'success');
+    }
+  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
+  b.disabled=false; b.classList.remove('opacity-50');
+}
+
+// ━━━━ 其他 ━━━━
+function exportCSV(which){
+  const tbl=which==='events'?qs('#pane-events table'):qs('#pane-time table');
+  const rows=[...tbl.querySelectorAll('tr')].map(tr=>
+    [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`shutdown_${which}_${ACTIVE||'all'}.csv`;a.click();
+  toast(T('CSV 已下載','CSV downloaded'),'success');
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(EVENTS,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`shutdown_backup_${_nowISO().slice(0,10)}.json`;a.click();
+}
+async function clearAllData(){
+  if(!confirm(T('確定清除所有已匯入的停工記錄？','Clear all imported shutdown records?')))return;
+  EVENTS=[];ACTIVE=null;await idbClear();
+  localStorage.removeItem('hrpay:result:shutdown');
+  qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
+  showApp();
+  toast(T('資料已清除','Data cleared'),'warning');
+}
+
+// ━━━━ 拖放上傳 ━━━━
+function setupDropZone(sel,handler,ringCls){
+  const el=document.querySelector(sel); if(!el)return;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>el.addEventListener(ev,stop,false));
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,()=>el.classList.add('ring-2','ring-offset-2',ringCls)));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,()=>el.classList.remove('ring-2','ring-offset-2',ringCls)));
+  el.addEventListener('drop',e=>{
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])]
+      .filter(f=>/\.(xlsx|xlsm|xls|csv)$/i.test(f.name));
+    if(files.length)handler({files,value:''});
+    else toast(T('請拖入 Excel 或 CSV 檔','Please drop an Excel or CSV file'),'warning');
+  },false);
+  ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+    if(!el.contains(e.target))e.preventDefault();},false));
+}
+
+// ━━━━ 啟動 ━━━━
+(async function init(){
+  EVENTS=await idbLoad();
+  const ps=periods(); if(ps.length)ACTIVE=ps[ps.length-1];
+  showApp();
+  if(EVENTS.length)renderAll();
+  setupDropZone('#dz-smart',smartImport,'ring-rose-400');
+  applyLang();
+})();
 </script>
 </body>
 </html>
