@@ -33,7 +33,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Employee HR Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.2</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -355,6 +355,90 @@ async function idbClear(){const db=await idbOpen();if(!db)return;
   return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
     tx.objectStore(IDB_STORE).clear();tx.oncomplete=()=>r();tx.onerror=()=>r();});}
 
+
+// ━━━━━━━━━ 柬文對照 Khmer → 中文 / English ━━━━━━━━━
+//  同一個省在原始資料裡有多種寫法：加「ខេត្ត（省）」前綴、加「ក្រុង（市）」、
+//  「រាជធានី（首都）」，或直接省略；另有拼寫變體（ពោធិ៍សាត់ / ពោធិសាត់）。
+//  先正規化再查表，順便把這些變體合併成同一個項目，統計才不會被拆散。
+function kmNorm(v){
+  return String(v||'').trim()
+    .replace(/^(ខេត្ត|ក្រុង|រាជធានី)\s*/,'')     // 去除 省/市/首都 前綴
+    .replace(/\u17D2/g,'\u17D2')                  // 保留下標符號
+    .replace(/[\s\u200B]/g,'')
+    .replace(/ិ៍|៍/g,'')                          // 略過變體符號差異
+    .replace(/ី/g,'ិ');                           // 長短母音混用視為相同
+}
+const KM_PROV={};
+[
+ ['កំពត','貢布','Kampot'],
+ ['ព្រះសីហនុ','西哈努克','Preah Sihanouk'],
+ ['ព្រះសីហានុ','西哈努克','Preah Sihanouk'],
+ ['ព្រៃវែង','波羅勉','Prey Veng'],
+ ['តាកែវ','茶膠','Takeo'],
+ ['កំពង់ចាម','磅湛','Kampong Cham'],
+ ['ស្វាយរៀង','柴楨','Svay Rieng'],
+ ['កណ្តាល','干丹','Kandal'],
+ ['កំពង់ស្ពឺ','磅士卑','Kampong Speu'],
+ ['ភ្នំពេញ','金邊','Phnom Penh'],
+ ['កំពង់ឆ្នាំង','磅清揚','Kampong Chhnang'],
+ ['កោះកុង','戈公','Koh Kong'],
+ ['បាត់ដំបង','馬德望','Battambang'],
+ ['ក្រចេះ','桔井','Kratie'],
+ ['កំពង់ធំ','磅同','Kampong Thom'],
+ ['ពោធិសាត់','菩薩','Pursat'],
+ ['កែប','白馬','Kep'],
+ ['រតនគិរី','臘塔納基里','Ratanakiri'],
+ ['បន្ទាយមានជ័យ','班迭棉吉','Banteay Meanchey'],
+ ['សៀមរាប','暹粒','Siem Reap'],
+ ['ព្រះវិហារ','柏威夏','Preah Vihear'],
+ ['ស្ទឹងត្រែង','上丁','Stung Treng'],
+ ['ឧត្តរមានជ័យ','奧多棉吉','Oddar Meanchey'],
+ ['មណ្ឌលគិរី','蒙多基里','Mondulkiri'],
+ ['ប៉ៃលិន','拜林','Pailin'],
+ ['ត្បូងឃ្មុំ','特本克蒙','Tbong Khmum'],
+ // 常見異體字寫法（正規化仍對不上者直接列舉）
+ ['ពោធិ៍សាត់','菩薩','Pursat'],
+ ['ពោធ៍សាត់','菩薩','Pursat'],
+ ['សិហនុ','西哈努克','Preah Sihanouk'],
+ ['ក្រចេh','桔井','Kratie'],
+].forEach(([k,zh,en])=>{KM_PROV[kmNorm(k)]={zh,en};});
+
+const KM_NAT={};
+[
+ ['ខ្មែរ','柬埔寨','Cambodian'],['កម្ពុជា','柬埔寨','Cambodian'],
+ ['ចិន','中國','Chinese'],['តៃវ៉ាន់','台灣','Taiwanese'],
+ ['អាមេរិកាំង','美國','American'],['ហ្វីលីពីន','菲律賓','Filipino'],
+ ['វៀតណាម','越南','Vietnamese'],['ថៃ','泰國','Thai'],
+ ['កូរ៉េ','韓國','Korean'],['ជប៉ុន','日本','Japanese'],
+].forEach(([k,zh,en])=>{KM_NAT[kmNorm(k)]={zh,en};});
+
+const KM_MISC={};
+[
+ ['កំពុងធ្វើការ','在職','Working'],
+ ['ឈប់ធ្វើការ','已離職','Resigned'],
+ ['មាន','有','Yes'],['គ្មាន','無','No'],
+ ['រៀបការ','已婚','Married'],['នៅលីវ','未婚','Single'],
+ ['មេម៉ាយ','喪偶','Widowed'],['លែងលះ','離異','Divorced'],
+].forEach(([k,zh,en])=>{KM_MISC[kmNorm(k)]={zh,en};});
+
+//  翻譯顯示：查得到就顯示 中文/英文（附原文），查不到就原樣輸出
+function trKm(v,table){
+  const raw=String(v||'').trim();
+  if(!raw)return '';
+  if(!/[\u1780-\u17FF]/.test(raw))return raw;      // 非柬文（如 China / Local）直接回傳
+  const hit=(table||KM_PROV)[kmNorm(raw)];
+  if(!hit)return raw;
+  return LANG==='en'?hit.en:hit.zh;
+}
+//  分組用的正規化鍵：把各種寫法合併成同一項
+function kmKey(v,table){
+  const raw=String(v||'').trim();
+  if(!raw)return '';
+  if(!/[\u1780-\u17FF]/.test(raw))return raw;
+  const n=kmNorm(raw);
+  return (table||KM_PROV)[n]?n:raw;
+}
+
 // ━━━━ 日期工具 ━━━━
 function toDate(v){
   if(v instanceof Date)return new Date(v.getFullYear(),v.getMonth(),v.getDate());
@@ -547,7 +631,10 @@ function snapDate(){
 }
 const tenureOf=r=>{const j=toDate(r.join);return j?yearsBetween(j,snapDate()):0;};
 const ageOf=r=>{ if(r.age)return r.age; const b=toDate(r.birth); return b?yearsBetween(b,snapDate()):0; };
-const groupVal=r=>({dept:r.dept,section:r.section,position:r.position,province:r.province||'—'}[GROUP]||'—');
+const groupVal=r=>{
+  if(GROUP==='province')return r.province?trKm(r.province):'—';
+  return ({dept:r.dept,section:r.section,position:r.position}[GROUP])||'—';
+};
 const groupName=()=>({dept:T('部門','Department'),section:T('組別','Section'),
   position:T('職務','Position'),province:T('籍貫','Province')}[GROUP]);
 
@@ -699,10 +786,13 @@ function dimDef(rows,sd){
   if(DIM==='gender')return {cats:[T('女 F','Female'),T('男 M','Male')],
     of:r=>r.gender==='F'?T('女 F','Female'):r.gender==='M'?T('男 M','Male'):null};
   const key={edu:'education',prov:'province',nat:'nationality',mar:'marital'}[DIM];
+  //  柬文欄位先翻譯＋正規化，把同一省的多種寫法合併成一項
+  const tbl={prov:KM_PROV,nat:KM_NAT,mar:KM_MISC,edu:KM_MISC}[DIM];
+  const disp=r=>{const v=(r[key]||'').trim(); return v?trKm(v,tbl):'';};
   const cnt={};
-  rows.forEach(r=>{const v=(r[key]||'').trim(); if(v)cnt[v]=(cnt[v]||0)+1;});
+  rows.forEach(r=>{const v=disp(r); if(v)cnt[v]=(cnt[v]||0)+1;});
   const cats=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]);
-  return {cats, of:r=>{const v=(r[key]||'').trim(); return cats.includes(v)?v:(v?T('其他','Other'):null);},
+  return {cats, of:r=>{const v=disp(r); return cats.includes(v)?v:(v?T('其他','Other'):null);},
           extra:Object.keys(cnt).length>12?T('其他','Other'):null};
 }
 // 依趨勢單位把快照分組（同組取最新一份快照為代表）
