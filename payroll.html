@@ -58,7 +58,7 @@ body{font-family:'DM Sans',sans-serif;}
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800">Payroll & Cost Analytics</p>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.2</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.3</span></p>
     </div>
 
     <div class="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
@@ -117,6 +117,33 @@ body{font-family:'DM Sans',sans-serif;}
     </div>
   </div>
 </header>
+
+<!-- ═══════════ SMART IMPORT ═══════════ -->
+<div class="bg-gradient-to-r from-sky-50 via-white to-emerald-50 border-b border-slate-100 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3">
+    <label id="dz-smart" class="flex items-center gap-3 border-2 border-dashed border-sky-300 rounded-xl px-4 py-3 cursor-pointer hover:border-sky-500 hover:bg-sky-50/60 transition group">
+      <div class="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center shrink-0 group-hover:bg-sky-200 transition">
+        <span class="text-xl">🪄</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-bold text-sky-800">
+          <span class="zh">智慧匯入 — 檔案直接丟進來就好</span>
+          <span class="en hidden">Smart Import — just drop any files here</span>
+        </p>
+        <p class="text-[11px] text-slate-500 mt-0.5">
+          <span class="zh">可一次選多個檔。系統自動辨識「預付 / 正式」與所屬月份，分別歸位，不必手動配對。</span>
+          <span class="en hidden">Select multiple files at once. Type (Advance / Payroll) and period are detected automatically.</span>
+        </p>
+        <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
+      </div>
+      <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-sky-600 text-white shrink-0 group-hover:bg-sky-700 transition">
+        <span class="zh">選擇檔案</span><span class="en hidden">Choose files</span>
+      </span>
+      <input type="file" accept=".xlsx,.xls" multiple class="hidden" onchange="smartImport(this)">
+    </label>
+    <div id="smart-report" class="hidden mt-2 text-[11px] bg-white border border-slate-200 rounded-lg p-2.5 space-y-1"></div>
+  </div>
+</div>
 
 <!-- ═══════════ UPLOAD STRIP ═══════════ -->
 <div class="upload-row bg-white border-b border-slate-100 no-print">
@@ -335,29 +362,29 @@ body{font-family:'DM Sans',sans-serif;}
     <!-- ══ 操作台：來源 · 部門 · 總額人均 · 時間單位 ══ -->
     <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
       <div class="flex flex-wrap items-center gap-2.5">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14">來源</span>
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14"data-en="Source">來源</span>
         <div class="flex bg-slate-100 rounded-lg p-0.5">
-          <button id="cs-pay" onclick="setCostSrc('pay')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-emerald-700 transition">💵 正式薪資</button>
-          <button id="cs-adv" onclick="setCostSrc('adv')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">💰 預付薪資</button>
-          <button id="cs-both" onclick="setCostSrc('both')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 合計</button>
+          <button id="cs-pay" onclick="setCostSrc('pay')" data-en="💵 Payroll" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-emerald-700 transition">💵 正式薪資</button>
+          <button id="cs-adv" onclick="setCostSrc('adv')" data-en="💰 Advance" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">💰 預付薪資</button>
+          <button id="cs-both" onclick="setCostSrc('both')" data-en="Σ Combined" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 合計</button>
         </div>
         <select id="cost-dept" onchange="renderCost()"
           class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-sky-200 outline-none min-w-[180px]">
           <option value="">全廠 All Departments</option>
         </select>
         <div class="flex bg-slate-100 rounded-lg p-0.5">
-          <button id="cost-mode-total" onclick="setCostMode('total')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">總額</button>
-          <button id="cost-mode-cap" onclick="setCostMode('cap')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">人均</button>
+          <button id="cost-mode-total" onclick="setCostMode('total')" data-en="Total" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">總額</button>
+          <button id="cost-mode-cap" onclick="setCostMode('cap')" data-en="Per Capita" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">人均</button>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2.5">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14">時間</span>
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14"data-en="Time">時間</span>
         <div class="flex bg-slate-100 rounded-lg p-0.5">
-          <button id="cu-hour"  onclick="setCostUnit('hour')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每小時</button>
-          <button id="cu-day"   onclick="setCostUnit('day')"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
-          <button id="cu-week"  onclick="setCostUnit('week')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
-          <button id="cu-month" onclick="setCostUnit('month')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">每月</button>
-          <button id="cu-year"  onclick="setCostUnit('year')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+          <button id="cu-hour"  onclick="setCostUnit('hour')" data-en="Hourly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每小時</button>
+          <button id="cu-day"   onclick="setCostUnit('day')" data-en="Daily"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+          <button id="cu-week"  onclick="setCostUnit('week')" data-en="Weekly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+          <button id="cu-month" onclick="setCostUnit('month')" data-en="Monthly" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">每月</button>
+          <button id="cu-year"  onclick="setCostUnit('year')" data-en="Yearly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
         </div>
         <span id="cost-scope" class="text-[11px] text-slate-400 ml-auto"></span>
       </div>
@@ -617,7 +644,7 @@ body{font-family:'DM Sans',sans-serif;}
   <div id="bd-content" class="hidden">
     <!-- 來源切換 -->
     <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
-      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">資料來源 Source</span>
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider"data-en="Source">資料來源 Source</span>
       <div class="flex bg-slate-100 rounded-lg p-0.5">
         <button id="bd-src-pay" onclick="setBdSrc('pay')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-emerald-700 transition">正式薪資 Payroll</button>
         <button id="bd-src-adv" onclick="setBdSrc('adv')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">預付薪資 Advance</button>
@@ -629,7 +656,7 @@ body{font-family:'DM Sans',sans-serif;}
       </div>
       <div class="ml-auto flex items-center gap-2">
         <button onclick="sendBreakdownTG()" class="text-xs px-3 py-2 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 transition flex items-center gap-1.5">
-          <span>✈️</span> 傳送 Telegram
+          <span>✈️</span> <span data-en="Send to Telegram">傳送 Telegram</span>
         </button>
         <button onclick="exportBreakdownCSV()" class="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition">⬇ CSV</button>
       </div>
@@ -667,25 +694,25 @@ body{font-family:'DM Sans',sans-serif;}
     <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
       <span class="text-xl">✈️</span>
       <div class="flex-1">
-        <p class="text-sm font-bold text-slate-800">傳送至 Telegram 群組</p>
+        <p class="text-sm font-bold text-slate-800"data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
         <p id="tg-kind" class="text-[11px] text-slate-400 mt-0.5">—</p>
       </div>
       <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
     <div class="px-5 py-4 space-y-3">
       <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">選擇期間 Period</label>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider"data-en="Select Period">選擇期間 Period</label>
         <select id="tg-period" onchange="previewTg()"
           class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-sky-200 outline-none"></select>
       </div>
       <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">訊息預覽 Preview</label>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider"data-en="Message Preview">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-52 overflow-auto whitespace-pre-wrap text-slate-600"></pre>
       </div>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
-      <button onclick="closeTgModal()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
-      <button id="tg-send" onclick="confirmSendTg()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition">確認傳送</button>
+      <button onclick="closeTgModal()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition"data-en="Cancel">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition"data-en="Send">確認傳送</button>
     </div>
   </div>
 </div>
@@ -729,10 +756,20 @@ let _db     = null;   // IndexedDB instance
 //  LANG
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function toggleLang(){LANG=LANG==='zh'?'en':'zh';applyLang();}
+function T(zh,en){return LANG==='en'?en:zh;}
 function applyLang(){
   document.querySelectorAll('.zh,.en').forEach(el=>{
     el.classList.toggle('hidden',!el.classList.contains(LANG));
   });
+  // data-en 屬性：切英文時換字，切回中文還原（首次執行自動備份中文原文）
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.zhOrig===undefined) el.dataset.zhOrig=el.textContent;
+    el.textContent = LANG==='en' ? el.dataset.en : el.dataset.zhOrig;
+  });
+  // 重繪由 JS 產生的表格內容
+  if(typeof ACTIVE!=='undefined' && ACTIVE){
+    try{ renderCost(); renderBreakdown(); }catch(e){}
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1124,6 +1161,119 @@ function runAudit(advArr, payArr){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  UPLOAD HANDLER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ═══════════════════════════════════════════
+//  🪄 智慧匯入：自動辨識「預付 / 正式」與月份
+// ═══════════════════════════════════════════
+//  辨識優先序：
+//   ① Summary 工作表首列標題（"Advance Summary…" / "Payroll Summary…"）── 最可靠
+//   ② 檔名關鍵字（advance / payroll、預支、預付）
+//   ③ 資料特徵：預付檔全員「預支扣回」欄為 0（尚未扣回）
+function detectFileType(wb, fileName){
+  const sum = wb.SheetNames.find(s=>/summary/i.test(s));
+  if(sum){
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[sum],{header:1,defval:null});
+    for(let i=0;i<Math.min(4,raw.length);i++)
+      for(const c of (raw[i]||[]))
+        if(typeof c==='string'){
+          if(/advance\s*summary/i.test(c)) return {type:'advance',why:'Summary 標題'};
+          if(/payroll\s*summary/i.test(c)) return {type:'payroll',why:'Summary 標題'};
+        }
+  }
+  const n=fileName.toLowerCase();
+  if(/advance|預支|預付/.test(n)) return {type:'advance',why:'檔名'};
+  if(/payroll|正式|薪資/.test(n)) return {type:'payroll',why:'檔名'};
+  return {type:null,why:''};
+}
+function detectPeriod(wb, fileName){
+  let pKey=keyFromFilename(fileName);
+  if(pKey) return pKey;
+  for(const sn of wb.SheetNames.slice(0,3)){
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+    for(let i=0;i<Math.min(5,raw.length);i++)
+      for(const c of (raw[i]||[]))
+        if(typeof c==='string'){const p=keyFromText(c); if(p) return p;}
+  }
+  return null;
+}
+
+async function smartImport(input){
+  const files=[...input.files]; input.value='';
+  if(!files.length) return;
+  const st=qs('#smart-status'), rep=qs('#smart-report');
+  st.textContent=`⏳ 解析 ${files.length} 個檔案中…`; st.style.color='#0369a1';
+  rep.classList.add('hidden'); rep.innerHTML='';
+
+  const log=[]; const touched=new Set();
+  for(const file of files){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      const det=detectFileType(wb,file.name);
+      const pKey=detectPeriod(wb,file.name);
+
+      if(!det.type){ log.push({ok:false,f:file.name,msg:'無法判斷是預付還是正式，請用下方對應區塊手動上傳'}); continue; }
+      if(!pKey){    log.push({ok:false,f:file.name,msg:'無法辨識月份，請用下方對應區塊手動上傳'}); continue; }
+
+      const shName = wb.SheetNames.find(s=>/payroll\s*list/i.test(s))
+                  || wb.SheetNames.find(s=>/payroll/i.test(s)) || wb.SheetNames[0];
+      const recs=parseSheet(wb.Sheets[shName]);
+      if(!recs.length){ log.push({ok:false,f:file.name,msg:'未找到員工記錄，請確認工作表格式'}); continue; }
+
+      if(!STORE[pKey]) STORE[pKey]={periodKey:pKey,label:labelFromKey(pKey)};
+      const entry=STORE[pKey];
+      const isAdv=(det.type==='advance');
+      const replaced = isAdv ? !!entry.advanceRecords : !!entry.payrollRecords;
+      if(isAdv){ entry.advanceRecords=recs; entry.advanceFile=file.name; entry.advanceDate=_nowISO(); }
+      else     { entry.payrollRecords=recs; entry.payrollFile=file.name; entry.payrollDate=_nowISO(); }
+      entry.updatedAt=_nowISO();
+
+      if(entry.payrollRecords&&entry.payrollRecords.length){
+        entry.mergedRecords=runAudit(entry.advanceRecords||[], entry.payrollRecords); entry.stage='full';
+      }else{
+        entry.mergedRecords=runAudit([], entry.advanceRecords||[]); entry.stage='adv';
+      }
+      await idbSave(entry); touched.add(pKey);
+      log.push({ok:true,f:file.name,type:det.type,why:det.why,pKey,n:recs.length,replaced});
+    }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
+  }
+
+  buildPeriodSelect();
+  const keys=[...touched].sort();
+  if(keys.length){
+    const last=keys[keys.length-1];
+    qs('#period-sel').value=last; ACTIVE=STORE[last];
+    syncUploadZoneUI(); showStageBadge(); renderAll(); pushProjection(ACTIVE);
+  }
+
+  // ── 結果回報 ──
+  const okN=log.filter(l=>l.ok).length;
+  st.textContent = okN===log.length ? `✅ ${okN} 個檔案全部匯入成功` : `⚠ ${okN}/${log.length} 個成功，請看下方說明`;
+  st.style.color = okN===log.length ? '#059669' : '#b45309';
+
+  const gaps=[];
+  keys.forEach(k=>{
+    const e=STORE[k];
+    if(!e.advanceRecords) gaps.push(`${labelFromKey(k)} 缺「預付薪資」檔`);
+    if(!e.payrollRecords) gaps.push(`${labelFromKey(k)} 缺「正式薪資」檔`);
+  });
+
+  rep.innerHTML =
+    log.map(l=>l.ok
+      ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span>
+         <span class="flex-1"><b>${l.f}</b> → 判定為
+         <span class="${l.type==='advance'?'text-amber-700':'text-emerald-700'} font-semibold">${l.type==='advance'?'預付薪資':'正式薪資'}</span>
+         · ${labelFromKey(l.pKey)} · ${l.n} 人
+         <span class="text-slate-400">（依${l.why}判定${l.replaced?'，已覆蓋原有資料':''}）</span></span></div>`
+      : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span>
+         <span class="flex-1"><b>${l.f}</b> — ${l.msg}</span></div>`
+    ).join('')
+    + (gaps.length
+      ? `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-amber-700">
+         📌 <b>備註</b>：${gaps.join('；')}。<span class="text-slate-500">缺檔不影響已匯入的部分，補傳後會自動重算並升級為 Stage 2。</span></div>`
+      : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 所選月份的預付與正式檔皆已齊全。</div>`);
+  rep.classList.remove('hidden');
+  applyLang();
+}
+
 async function handleUpload(type, input){
   const file=input.files[0]; if(!file)return; input.value='';
   const isAdv=(type==='advance');
@@ -1685,21 +1835,22 @@ function setCostSrcSilent(s){
 // ═══════════════════════════════════════════
 let BD_SRC='pay', BD_MODE='total';
 const BD_COMPS=[
-  {k:'basicPay',   zh:'基本薪 Basic'},
-  {k:'seniority',  zh:'年資 Seniority'},
-  {k:'skill',      zh:'技術 Skill'},
-  {k:'position',   zh:'職務 Position'},
-  {k:'language',   zh:'語言 Language'},
-  {k:'incentive',  zh:'獎勵 Incentive'},
-  {k:'bonus',      zh:'獎金 Bonus'},
-  {k:'travel',     zh:'交通 Travel'},
-  {k:'otTotal',    zh:'加班假日 OT/Hol'},
-  {k:'advDeduction',zh:'預支扣回 Advance', neg:true},
-  {k:'nssf',       zh:'NSSF', neg:true},
-  {k:'union',      zh:'工會 Union', neg:true},
-  {k:'tax',        zh:'薪資稅 Tax', neg:true},
-  {k:'totalSalary',zh:'實領 Net Pay', bold:true},
+  {k:'basicPay',   zh:'基本薪', en:'Basic'},
+  {k:'seniority',  zh:'年資',   en:'Seniority'},
+  {k:'skill',      zh:'技術',   en:'Skill'},
+  {k:'position',   zh:'職務',   en:'Position'},
+  {k:'language',   zh:'語言',   en:'Language'},
+  {k:'incentive',  zh:'獎勵',   en:'Incentive'},
+  {k:'bonus',      zh:'獎金',   en:'Bonus'},
+  {k:'travel',     zh:'交通',   en:'Travel'},
+  {k:'otTotal',    zh:'加班假日',en:'OT / Holiday'},
+  {k:'advDeduction',zh:'預支扣回',en:'Advance', neg:true},
+  {k:'nssf',       zh:'NSSF',   en:'NSSF', neg:true},
+  {k:'union',      zh:'工會費', en:'Union', neg:true},
+  {k:'tax',        zh:'薪資稅', en:'Tax',   neg:true},
+  {k:'totalSalary',zh:'實領',   en:'Net Pay', bold:true},
 ];
+const bdLabel=c=>T(c.zh,c.en);
 function _btn(on,color){return on
   ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
   :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
@@ -1775,7 +1926,7 @@ function renderBreakdown(){
       +`<span class="ml-2 text-amber-600">僅預支有 <b>${G.advOnly.length}</b> 人</span>`
       +`<span class="ml-2 text-sky-600">僅正式扣回 <b>${G.payOnly.length}</b> 人</span>`;
 
-    thead.innerHTML=['類別','工號','姓名','部門','預支發放 $','正式扣回 $','差額']
+    thead.innerHTML=[T('類別','Category'),T('工號','ID'),T('姓名','Name'),T('部門','Dept'),T('預支發放 $','Advance Paid $'),T('正式扣回 $','Payroll Deducted $'),T('差額','Diff')]
       .map((h,i)=>`<th class="px-3 py-2 ${i>3?'text-right':'text-left'} font-semibold">${h}</th>`).join('');
 
     const row=(tag,cls,x)=>`<tr class="border-b border-slate-50 hover:bg-slate-50">
@@ -1788,10 +1939,10 @@ function renderBreakdown(){
       <td class="px-3 py-2 text-right jmono font-semibold ${x.d?'text-rose-600':'text-slate-300'}">${x.d?(x.d>0?'+':'')+fmt(x.d):'—'}</td></tr>`;
 
     let html='';
-    G.diff.forEach(x=>html+=row('金額不符','bg-rose-50 text-rose-700',x));
-    G.advOnly.forEach(x=>html+=row('僅預支有','bg-amber-50 text-amber-700',
+    G.diff.forEach(x=>html+=row(T('金額不符','Amount differs'),'bg-rose-50 text-rose-700',x));
+    G.advOnly.forEach(x=>html+=row(T('僅預支有','Advance only'),'bg-amber-50 text-amber-700',
       {id:x.id,name:x.r.nameLat,dept:x.r.dept,av:Math.abs(N(x.r.totalSalary)),pv:0,d:Math.abs(N(x.r.totalSalary))}));
-    G.payOnly.forEach(x=>html+=row('僅正式扣回','bg-sky-50 text-sky-700',
+    G.payOnly.forEach(x=>html+=row(T('僅正式扣回','Payroll only'),'bg-sky-50 text-sky-700',
       {id:x.id,name:x.r.nameLat,dept:x.r.dept,av:0,pv:Math.abs(N(x.r.advDeduction)),d:-Math.abs(N(x.r.advDeduction))}));
     if(!html) html=`<tr><td colspan="7" class="px-3 py-10 text-center text-emerald-600 font-semibold">✅ 全部 ${G.match.length} 人逐筆相符，無任何差異</td></tr>`;
     else html+=`<tr><td colspan="7" class="px-3 py-3 text-center text-slate-400 text-[11px]">另有 ${G.match.length} 人完全相符，未列出</td></tr>`;
@@ -1815,9 +1966,9 @@ function renderBreakdown(){
   const m=bdAggregate(rows);
   const depts=Object.keys(m).sort((a,b)=>m[b].totalSalary-m[a].totalSalary);
 
-  thead.innerHTML=`<th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">部門 Dept</th>
-    <th class="px-2 py-2 text-right font-semibold">人數</th>`+
-    BD_COMPS.map(c=>`<th class="px-2 py-2 text-right font-semibold whitespace-nowrap ${c.neg?'text-rose-500':''} ${c.bold?'text-emerald-600':''}">${c.zh}</th>`).join('');
+  thead.innerHTML=`<th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">${T('部門','Dept')}</th>
+    <th class="px-2 py-2 text-right font-semibold">${T('人數','Staff')}</th>`+
+    BD_COMPS.map(c=>`<th class="px-2 py-2 text-right font-semibold whitespace-nowrap ${c.neg?'text-rose-500':''} ${c.bold?'text-emerald-600':''}">${bdLabel(c)}</th>`).join('');
 
   tbody.innerHTML=depts.map(d=>{
     const v=m[d], div=perCap?(v.count||1):1;
@@ -1832,7 +1983,7 @@ function renderBreakdown(){
 
   const T={count:rows.length}; BD_COMPS.forEach(c=>T[c.k]=depts.reduce((s,d)=>s+m[d][c.k],0));
   const div=perCap?(rows.length||1):1;
-  tfoot.innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">合計 TOTAL</td>
+  tfoot.innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">${T('合計','TOTAL')}</td>
     <td class="px-2 py-2 text-right jmono">${T.count}</td>`+
     BD_COMPS.map(c=>`<td class="px-2 py-2 text-right jmono ${c.neg?'text-rose-600':''}">${fmt(T[c.k]/div)}</td>`).join('');
 
@@ -1845,7 +1996,7 @@ function exportBreakdownCSV(){
     [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
   const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`breakdown_${BD_SRC}_${ACTIVE?ACTIVE.key:'data'}.csv`;a.click();
+  a.download=`breakdown_${BD_SRC}_${ACTIVE?ACTIVE.periodKey:'data'}.csv`;a.click();
   toast('CSV 已下載','success');
 }
 
@@ -1865,19 +2016,22 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 
 async function sendBreakdownTG(){
   if(!_bdLast){toast('尚無資料','error');return;}
-  const P=ACTIVE?labelFromKey(ACTIVE.key):'—';
+  const P=ACTIVE?labelFromKey(ACTIVE.periodKey):'—';
   let t='';
   if(_bdLast.mode==='cmp'){
-    t=`🧾 <b>預支 / 正式薪資核對</b>\n📅 期間：${esc(P)}\n\n`
-     +`預支發放合計：$${fmt(_bdLast.totalAdv)}\n`
-     +`正式扣回合計：$${fmt(_bdLast.totalPay)}\n`
-     +`差額 Diff：<b>$${fmt(_bdLast.diff)}</b> ${Math.abs(_bdLast.diff)<1?'✅ 相符':'⚠️ 不符，請查核'}\n`
-     +`部門數：${_bdLast.depts}`;
+    t=`🧾 <b>預支 / 正式薪資核對 Advance vs Payroll</b>\n📅 期間 Period：${esc(P)}\n\n`
+     +`預支發放合計 Advance Paid：$${fmt(_bdLast.totalAdv)}\n`
+     +`正式扣回合計 Payroll Deducted：$${fmt(_bdLast.totalPay)}\n`
+     +`差額 Diff：<b>$${fmt(_bdLast.diff)}</b>\n\n`
+     +`✅ 相符 Matched：${_bdLast.match} 人\n`
+     +`⚠️ 金額不符 Differs：${_bdLast.bad} 人\n`
+     +`🟡 僅預支有 Advance only：${_bdLast.advOnly} 人\n`
+     +`🔵 僅正式扣回 Payroll only：${_bdLast.payOnly} 人`;
   }else{
     const T=_bdLast.total, d=_bdLast.perCap?(_bdLast.head||1):1;
-    t=`🧾 <b>${esc(_bdLast.src)} 分項統計</b>\n📅 期間：${esc(P)}\n`
-     +`👥 人數：${T.count}　部門：${_bdLast.depts}　${_bdLast.perCap?'（人均）':'（總額）'}\n\n`
-     +BD_COMPS.map(c=>`${c.neg?'−':' '}${c.zh}：$${fmt(T[c.k]/d)}`).join('\n');
+    t=`🧾 <b>${esc(_bdLast.src)} 分項統計 Component Breakdown</b>\n📅 期間 Period：${esc(P)}\n`
+     +`👥 人數 Headcount：${T.count}　部門 Depts：${_bdLast.depts}　${_bdLast.perCap?'（人均 Per Capita）':'（總額 Total）'}\n\n`
+     +BD_COMPS.map(c=>`${c.neg?'−':' '}${c.zh} ${c.en}：$${fmt(T[c.k]/d)}`).join('\n');
   }
   await sendTG(t);
 }
@@ -1901,15 +2055,18 @@ function buildSummaryText(which, key){
   const total=list.reduce((s,[,v])=>s+v.amt,0);
   const head =which==='adv' ? '💰 <b>預付薪資發放 Advance Pay</b>' : '💵 <b>正式薪資發放 Payroll</b>';
 
-  let t=`${head}\n📅 期間：${esc(P)}\n`
-      +`👥 總人數：${src.length} 人　🏭 部門：${list.length}\n`
-      +`💵 <b>發放總額：$${fmt(total)}</b>\n`
+  let t=`${head}\n`
+      +`📅 期間 Period：${esc(P)}\n`
+      +`👥 總人數 Headcount：${src.length}　🏭 部門 Depts：${list.length}\n`
+      +`💵 <b>發放總額 Total Paid：$${fmt(total)}</b>\n`
       +`— — — — — — — — — —\n`
-      +`<b>各部門明細</b>\n`;
+      +`<b>各部門明細 By Department</b>\n`
+      +`<i>部門 Dept ｜ 人數 Staff ｜ 金額 Amount</i>\n`;
   list.forEach(([d,v])=>{
-    t+=`${esc(d)}：${v.n} 人　$${fmt(v.amt)}\n`;
+    t+=`${esc(d)}：${v.n} 人 · $${fmt(v.amt)}\n`;
   });
-  t+=`— — — — — — — — — —\n合計：${src.length} 人　<b>$${fmt(total)}</b>`;
+  t+=`— — — — — — — — — —\n`
+    +`合計 TOTAL：${src.length} 人 Staff　<b>$${fmt(total)}</b>`;
   return {text:t};
 }
 
@@ -1925,7 +2082,7 @@ function sendSummaryTG(which){
     const has = which==='adv' ? (e.advanceRecords||[]).length : (e.payrollRecords||[]).length;
     return `<option value="${k}">${labelFromKey(k)}${has?'':'（無資料）'}</option>`;
   }).join('');
-  if(ACTIVE&&STORE[ACTIVE.key]) sel.value=ACTIVE.key;
+  if(ACTIVE&&STORE[ACTIVE.periodKey]) sel.value=ACTIVE.periodKey;
   previewTg();
   const m=qs('#tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
 }
@@ -1958,7 +2115,7 @@ async function cloudUpload(){
   const btn=qs('#btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
   try{
     await pushProjection(ACTIVE);
-    const payload={tool:'hrpay_payroll',period:ACTIVE.key,updatedAt:_nowISO(),
+    const payload={tool:'hrpay_payroll',period:ACTIVE.periodKey,updatedAt:_nowISO(),
       stage:ACTIVE.stage, advance:ACTIVE.advanceRecords||[], payroll:ACTIVE.payrollRecords||[]};
     await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
@@ -1974,14 +2131,14 @@ async function cloudDownload(){
     const D=(d&&d.data)||{};
     if(!D.period){toast('雲端尚無資料','error');}
     else{
-      const entry={key:D.period, stage:D.stage||'full',
+      const entry={periodKey:D.period, label:labelFromKey(D.period), stage:D.stage||'full',
         advanceRecords:D.advance||[], payrollRecords:D.payroll||[]};
       entry.mergedRecords = (entry.payrollRecords.length)
         ? runAudit(entry.advanceRecords, entry.payrollRecords)
         : runAudit([], entry.advanceRecords);
-      STORE[entry.key]=entry; await idbSave(entry);
+      STORE[entry.periodKey]=entry; await idbSave(entry);
       ACTIVE=entry; buildPeriodSelect(); renderAll();
-      toast(`☁ 已載入雲端資料（${labelFromKey(entry.key)}）`,'success');
+      toast(`☁ 已載入雲端資料（${labelFromKey(entry.periodKey)}）`,'success');
     }
   }catch(e){toast('下載失敗：'+e.message,'error');}
   if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
