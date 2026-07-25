@@ -29,7 +29,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Warning Management</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -47,8 +47,6 @@
         ✈️ <span data-en="Telegram">傳送</span></button>
       <button onclick="goTab('apply')" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition">
         📝 <span data-en="New Warning">提出警告</span></button>
-      <button id="btn-admin" onclick="toggleAdmin()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
-        🔒 <span data-en="Admin">管理</span></button>
       <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">中/EN</button>
     </div>
   </div>
@@ -341,13 +339,14 @@ function toggleAdmin(){
     toast(T('已進入管理模式，可編輯／刪除記錄','Admin mode on'),'success');renderAll();}
   else toast(T('管理碼錯誤','Wrong admin code'),'error');
 }
-function syncAdminBtn(){
+function syncAdminBtn(){ return; /* 管理按鈕已移除 */
+  /*
   const b=qs('#btn-admin');
   b.className='no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border transition '
     +(IS_ADMIN?'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
               :'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100');
   b.querySelector('span').textContent=IS_ADMIN?T('管理中','Admin ✓'):T('管理','Admin');
-  b.firstChild.textContent=IS_ADMIN?'🔓 ':'🔒 ';
+  b.firstChild.textContent=IS_ADMIN?'🔓 ':'🔒 ';*/
 }
 
 // ━━━━ IndexedDB（離線快取）━━━━
@@ -835,10 +834,9 @@ function renderList(){
       <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${stColor}">${esc(r.status)}</span>
         ${exp?`<span class="ml-1 text-[10px] text-slate-400">${T('已失效','expired')}</span>`:''}</td>
       <td class="px-3 py-2 whitespace-nowrap">
-        ${r.status==='待審核'&&IS_ADMIN?`
+        ${r.status==='待審核'?`
           <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('核可','Approve')}</button>
-          <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`
-        :r.status==='待審核'?`<span class="text-[11px] text-slate-400">${T('待 Paul 核可','pending')}</span>`:''}
+          <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`:''}
       </td></tr>`;}).join('')
     ||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
   if(list.length>500)qs('#li-tbody').insertAdjacentHTML('beforeend',
@@ -992,7 +990,6 @@ async function submitApply(){
 }
 async function approveRec(id,approve){
   const r=RECS.find(x=>x.id===id);if(!r)return;
-  if(!IS_ADMIN){toast(T('需要管理權限','Admin required'),'error');return;}
   if(!confirm(T(`確定${approve?'核可':'退件'}：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？`,
     `${approve?'Approve':'Reject'} this warning?`)))return;
   try{
@@ -1030,7 +1027,6 @@ async function cloudDownload(){
 }
 async function cloudUpload(){
   if(!RECS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
-  if(!IS_ADMIN){toast(T('上傳需要管理權限，請先按右上角「管理」','Admin required — click Admin first'),'error');return;}
   const pending=RECS.filter(r=>r._src==='import'||!r.row);
   if(!pending.length){toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'warning');return;}
   const b=qs('#btn-cloud-up');b.disabled=true;b.classList.add('opacity-50');
@@ -1172,7 +1168,7 @@ function setupDropZone(sel,handler,ringCls){
 (async function init(){
   RECS=await idbLoad();
   const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];
-  syncAdminBtn();showApp();
+  showApp();
   if(RECS.length)renderAll();
   setupDropZone('#dz-smart',smartImport,'ring-amber-400');
   applyLang();
