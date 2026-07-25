@@ -841,6 +841,8 @@ td.total{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;fon
         </div>
       </div>
 
+      <div id="analytics-panel" style="display:none;margin-bottom:14px"></div>
+
       <div class="card">
         <div class="card-header">
           <div class="card-title" data-i18n="transfer.title">個人職位異動記錄</div>
@@ -850,6 +852,12 @@ td.total{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;fon
               匯入 Excel
               <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importTransferXlsx(event)">
             </label>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAnalytics()" title="統計分析" id="btn-analytics">
+              📊 統計分析
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openTgModal()" title="傳送至 Telegram">
+              ✈️ 傳送
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="printTransfers()" title="列印">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               列印
@@ -4565,6 +4573,315 @@ async function sendTelegramNotify(r, event){
 
   hcInit();
 })();
+
+/* ═══════════════════════════════════════════════════════════
+   AC-HRA-PAY · Transfer 統計分析 + Telegram 模組 v1.0
+   獨立模組：只讀 state.transfers，不改動既有流程邏輯
+   ═══════════════════════════════════════════════════════════ */
+(function(){
+  const GAS = localStorage.getItem('vrt_hr_gas_url')
+           || localStorage.getItem('hrpay_gas_url')
+           || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const pad=n=>String(n).padStart(2,'0');
+  const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+  const E=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const money=n=>(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const isEN=()=>(window.state&&state.lang==='en');
+  const T=(zh,en)=>isEN()?en:zh;
+
+  let A_UNIT='month', A_KEY='', A_DEPT='';
+
+  const recs=()=>((window.state&&Array.isArray(state.transfers))?state.transfers:[]).filter(t=>t.effectiveDate);
+  const total=t=>N(t.newBasic)+N(t.newPosAdd)+N(t.newSkill)+N(t.newLang);
+  const before=t=>N(t.origBasic)+N(t.origPosAdd)+N(t.origSkill)+N(t.origLang);
+  function isoWeek(d){const t=new Date(d.valueOf());t.setDate(t.getDate()+3-((d.getDay()+6)%7));
+    const w1=new Date(t.getFullYear(),0,4);
+    return {y:t.getFullYear(),w:1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7)};}
+  function keyOf(dateStr,unit){
+    const d=new Date(dateStr); if(isNaN(d))return null;
+    const y=d.getFullYear(),m=d.getMonth()+1;
+    if(unit==='day')  return {k:dateStr.slice(0,10), label:dateStr.slice(0,10)};
+    if(unit==='week'){const w=isoWeek(d);return {k:`${w.y}-W${pad(w.w)}`,label:`${w.y}-W${pad(w.w)}`};}
+    if(unit==='quarter')return {k:`${y}-Q${Math.floor((m-1)/3)+1}`,label:`${y} Q${Math.floor((m-1)/3)+1}`};
+    if(unit==='year') return {k:String(y),label:String(y)};
+    return {k:`${y}-${pad(m)}`,label:`${MS[m-1]} ${y}`};
+  }
+  const keysOf=unit=>{
+    const m={}; recs().forEach(t=>{const k=keyOf(t.effectiveDate,unit); if(k)m[k.k]=k.label;});
+    return Object.keys(m).sort().reverse().map(k=>({k,label:m[k]}));
+  };
+  const inKey=(t,unit,key)=>{const k=keyOf(t.effectiveDate,unit);return k&&k.k===key;};
+
+  window.toggleAnalytics=function(){
+    const p=document.getElementById('analytics-panel');
+    const on=p.style.display==='none';
+    p.style.display=on?'block':'none';
+    if(on){ const ks=keysOf(A_UNIT); if(!A_KEY||!ks.some(x=>x.k===A_KEY)) A_KEY=ks.length?ks[0].k:''; renderAnalytics(); }
+  };
+  window.setAUnit=function(u){A_UNIT=u;const ks=keysOf(u);A_KEY=ks.length?ks[0].k:'';renderAnalytics();};
+  window.setAKey=function(k){A_KEY=k;renderAnalytics();};
+  window.setADept=function(d){A_DEPT=d;renderAnalytics();};
+  window.stepAKey=function(dir){
+    const ks=keysOf(A_UNIT).map(x=>x.k);            // 新→舊
+    const i=ks.indexOf(A_KEY); if(i<0)return;
+    const n=Math.min(ks.length-1,Math.max(0,i-dir)); // ◀ 較舊
+    if(n!==i){A_KEY=ks[n];renderAnalytics();}
+  };
+
+  function renderAnalytics(){
+    const p=document.getElementById('analytics-panel'); if(!p)return;
+    const all=recs();
+    const ks=keysOf(A_UNIT);
+    const scope=all.filter(t=>inKey(t,A_UNIT,A_KEY));
+    const depts=[...new Set(all.map(t=>t.newDept||t.origDept||'—').filter(Boolean))].sort();
+    const list=A_DEPT?scope.filter(t=>(t.newDept||t.origDept)===A_DEPT):scope;
+
+    const byReason={}, byDept={};
+    let up=0,down=0,flat=0,sumDiff=0;
+    list.forEach(t=>{
+      const r=t.reason||'—';
+      byReason[r]=(byReason[r]||0)+1;
+      const d=t.newDept||t.origDept||'—';
+      if(!byDept[d])byDept[d]={n:0,in:0,out:0,diff:0,approved:0,pending:0};
+      const b=byDept[d]; b.n++;
+      const df=total(t)-before(t); b.diff+=df; sumDiff+=df;
+      if(df>0.01)up++; else if(df<-0.01)down++; else flat++;
+      if(t.status==='approved')b.approved++; else b.pending++;
+      if(t.origDept&&t.newDept&&t.origDept!==t.newDept){
+        byDept[t.newDept]=byDept[t.newDept]||{n:0,in:0,out:0,diff:0,approved:0,pending:0};
+        byDept[t.origDept]=byDept[t.origDept]||{n:0,in:0,out:0,diff:0,approved:0,pending:0};
+        byDept[t.newDept].in++; byDept[t.origDept].out++;
+      }
+    });
+    const appr=list.filter(t=>t.status==='approved').length;
+
+    // 趨勢：目前單位下各區間筆數
+    const trend=ks.slice(0,12).reverse().map(x=>({
+      label:x.label,
+      n:all.filter(t=>inKey(t,A_UNIT,x.k)&&(!A_DEPT||(t.newDept||t.origDept)===A_DEPT)).length
+    }));
+    const maxN=Math.max(1,...trend.map(x=>x.n));
+
+    const btn=(on,label,fn)=>`<button onclick="${fn}" style="padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:${on?700:500};background:${on?'#fff':'transparent'};color:${on?'#1e3a8a':'#64748b'};box-shadow:${on?'0 1px 3px rgba(0,0,0,.12)':'none'}">${label}</button>`;
+    const card=(t,v,s,c)=>`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px">
+      <div style="font-size:11px;color:#94a3b8;font-weight:500">${t}</div>
+      <div style="font-size:22px;font-weight:800;margin-top:4px;color:${c||'#1e293b'};font-family:'IBM Plex Mono',monospace">${v}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">${s||''}</div></div>`;
+
+    p.innerHTML=`
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:1px">${T('統計區間','PERIOD')}</span>
+        <div style="display:flex;background:#e2e8f0;border-radius:9px;padding:2px;gap:2px">
+          ${btn(A_UNIT==='day',T('日','Day'),"setAUnit('day')")}
+          ${btn(A_UNIT==='week',T('週','Week'),"setAUnit('week')")}
+          ${btn(A_UNIT==='month',T('月','Month'),"setAUnit('month')")}
+          ${btn(A_UNIT==='quarter',T('季','Quarter'),"setAUnit('quarter')")}
+          ${btn(A_UNIT==='year',T('年','Year'),"setAUnit('year')")}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="stepAKey(-1)" style="width:30px;height:30px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;color:#64748b">◀</button>
+          <select onchange="setAKey(this.value)" style="padding:6px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-weight:700;font-size:13px;min-width:140px;text-align:center">
+            ${ks.map(x=>`<option value="${x.k}"${x.k===A_KEY?' selected':''}>${x.label}</option>`).join('')||`<option>${T('無資料','No data')}</option>`}
+          </select>
+          <button onclick="stepAKey(1)" style="width:30px;height:30px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;color:#64748b">▶</button>
+        </div>
+        <select onchange="setADept(this.value)" style="padding:6px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-size:13px;min-width:150px">
+          <option value="">${T('全部部門 All Departments','All Departments')}</option>
+          ${depts.map(d=>`<option value="${E(d)}"${d===A_DEPT?' selected':''}>${E(d)}</option>`).join('')}
+        </select>
+        <div style="flex:1"></div>
+        <button onclick="toggleAnalytics()" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:18px">&times;</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">
+        ${card(T('異動筆數','TRANSFERS'),list.length,`${T('已核可','approved')} ${appr} / ${T('待核','pending')} ${list.length-appr}`,'#1e3a8a')}
+        ${card(T('調薪金額合計','TOTAL ADJUST'),'$'+money(sumDiff),T('新舊薪資結構差額','new − old structure'),sumDiff>0?'#059669':sumDiff<0?'#dc2626':'#1e293b')}
+        ${card(T('調升 / 調降','UP / DOWN'),`${up} / ${down}`,`${T('持平','flat')} ${flat}`,'#0284c7')}
+        ${card(T('平均調幅','AVG ADJUST'),'$'+money(list.length?sumDiff/list.length:0),T('每筆平均','per record'),'#d97706')}
+        ${card(T('涉及部門','DEPARTMENTS'),Object.keys(byDept).filter(d=>byDept[d].n).length,T('本區間','this period'),'#7c3aed')}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="ana-grid">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:2px">${T('異動趨勢','Trend')}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${T('最近 12 個區間','Last 12 periods')}</div>
+          ${trend.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="width:72px;font-size:11px;color:#64748b">${x.label}</span>
+            <div style="flex:1;background:#f1f5f9;border-radius:4px;height:16px;overflow:hidden">
+              <div style="height:100%;background:#1e3a8a99;border-radius:4px;width:${x.n/maxN*100}%"></div></div>
+            <span style="width:28px;text-align:right;font-size:11px;font-family:monospace">${x.n}</span>
+          </div>`).join('')||`<div style="color:#94a3b8;font-size:12px">${T('無資料','No data')}</div>`}
+        </div>
+
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:2px">${T('異動原因分布','By Reason')}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${T('本區間','This period')}</div>
+          ${Object.entries(byReason).sort((a,b)=>b[1]-a[1]).map(([r,n])=>`
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+              <span style="width:92px;font-size:11px;color:#64748b">${E(r)}</span>
+              <div style="flex:1;background:#f1f5f9;border-radius:4px;height:16px;overflow:hidden">
+                <div style="height:100%;background:#0284c799;border-radius:4px;width:${n/Math.max(1,list.length)*100}%"></div></div>
+              <span style="width:44px;text-align:right;font-size:11px;font-family:monospace">${n} · ${Math.round(n/Math.max(1,list.length)*100)}%</span>
+            </div>`).join('')||`<div style="color:#94a3b8;font-size:12px">${T('無資料','No data')}</div>`}
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-top:12px;overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:700">${T('各部門異動明細','By Department')}</div>
+        <div style="overflow-x:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead style="background:#f8fafc;color:#64748b">
+            <tr>${[T('部門','Department'),T('異動筆數','Records'),T('調入','In'),T('調出','Out'),
+                  T('調薪合計','Adjust total'),T('平均調幅','Avg'),T('已核可','Approved'),T('待核','Pending')]
+              .map((h,i)=>`<th style="padding:8px 12px;text-align:${i?'right':'left'};font-weight:600;white-space:nowrap">${h}</th>`).join('')}</tr>
+          </thead><tbody>
+          ${Object.entries(byDept).filter(([,v])=>v.n).sort((a,b)=>b[1].n-a[1].n).map(([d,v])=>`
+            <tr style="border-bottom:1px solid #f8fafc">
+              <td style="padding:7px 12px;font-weight:500">${E(d)}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace">${v.n}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace;color:${v.in?'#059669':'#cbd5e1'}">${v.in||'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace;color:${v.out?'#dc2626':'#cbd5e1'}">${v.out||'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:600;color:${v.diff>0?'#059669':v.diff<0?'#dc2626':'#1e293b'}">${v.diff?(v.diff>0?'+':'')+money(v.diff):'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace">${v.n?money(v.diff/v.n):'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace;color:#059669">${v.approved||'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:monospace;color:${v.pending?'#d97706':'#cbd5e1'}">${v.pending||'—'}</td>
+            </tr>`).join('')||`<tr><td colspan="8" style="padding:24px;text-align:center;color:#94a3b8">${T('本區間無異動記錄','No records in this period')}</td></tr>`}
+          </tbody></table></div>
+      </div>
+    </div>`;
+  }
+  window.renderAnalytics=renderAnalytics;
+
+  /* ── Telegram ── */
+  function buildText(unit,key,dept){
+    const list=recs().filter(t=>inKey(t,unit,key)).filter(t=>!dept||(t.newDept||t.origDept)===dept);
+    if(!list.length)return{err:T('此區間無異動記錄','No records in this period')};
+    const label=(keysOf(unit).find(x=>x.k===key)||{}).label||key;
+    const appr=list.filter(t=>t.status==='approved').length;
+    const dm={};
+    list.forEach(t=>{const d=t.newDept||t.origDept||'—';
+      if(!dm[d])dm[d]={n:0,diff:0};dm[d].n++;dm[d].diff+=total(t)-before(t);});
+    const sum=list.reduce((s,t)=>s+total(t)-before(t),0);
+    let x=`🔄 <b>職位異動記錄 Position Transfer</b>\n`
+     +`📅 區間 Period：${E(label)}\n`
+     +`📋 異動筆數 Records：${list.length}　（${T('已核可','approved')} ${appr} / ${T('待核','pending')} ${list.length-appr}）\n`
+     +`💵 調薪合計 Total Adjust：<b>${sum>0?'+':''}$${money(sum)}</b>\n`
+     +(dept?`🏭 部門 Dept：${E(dept)}\n`:'')
+     +`— — — — — — — — — —\n<b>各部門明細 By Department</b>\n`
+     +`<i>部門 Dept ｜ 筆數 Records ｜ 調薪 Adjust</i>\n`;
+    Object.entries(dm).sort((a,b)=>b[1].n-a[1].n).forEach(([d,v])=>{
+      x+=`${E(d)}：${v.n} 筆 · ${v.diff>0?'+':''}$${money(v.diff)}\n`;});
+    x+=`— — — — — — — — — —\n<b>異動清單 Detail</b>\n`;
+    list.slice(0,25).forEach(t=>{
+      const df=total(t)-before(t);
+      x+=`${E(t.effectiveDate)} ${E(t.empId)} ${E(t.empName||'')}：`
+        +`${E(t.origDept||'—')}/${E(t.origPos||'—')} → ${E(t.newDept||'—')}/${E(t.newPos||'—')}`
+        +(df?`　${df>0?'+':''}$${money(df)}`:'')
+        +(t.status==='approved'?' ✅':' ⏳')+`\n`;});
+    if(list.length>25)x+=`…（${T('另有','plus')} ${list.length-25} ${T('筆未列出','more')}）\n`;
+    x+=`— — — — — — — — — —\n合計 TOTAL：${list.length} 筆 · <b>${sum>0?'+':''}$${money(sum)}</b>`;
+    return {text:x};
+  }
+
+  window.openTgModal=function(){
+    if(!recs().length){toast(T('尚無異動記錄','No transfer records'),'error');return;}
+    let m=document.getElementById('tf-tg-modal');
+    if(!m){
+      m=document.createElement('div'); m.id='tf-tg-modal';
+      m.style.cssText='position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);padding:16px';
+      m.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.25)">
+        <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">✈️</span>
+          <div style="flex:1"><div style="font-size:14px;font-weight:700">${T('傳送至 Telegram 群組','Send to Telegram Group')}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">${T('職位異動摘要','Transfer Summary')}</div></div>
+          <button onclick="closeTgModal()" style="border:none;background:none;font-size:22px;color:#cbd5e1;cursor:pointer">&times;</button>
+        </div>
+        <div style="padding:16px 20px;display:grid;gap:12px">
+          <div><label style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.5px">${T('統計區間 Unit','Unit')}</label>
+            <select id="tg-unit" style="width:100%;margin-top:5px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
+              <option value="day">${T('日 Day','Day')}</option><option value="week">${T('週 Week','Week')}</option>
+              <option value="month" selected>${T('月 Month','Month')}</option><option value="quarter">${T('季 Quarter','Quarter')}</option>
+              <option value="year">${T('年 Year','Year')}</option></select></div>
+          <div><label style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.5px">${T('選擇區間 Period','Period')}</label>
+            <select id="tg-key" style="width:100%;margin-top:5px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px"></select></div>
+          <div><label style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.5px">${T('部門 Department','Department')}</label>
+            <select id="tg-dept" style="width:100%;margin-top:5px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px"></select></div>
+          <div><label style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.5px">${T('訊息預覽 Preview','Preview')}</label>
+            <pre id="tg-prev" style="margin-top:5px;background:#f8fafc;border:1px solid #f1f5f9;border-radius:8px;padding:10px;font-size:11px;line-height:1.6;max-height:220px;overflow:auto;white-space:pre-wrap;color:#475569"></pre></div>
+        </div>
+        <div style="padding:12px 20px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;gap:8px">
+          <button onclick="closeTgModal()" style="flex:1;padding:10px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer">${T('取消','Cancel')}</button>
+          <button id="tg-go" onclick="confirmSendTg()" style="flex:1;padding:10px;border:none;background:#1e3a8a;color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">${T('確認傳送','Send')}</button>
+        </div></div>`;
+      document.body.appendChild(m);
+      m.querySelector('#tg-unit').onchange=()=>{fillKeys();preview();};
+      m.querySelector('#tg-key').onchange=preview;
+      m.querySelector('#tg-dept').onchange=preview;
+    }
+    m.querySelector('#tg-unit').value=A_UNIT;
+    fillKeys();
+    const ds=[...new Set(recs().map(t=>t.newDept||t.origDept||'—').filter(Boolean))].sort();
+    m.querySelector('#tg-dept').innerHTML=`<option value="">${T('全部部門 All','All Departments')}</option>`
+      +ds.map(d=>`<option value="${E(d)}">${E(d)}</option>`).join('');
+    if(A_KEY){const sel=m.querySelector('#tg-key');
+      if([...sel.options].some(o=>o.value===A_KEY))sel.value=A_KEY;}
+    preview();
+    m.style.display='flex';
+  };
+  function fillKeys(){
+    const u=document.getElementById('tg-unit').value;
+    const ks=keysOf(u);
+    document.getElementById('tg-key').innerHTML=ks.map(x=>{
+      const n=recs().filter(t=>inKey(t,u,x.k)).length;
+      return `<option value="${x.k}">${x.label} · ${n} ${T('筆','rec')}</option>`;}).join('');
+  }
+  function preview(){
+    const r=buildText(document.getElementById('tg-unit').value,
+                      document.getElementById('tg-key').value,
+                      document.getElementById('tg-dept').value);
+    const pv=document.getElementById('tg-prev'), b=document.getElementById('tg-go');
+    if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;b.style.background='#cbd5e1';}
+    else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;b.style.background='#1e3a8a';}
+  }
+  window.closeTgModal=function(){const m=document.getElementById('tf-tg-modal');if(m)m.style.display='none';};
+  window.confirmSendTg=async function(){
+    const r=buildText(document.getElementById('tg-unit').value,
+                      document.getElementById('tg-key').value,
+                      document.getElementById('tg-dept').value);
+    if(r.err){toast(r.err,'error');return;}
+    const b=document.getElementById('tg-go'); b.disabled=true; b.textContent=T('傳送中…','Sending…');
+    try{
+      const res=await fetch(GAS,{method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({type:'notify',text:r.text})});
+      let d=null; try{d=await res.json();}catch(e){}
+      if(d&&d.sent===false) toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');
+      else { toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success'); closeTgModal(); }
+    }catch(e){ toast(T('傳送失敗：','Send failed: ')+e.message,'error'); }
+    b.disabled=false; b.textContent=T('確認傳送','Send');
+  };
+
+  /* ── 拖放匯入 Excel（沿用既有 importTransferXlsx）── */
+  window.addEventListener('DOMContentLoaded',function(){
+    const card=document.querySelector('#subpanel-individual .card'); if(!card)return;
+    const stop=e=>{e.preventDefault();e.stopPropagation();};
+    ['dragenter','dragover','dragleave','drop'].forEach(ev=>card.addEventListener(ev,stop,false));
+    ['dragenter','dragover'].forEach(ev=>card.addEventListener(ev,()=>{
+      card.style.outline='2px dashed #1e3a8a';card.style.outlineOffset='4px';}));
+    ['dragleave','drop'].forEach(ev=>card.addEventListener(ev,()=>{card.style.outline='';}));
+    card.addEventListener('drop',e=>{
+      const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])]
+        .filter(f=>/\.(xlsx|xlsm|xls)$/i.test(f.name));
+      if(!files.length){toast(T('請拖入 Excel 檔','Please drop an Excel file'),'warning');return;}
+      if(typeof importTransferXlsx==='function')
+        importTransferXlsx({target:{files:[files[0]],value:''}});
+    },false);
+    ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+      if(!card.contains(e.target))e.preventDefault();},false));
+  });
+})();
+
 </script>
 </body>
 </html>
