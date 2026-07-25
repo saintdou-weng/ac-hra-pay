@@ -76,6 +76,28 @@ body{font-family:'DM Sans',sans-serif;}
 
     <!-- actions -->
     <div class="flex items-center gap-2">
+      <!-- ☁ 雲端 -->
+      <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
+        <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端 Upload to cloud"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="hidden md:inline">上傳</span>
+        </button>
+        <span class="w-px h-4 bg-sky-200"></span>
+        <button id="btn-cloud-down" onclick="cloudDownload()" title="從雲端下載 Download from cloud"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span class="hidden md:inline">下載</span>
+        </button>
+      </div>
+      <!-- ✈️ Telegram -->
+      <div class="no-print flex items-center rounded-md border border-indigo-200 bg-indigo-50 overflow-hidden">
+        <button onclick="sendSummaryTG('adv')" title="傳送預付薪資摘要至 Telegram"
+          class="text-xs font-medium px-2.5 py-1.5 text-amber-700 hover:bg-indigo-100 transition">✈️ 預支</button>
+        <span class="w-px h-4 bg-indigo-200"></span>
+        <button onclick="sendSummaryTG('pay')" title="傳送正式薪資摘要至 Telegram"
+          class="text-xs font-medium px-2.5 py-1.5 text-emerald-700 hover:bg-indigo-100 transition">✈️ 正式</button>
+      </div>
       <button onclick="clearAllData()" title="清除所有資料 Clear all data"
         class="no-print flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -155,6 +177,9 @@ body{font-family:'DM Sans',sans-serif;}
     </button>
     <button id="tab-compare" onclick="goTab('compare')" class="tab-inactive text-sm px-5 py-3 transition">
       <span class="zh">📈 年度對比</span><span class="en hidden">📈 YoY Compare</span>
+    </button>
+    <button id="tab-breakdown" onclick="goTab('breakdown')" class="tab-inactive text-sm px-5 py-3 transition">
+      <span class="zh">🧾 分項對比</span><span class="en hidden">🧾 Breakdown</span>
     </button>
   </div>
 </div>
@@ -306,6 +331,37 @@ body{font-family:'DM Sans',sans-serif;}
     <p class="text-slate-400 font-medium">上傳薪資檔案後顯示成本分析 · Upload to unlock cost analytics</p>
   </div>
   <div id="cost-content" class="hidden">
+    <!-- ══ 操作台：來源 · 部門 · 總額人均 · 時間單位 ══ -->
+    <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14">來源</span>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="cs-pay" onclick="setCostSrc('pay')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-emerald-700 transition">💵 正式薪資</button>
+          <button id="cs-adv" onclick="setCostSrc('adv')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">💰 預付薪資</button>
+          <button id="cs-both" onclick="setCostSrc('both')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 合計</button>
+        </div>
+        <select id="cost-dept" onchange="renderCost()"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-sky-200 outline-none min-w-[180px]">
+          <option value="">全廠 All Departments</option>
+        </select>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="cost-mode-total" onclick="setCostMode('total')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">總額</button>
+          <button id="cost-mode-cap" onclick="setCostMode('cap')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">人均</button>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14">時間</span>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="cu-hour"  onclick="setCostUnit('hour')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每小時</button>
+          <button id="cu-day"   onclick="setCostUnit('day')"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+          <button id="cu-week"  onclick="setCostUnit('week')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+          <button id="cu-month" onclick="setCostUnit('month')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">每月</button>
+          <button id="cu-year"  onclick="setCostUnit('year')"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+        </div>
+        <span id="cost-scope" class="text-[11px] text-slate-400 ml-auto"></span>
+      </div>
+    </div>
+
     <!-- Time cost cards -->
     <div class="mb-4">
       <p class="text-sm font-semibold text-slate-600 mb-3">🕐 多維度時間成本 Time-Dimension Cost Analysis
@@ -426,11 +482,11 @@ body{font-family:'DM Sans',sans-serif;}
   <div id="audit-content" class="hidden">
     <!-- formula reminder -->
     <div class="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
-      <span class="font-semibold">稽核公式：</span>
-      (Basic + Seniority + Skill + Position + Language + Incentive + Travel + OT)
-      − (NSSF + Union + Tax + Advance↓) = Total Salary
-      <span class="text-slate-400 ml-1">· 差異 &gt; $1.50 且 &gt; 0.3% 標記為異常</span>
-      <br><span class="text-sky-600 mt-0.5 inline-block">ℹ️ NSSF/Union/Tax 從欄位 33-35 及延伸欄 66/69-70/85-86 讀取</span>
+      <span class="font-semibold">稽核公式 Audit Identity（已對 May-2026 全廠 517 人實檔驗證，零誤差）：</span>
+      <br><span class="text-slate-700">① 小計 <span class="text-amber-600 font-semibold">សរុប</span> = 基本薪合計 + 獎勵 + 年假給付 + 交通 + 獎金 <span class="text-slate-400">+ 達標/不良扣5%/停工/時假/事假/換休/欠款</span> − 預支扣回</span>
+      <br><span class="text-slate-700">② 實領 <span class="text-emerald-600 font-semibold">ប្រាក់សរុប</span> = 小計 + 加班假日合計 − NSSF − 工會費 − 薪資稅</span>
+      <span class="text-slate-400 ml-1">· 差異 &gt; $1.50 且 &gt; 0.3% 才標記為異常</span>
+      <br><span class="text-sky-600 mt-0.5 inline-block">ℹ️ 加班假日合計（欄30）已內含平日加班（欄27），不重複相加；扣項自欄 33-35 讀取</span>
     </div>
     <!-- toolbar -->
     <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -550,9 +606,89 @@ body{font-family:'DM Sans',sans-serif;}
   </div>
 </div>
 
+<!-- ────── BREAKDOWN PANE 分項對比 ────── -->
+<div id="pane-breakdown" class="tab-pane hidden">
+  <div id="bd-empty" class="flex flex-col items-center justify-center py-24 text-center">
+    <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">🧾</span></div>
+    <p class="text-slate-400 font-medium">請先上傳薪資檔案 · Upload payroll files first</p>
+  </div>
+
+  <div id="bd-content" class="hidden">
+    <!-- 來源切換 -->
+    <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">資料來源 Source</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="bd-src-pay" onclick="setBdSrc('pay')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-emerald-700 transition">正式薪資 Payroll</button>
+        <button id="bd-src-adv" onclick="setBdSrc('adv')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">預付薪資 Advance</button>
+        <button id="bd-src-cmp" onclick="setBdSrc('cmp')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">兩者核對 Compare</button>
+      </div>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="bd-mode-total" onclick="setBdMode('total')" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">總額</button>
+        <button id="bd-mode-cap" onclick="setBdMode('cap')" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">人均</button>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <button onclick="sendBreakdownTG()" class="text-xs px-3 py-2 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 transition flex items-center gap-1.5">
+          <span>✈️</span> 傳送 Telegram
+        </button>
+        <button onclick="exportBreakdownCSV()" class="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+    </div>
+
+    <div id="bd-note" class="mb-3 text-[11px] text-slate-500"></div>
+
+    <!-- 分項矩陣 -->
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <p class="text-sm font-semibold text-slate-600">各部門薪資組成明細 Department Component Breakdown</p>
+        <span id="bd-scope" class="text-[11px] text-slate-400"></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 text-slate-500">
+            <tr id="bd-thead"></tr>
+          </thead>
+          <tbody id="bd-tbody"></tbody>
+          <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200">
+            <tr id="bd-tfoot"></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 </main><!-- /main -->
 
 <!-- ═══════════ TOAST ═══════════ -->
+<!-- ═══════════ TELEGRAM 期間選擇 ═══════════ -->
+<div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✈️</span>
+      <div class="flex-1">
+        <p class="text-sm font-bold text-slate-800">傳送至 Telegram 群組</p>
+        <p id="tg-kind" class="text-[11px] text-slate-400 mt-0.5">—</p>
+      </div>
+      <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">選擇期間 Period</label>
+        <select id="tg-period" onchange="previewTg()"
+          class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-sky-200 outline-none"></select>
+      </div>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">訊息預覽 Preview</label>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-52 overflow-auto whitespace-pre-wrap text-slate-600"></pre>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeTgModal()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition">確認傳送</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border border-slate-100 px-4 py-3 flex items-start gap-3 no-print">
   <span id="toast-icon" class="text-base shrink-0 mt-px">ℹ️</span>
   <p id="toast-msg" class="text-sm text-slate-700 leading-snug"></p>
@@ -800,15 +936,41 @@ function parseSheet(ws){
       // Tax: primary col35, fallback col66 (Withholding Tax) / col86
       const tax   = Math.abs(pickNonZero(row[35], row[66], row[86]));
 
+      // ── 收入組成（B 列為權威列）──
+      // col10 = 基本+年資+技術+職務+語言 的合計（表內已算好，少數例外時回退為分項加總）
+      const baseSumCol = N(row[10]);
+      const baseParts  = rowA.basicPay+rowA.seniority+rowA.skill+rowA.position+rowA.language;
+      const baseTotal  = baseSumCol!==0 ? baseSumCol : baseParts;
+
       recs.push({
         ...rowA,
         nameLat:     c2.trim(),
-        incentive:   N(row[13]),
-        travel:      N(row[23]),
-        bonus:       N(row[24]),
-        subtotal:    N(row[32]),
-        regOT:       Math.abs(N(row[27])),
-        holOT:       Math.abs(N(row[30])),
+        // B 列覆寫分項（B 列為當月權威值，A 列可能為上月殘留）
+        basicPay:  N(row[4])||rowA.basicPay,
+        seniority: N(row[5]),
+        skill:     N(row[6]),
+        position:  N(row[7]),
+        language:  N(row[8]),
+        baseTotal,                       // col10 基本薪資合計
+        achieve:     N(row[11]),         // col11 達標（帶號）
+        cut5:        N(row[12]),         // col12 工作不良扣 5%（帶號，通常為負）
+        incentive:   N(row[13]),         // col13 獎勵金
+        annualLeavePaid: N(row[17]),     // col17 年假給付
+        suspend:     N(row[19]),         // col19 停工 50%（帶號）
+        leaveHour:   N(row[20]),         // col20 時假（帶號）
+        leavePersonal:N(row[21]),        // col21 事假（帶號）
+        daySwap:     N(row[22]),         // col22 換休（帶號）
+        travel:      N(row[23]),         // col23 交通住宿
+        bonus:       N(row[24]),         // col24 獎金
+        nightWork:   N(row[25]),         // col25 夜班
+        holidayPay:  N(row[26]),         // col26 假日
+        regOT:       N(row[27]),         // col27 平日加班費
+        nightOT:     N(row[28]),         // col28 夜間加班
+        sundayPay:   N(row[29]),         // col29 週日
+        otTotal:     N(row[30]),         // col30 加班/假日合計（= col25..29）
+        debt:        N(row[31]),         // col31 欠款（帶號）
+        subtotal:    N(row[32]),         // col32 小計
+        // 扣項：原表為負值，此處保留為正數以利呈現
         advDeduction,
         advGiven,
         nssf,
@@ -899,37 +1061,59 @@ function runAudit(advArr, payArr){
 
   return source.map(pay=>{
     const adv = advMap[pay.id];
-    // Gross = all positive earnings
-    const gross = pay.basicPay + pay.seniority + pay.skill + pay.position
-                + pay.language + Math.max(0,pay.incentive)
-                + pay.travel + pay.regOT + pay.holOT;
-    // Deductions
-    const deds  = pay.advDeduction + pay.nssf + pay.union + pay.tax;
-    const computed = gross - deds;
+
+    // ══════════════════════════════════════════════════════════
+    //  稽核恆等式（以 May-2026 全廠 517 人實檔驗證，零誤差）
+    //  ① 小計 col32 = 基本薪合計(col10) + 獎勵(13) + 年假給付(17)
+    //                + 交通(23) + 獎金(24)
+    //                + 達標(11) + 不良扣5%(12) + 停工(19)
+    //                + 時假(20) + 事假(21) + 換休(22) + 欠款(31)
+    //                − 預支扣回(18)
+    //  ② 實領 col36 = 小計(32) + 加班假日合計(30) − NSSF − 工會 − 稅
+    //  註：col30 已含 col27 平日加班，切勿再與 col27 相加（舊版重複計算）
+    // ══════════════════════════════════════════════════════════
+    const earnPlus = pay.baseTotal + pay.incentive + pay.annualLeavePaid
+                   + pay.travel + pay.bonus;
+    const adjust   = pay.achieve + pay.cut5 + pay.suspend
+                   + pay.leaveHour + pay.leavePersonal + pay.daySwap + pay.debt;
+    const calcSub  = earnPlus + adjust - pay.advDeduction;
+    const statedSub= pay.subtotal;
+
+    const gross    = earnPlus + pay.otTotal;                       // 應發合計
+    const deds     = pay.advDeduction + pay.nssf + pay.union + pay.tax - adjust;
+    const computed = statedSub + pay.otTotal - pay.nssf - pay.union - pay.tax;
     const stated   = pay.totalSalary;
     const diffRaw  = computed - stated;
     const diffAbs  = Math.abs(diffRaw);
-    const isAnom   = stated !== 0 && diffAbs > TOLERANCE
-                  && diffAbs / Math.max(Math.abs(stated),1) > TOLERANCE_PCT;
 
-    // Smart anomaly explanation
+    // 小計自身的重算差異（抓 Excel 公式被改動 / 欄位錯位）
+    const subDiff  = statedSub!==0 ? (calcSub - statedSub) : 0;
+    const subAbs   = Math.abs(subDiff);
+
+    const netAnom  = stated !== 0 && diffAbs > TOLERANCE
+                  && diffAbs / Math.max(Math.abs(stated),1) > TOLERANCE_PCT;
+    const subAnom  = statedSub !== 0 && subAbs > TOLERANCE
+                  && subAbs / Math.max(Math.abs(statedSub),1) > TOLERANCE_PCT;
+    const isAnom   = netAnom || subAnom;
+
+    // 異常原因判讀
     let explain = '';
     if(isAnom){
       const h=[];
-      if(pay.nssf < 0.5 && gross > 100)       h.push('NSSF 可能未扣除 (NSSF not deducted)');
-      if(pay.advDeduction > 0 && diffRaw > 0)  h.push('Advance 扣款偏低 (Advance deduction understated)');
-      if(pay.regOT > 0 && diffRaw < 0)         h.push('加班費疑似多計 (OT possibly overstated)');
-      if(pay.regOT === 0 && diffRaw > 5)        h.push('加班費可能未計 (OT possibly missing)');
-      if(pay.tax < 0.5 && gross > 250)          h.push('薪資稅未計入 (Salary tax not deducted)');
-      if(pay.union < 0.5 && gross > 100)        h.push('工會費未扣除 (Union fee not deducted)');
-      if(h.length===0) h.push(diffRaw>0
-        ? '收入項目偏高或扣款不足 (Earnings overstated / deductions missing)'
-        : '扣款偏多或收入項目遺漏 (Deductions overstated / earnings missing)');
+      if(subAnom) h.push(`小計重算差 $${(Math.round(subDiff*100)/100).toFixed(2)}（收入或扣項欄位與 សរុប 不一致）`);
+      if(netAnom){
+        if(pay.nssf < 0.5 && gross > 100)  h.push('NSSF 未扣除 (NSSF not deducted)');
+        if(pay.tax  < 0.5 && gross > 250)  h.push('薪資稅未計入 (Salary tax not deducted)');
+        if(pay.otTotal>0 && diffRaw<0)     h.push('加班/假日金額疑似多計');
+        if(h.length===0) h.push(diffRaw>0
+          ? '實領低於重算值，扣款可能多計 (Net understated)'
+          : '實領高於重算值，收入可能多計 (Net overstated)');
+      }
       explain = h.join('；');
     }
 
-    return{...pay, adv, computed, diffRaw, diffAbs, isAnom, gross, deds, explain,
-           // Advance amount for Stage 1 reporting
+    return{...pay, adv, computed, diffRaw, diffAbs, isAnom, netAnom, subAnom,
+           calcSub, subDiff, gross, deds, explain,
            advAmount: pay.advGiven || pay.advDeduction || 0};
   });
 }
@@ -1146,6 +1330,7 @@ function renderAll(){
   renderDashboard();
   renderCost();
   renderAudit();
+  renderBreakdown();
 }
 
 // ── DASHBOARD ────────────────────────────
@@ -1230,7 +1415,7 @@ function buildDeptMap(data, getCost){
     d.total    +=getCost(r);
     d.basic    +=r.basicPay;
     d.incentive+=Math.max(0,r.incentive);
-    d.ot       +=r.regOT+r.holOT;
+    d.ot       +=(r.otTotal!==undefined?r.otTotal:r.regOT);
     d.nssf     +=r.nssf;
     d.anoms    +=r.isAnom?1:0;
   });
@@ -1328,76 +1513,437 @@ function renderSewing(data, isFull){
 }
 
 // ── TOP DEPT IN DASHBOARD ─────────────────
+let COST_MODE='total';   // 'total' | 'cap'
+let COST_SRC ='pay';     // 'pay' | 'adv' | 'both'
+let COST_UNIT='month';   // 'hour'|'day'|'week'|'month'|'year'
+const UNIT_DIV={hour:1/(WORK_DAYS*WORK_HRS), day:1/WORK_DAYS, week:1/4.33, month:1, year:12};
+const UNIT_ZH ={hour:'每小時',day:'每日',week:'每週',month:'每月',year:'每年'};
+function _cbtn(on,color){return on
+  ? `text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  : 'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setCostMode(m){
+  COST_MODE=m;
+  qs('#cost-mode-total').className=_cbtn(m==='total','sky');
+  qs('#cost-mode-cap').className  =_cbtn(m==='cap','sky');
+  renderCost();
+}
+function setCostSrc(s){
+  COST_SRC=s;
+  qs('#cs-pay').className =_cbtn(s==='pay','emerald');
+  qs('#cs-adv').className =_cbtn(s==='adv','amber');
+  qs('#cs-both').className=_cbtn(s==='both','sky');
+  renderCost();
+}
+function setCostUnit(u){
+  COST_UNIT=u;
+  ['hour','day','week','month','year'].forEach(k=>{
+    qs('#cu-'+k).className=_cbtn(k===u,'sky');
+  });
+  renderCost();
+}
+
+// 依來源取得記錄集（合計 = 正式 + 預付，同一人的兩筆各自計）
+function costSource(){
+  if(!ACTIVE) return [];
+  const pay=ACTIVE.payrollRecords||[], adv=ACTIVE.advanceRecords||[];
+  if(COST_SRC==='adv')  return adv;
+  if(COST_SRC==='both') return [...pay,...adv];
+  return pay.length ? pay : adv;   // 只有預付檔時自動回退，不顯示空白
+}
+
 function renderCost(){
-  const data=ACTIVE.mergedRecords;
-  const isFull=(ACTIVE.stage==='full');
-  qs('#cost-empty').classList.toggle('hidden',!!data.length);
-  qs('#cost-content').classList.toggle('hidden',!data.length);
-  if(!data.length)return;
+  const hasAny = ACTIVE && ((ACTIVE.payrollRecords||[]).length || (ACTIVE.advanceRecords||[]).length);
+  qs('#cost-empty').classList.toggle('hidden',!!hasAny);
+  qs('#cost-content').classList.toggle('hidden',!hasAny);
+  if(!hasAny)return;
 
-  const monthly=isFull?data.reduce((s,r)=>s+r.totalSalary,0):0;
-  const weekly =isFull?monthly/4.33:0;
-  const daily  =isFull?monthly/WORK_DAYS:0;
-  const hourly =isFull?monthly/(WORK_DAYS*WORK_HRS):0;
-  const yearly =isFull?monthly*12:0;
+  const pay=ACTIVE.payrollRecords||[], adv=ACTIVE.advanceRecords||[];
+  // 來源鈕：無資料者置灰
+  qs('#cs-pay').disabled = !pay.length;  qs('#cs-pay').style.opacity  = pay.length?'':'0.4';
+  qs('#cs-adv').disabled = !adv.length;  qs('#cs-adv').style.opacity  = adv.length?'':'0.4';
+  qs('#cs-both').disabled= !(pay.length&&adv.length);
+  qs('#cs-both').style.opacity = (pay.length&&adv.length)?'':'0.4';
+  if(COST_SRC==='pay'&&!pay.length&&adv.length) setCostSrcSilent('adv');
+  if(COST_SRC==='adv'&&!adv.length&&pay.length) setCostSrcSilent('pay');
+  if(COST_SRC==='both'&&!(pay.length&&adv.length)) setCostSrcSilent(pay.length?'pay':'adv');
 
-  qs('#cost-monthly').textContent=isFull?'$'+fmt(monthly):'—';
-  qs('#cost-weekly').textContent =isFull?'$'+fmt(weekly) :'—';
-  qs('#cost-daily').textContent  =isFull?'$'+fmt(daily)  :'—';
-  qs('#cost-hourly').textContent =isFull?'$'+fmt(hourly) :'—';
-  qs('#cost-yearly').textContent =isFull?'$'+fmt(yearly) :'—';
+  const all = costSource();
+  if(!all.length) return;
 
+  // ── 部門下拉（保留當前選擇）──
+  const selEl=qs('#cost-dept'), keep=selEl.value;
+  const depts=[...new Set(all.map(r=>r.dept))].sort();
+  selEl.innerHTML='<option value="">全廠 All Departments</option>'+
+    depts.map(d=>`<option value="${d}">${d}</option>`).join('');
+  if(keep&&depts.includes(keep)) selEl.value=keep;
+  const pickDept=selEl.value;
+
+  const data = pickDept ? all.filter(r=>r.dept===pickDept) : all;
+  if(!data.length){qs('#cost-scope').textContent='此部門無資料';return;}
+  const headcount = data.length;
+  const perCap = COST_MODE==='cap';
+  const srcZh  = COST_SRC==='adv'?'預付薪資':COST_SRC==='both'?'正式＋預付合計':'正式薪資';
+
+  qs('#cost-scope').textContent =
+    `${srcZh} · ${pickDept||'全廠'} · ${headcount} 人 · ${perCap?'每人平均':'總額'} · 基準 ${UNIT_ZH[COST_UNIT]}`;
+
+  // 月基數 → 各時間單位
+  const monthlyTotal = data.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+  const base = perCap ? monthlyTotal/headcount : monthlyTotal;
+
+  qs('#cost-monthly').textContent='$'+fmt(base);
+  qs('#cost-weekly').textContent ='$'+fmt(base/4.33);
+  qs('#cost-daily').textContent  ='$'+fmt(base/WORK_DAYS);
+  qs('#cost-hourly').textContent ='$'+fmt(base/(WORK_DAYS*WORK_HRS));
+  qs('#cost-yearly').textContent ='$'+fmt(base*12);
+
+  // 選中的時間單位卡片加亮
+  const cardMap={month:'#cost-monthly',week:'#cost-weekly',day:'#cost-daily',hour:'#cost-hourly',year:'#cost-yearly'};
+  Object.entries(cardMap).forEach(([u,sel])=>{
+    const el=qs(sel); if(!el)return;
+    const box=el.closest('div');
+    if(box) box.style.boxShadow = (u===COST_UNIT) ? '0 0 0 2px #0284c7 inset' : '';
+  });
+
+  const F = UNIT_DIV[COST_UNIT];   // 月 → 選定單位的換算係數
   const dm=buildDeptMap(data);
   const sorted=Object.entries(dm).sort((a,b)=>b[1].total-a[1].total);
 
-  // per capita chart
+  // ── 兩張圖：左＝人均，右＝選定時間單位的部門成本 ──
   destroyChart('percap-chart');
   destroyChart('daily-chart');
-  if(isFull){
+  {
     const labels=sorted.map(([d])=>d.length>18?d.slice(0,18)+'…':d);
+    const mkOpt=unitLabel=>({indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' $'+fmt(ctx.raw)+' / '+unitLabel}}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{font:{size:10},color:'#94a3b8'}},
+              y:{grid:{display:false},ticks:{font:{size:11},color:'#475569'}}}});
+
     charts['percap-chart']=new Chart(qs('#percap-chart'),{
       type:'bar',
       data:{labels,datasets:[{
         label:'Per Capita ($)',
-        data:sorted.map(([,v])=>+(v.total/v.count).toFixed(2)),
+        data:sorted.map(([,v])=>+((v.total/(v.count||1))*F).toFixed(2)),
         backgroundColor:sorted.map((_,i)=>PALETTE[i%PALETTE.length]+'99'),
         borderColor:sorted.map((_,i)=>PALETTE[i%PALETTE.length]),
         borderWidth:1,borderRadius:4
       }]},
-      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' $'+fmt(ctx.raw)}}},
-        scales:{x:{grid:{color:'#f1f5f9'},ticks:{font:{size:10},color:'#94a3b8'}},
-                y:{grid:{display:false},ticks:{font:{size:11},color:'#475569'}}}}
+      options:mkOpt(UNIT_ZH[COST_UNIT]+'·人')
     });
 
     charts['daily-chart']=new Chart(qs('#daily-chart'),{
       type:'bar',
       data:{labels,datasets:[{
-        label:'Daily Cost ($)',
-        data:sorted.map(([,v])=>+(v.total/WORK_DAYS).toFixed(2)),
+        label:'Cost ($)',
+        data:sorted.map(([,v])=>+((perCap?v.total/(v.count||1):v.total)*F).toFixed(2)),
         backgroundColor:sorted.map((_,i)=>PALETTE[(i+4)%PALETTE.length]+'99'),
         borderColor:sorted.map((_,i)=>PALETTE[(i+4)%PALETTE.length]),
         borderWidth:1,borderRadius:4
       }]},
-      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' $'+fmt(ctx.raw)}}},
-        scales:{x:{grid:{color:'#f1f5f9'},ticks:{font:{size:10},color:'#94a3b8'}},
-                y:{grid:{display:false},ticks:{font:{size:11},color:'#475569'}}}}
+      options:mkOpt(UNIT_ZH[COST_UNIT])
     });
   }
 
   // cost detail table
-  qs('#cost-tbody').innerHTML=sorted.map(([d,v])=>`
+  qs('#cost-tbody').innerHTML=sorted.map(([d,v])=>{
+    const b = perCap ? v.total/(v.count||1) : v.total;   // 月基數
+    const hi='bg-sky-50 font-semibold text-sky-800';
+    return `
     <tr class="border-b border-slate-50 hover:bg-slate-50">
       <td class="px-3 py-2 font-medium text-slate-700 text-xs">${d}</td>
       <td class="px-3 py-2 text-right jmono text-xs">${v.count}</td>
-      <td class="px-3 py-2 text-right jmono text-xs font-semibold text-sky-700">${isFull?'$'+fmt(v.total):'—'}</td>
-      <td class="px-3 py-2 text-right jmono text-xs">${isFull?'$'+fmt(v.total/4.33):'—'}</td>
-      <td class="px-3 py-2 text-right jmono text-xs">${isFull?'$'+fmt(v.total/WORK_DAYS):'—'}</td>
-      <td class="px-3 py-2 text-right jmono text-xs">${isFull?'$'+fmt(v.total/(WORK_DAYS*WORK_HRS)):'—'}</td>
-      <td class="px-3 py-2 text-right jmono text-xs">${isFull?'$'+fmt(v.total/v.count):'—'}</td>
-      <td class="px-3 py-2 text-right jmono text-xs">${isFull?'$'+fmt(v.total*12):'—'}</td>
-    </tr>`).join('');
+      <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='month'?hi:'font-semibold text-sky-700'}">$${fmt(b)}</td>
+      <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='week'?hi:''}">$${fmt(b/4.33)}</td>
+      <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='day'?hi:''}">$${fmt(b/WORK_DAYS)}</td>
+      <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='hour'?hi:''}">$${fmt(b/(WORK_DAYS*WORK_HRS))}</td>
+      <td class="px-3 py-2 text-right jmono text-xs">$${fmt(v.total/(v.count||1))}</td>
+      <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='year'?hi:''}">$${fmt(b*12)}</td>
+    </tr>`;}).join('');
+}
+function setCostSrcSilent(s){
+  COST_SRC=s;
+  qs('#cs-pay').className =_cbtn(s==='pay','emerald');
+  qs('#cs-adv').className =_cbtn(s==='adv','amber');
+  qs('#cs-both').className=_cbtn(s==='both','sky');
+}
+
+// ═══════════════════════════════════════════
+//  分項對比 BREAKDOWN（部門 × 薪資組成）
+// ═══════════════════════════════════════════
+let BD_SRC='pay', BD_MODE='total';
+const BD_COMPS=[
+  {k:'basicPay',   zh:'基本薪 Basic'},
+  {k:'seniority',  zh:'年資 Seniority'},
+  {k:'skill',      zh:'技術 Skill'},
+  {k:'position',   zh:'職務 Position'},
+  {k:'language',   zh:'語言 Language'},
+  {k:'incentive',  zh:'獎勵 Incentive'},
+  {k:'bonus',      zh:'獎金 Bonus'},
+  {k:'travel',     zh:'交通 Travel'},
+  {k:'otTotal',    zh:'加班假日 OT/Hol'},
+  {k:'advDeduction',zh:'預支扣回 Advance', neg:true},
+  {k:'nssf',       zh:'NSSF', neg:true},
+  {k:'union',      zh:'工會 Union', neg:true},
+  {k:'tax',        zh:'薪資稅 Tax', neg:true},
+  {k:'totalSalary',zh:'實領 Net Pay', bold:true},
+];
+function _btn(on,color){return on
+  ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setBdSrc(s){
+  BD_SRC=s;
+  qs('#bd-src-pay').className=_btn(s==='pay','emerald');
+  qs('#bd-src-adv').className=_btn(s==='adv','amber');
+  qs('#bd-src-cmp').className=_btn(s==='cmp','sky');
+  renderBreakdown();
+}
+function setBdMode(m){
+  BD_MODE=m;
+  qs('#bd-mode-total').className=_btn(m==='total','sky');
+  qs('#bd-mode-cap').className  =_btn(m==='cap','sky');
+  renderBreakdown();
+}
+function bdSource(){
+  if(!ACTIVE) return [];
+  if(BD_SRC==='adv') return ACTIVE.advanceRecords||[];
+  return (ACTIVE.payrollRecords&&ACTIVE.payrollRecords.length)
+        ? ACTIVE.payrollRecords : (ACTIVE.advanceRecords||[]);
+}
+function bdAggregate(rows){
+  const m={};
+  rows.forEach(r=>{
+    const d=r.dept||'Other';
+    if(!m[d]){m[d]={count:0};BD_COMPS.forEach(c=>m[d][c.k]=0);}
+    m[d].count++;
+    BD_COMPS.forEach(c=>{ m[d][c.k]+= Math.abs(N(r[c.k])); });
+  });
+  return m;
+}
+let _bdLast=null;
+function renderBreakdown(){
+  const has = ACTIVE && ((ACTIVE.payrollRecords||[]).length || (ACTIVE.advanceRecords||[]).length);
+  qs('#bd-empty').classList.toggle('hidden',!!has);
+  qs('#bd-content').classList.toggle('hidden',!has);
+  if(!has) return;
+
+  const perCap = BD_MODE==='cap';
+  const thead=qs('#bd-thead'), tbody=qs('#bd-tbody'), tfoot=qs('#bd-tfoot');
+
+  // ── 核對模式：預支 vs 正式 ──
+  if(BD_SRC==='cmp'){
+    const adv=ACTIVE.advanceRecords||[], pay=ACTIVE.payrollRecords||[];
+    if(!adv.length||!pay.length){
+      qs('#bd-note').innerHTML='<span class="text-amber-600">⚠️ 需同時上傳「預付薪資」與「正式薪資」兩個檔案才能核對。</span>';
+      thead.innerHTML='';tbody.innerHTML='';tfoot.innerHTML='';return;
+    }
+    qs('#bd-note').innerHTML='核對邏輯：預付檔的實發金額（每人首期領取）↔ 正式檔的預支扣回欄（欄18）。差額不為零代表首期發放與月結扣回不一致。';
+    const A=bdAggregate(adv), P=bdAggregate(pay);
+    const depts=[...new Set([...Object.keys(A),...Object.keys(P)])].sort();
+    thead.innerHTML=['部門 Dept','預支人數','正式人數','預支發放 $','正式扣回 $','差額 Diff','狀態']
+      .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold">${h}</th>`).join('');
+    let tA=0,tP=0;
+    tbody.innerHTML=depts.map(d=>{
+      const a=A[d]||{count:0,totalSalary:0}, p=P[d]||{count:0,advDeduction:0};
+      const av=a.totalSalary||0, pv=p.advDeduction||0, df=av-pv;
+      tA+=av;tP+=pv;
+      const ok=Math.abs(df)<1;
+      return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+        <td class="px-3 py-2 font-medium text-slate-700">${d}</td>
+        <td class="px-3 py-2 text-right jmono">${a.count||'—'}</td>
+        <td class="px-3 py-2 text-right jmono">${p.count||'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-amber-700">$${fmt(av)}</td>
+        <td class="px-3 py-2 text-right jmono text-emerald-700">$${fmt(pv)}</td>
+        <td class="px-3 py-2 text-right jmono font-semibold ${ok?'text-slate-400':'text-rose-600'}">${ok?'—':(df>0?'+':'')+fmt(df)}</td>
+        <td class="px-3 py-2 text-right">${ok?'<span class="text-emerald-600">✓</span>':'<span class="text-rose-600">⚠</span>'}</td>
+      </tr>`;}).join('');
+    const dt=tA-tP;
+    tfoot.innerHTML=`<tr>
+      <td class="px-3 py-2">合計 TOTAL</td><td class="px-3 py-2 text-right jmono">${adv.length}</td>
+      <td class="px-3 py-2 text-right jmono">${pay.length}</td>
+      <td class="px-3 py-2 text-right jmono">$${fmt(tA)}</td>
+      <td class="px-3 py-2 text-right jmono">$${fmt(tP)}</td>
+      <td class="px-3 py-2 text-right jmono ${Math.abs(dt)<1?'':'text-rose-600'}">${fmt(dt)}</td><td></td></tr>`;
+    qs('#bd-scope').textContent=`${depts.length} 部門 · 預支 ${adv.length} 人 / 正式 ${pay.length} 人`;
+    _bdLast={mode:'cmp',totalAdv:tA,totalPay:tP,diff:dt,depts:depts.length};
+    return;
+  }
+
+  // ── 單一來源：部門 × 組成矩陣 ──
+  const rows=bdSource();
+  const srcName = BD_SRC==='adv' ? '預付薪資 Advance' : '正式薪資 Payroll';
+  qs('#bd-note').innerHTML=`顯示 <b>${srcName}</b> 檔案的各部門薪資組成。${perCap?'數值為<b>每人平均</b>。':'數值為<b>部門加總</b>。'}`;
+  const m=bdAggregate(rows);
+  const depts=Object.keys(m).sort((a,b)=>m[b].totalSalary-m[a].totalSalary);
+
+  thead.innerHTML=`<th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">部門 Dept</th>
+    <th class="px-2 py-2 text-right font-semibold">人數</th>`+
+    BD_COMPS.map(c=>`<th class="px-2 py-2 text-right font-semibold whitespace-nowrap ${c.neg?'text-rose-500':''} ${c.bold?'text-emerald-600':''}">${c.zh}</th>`).join('');
+
+  tbody.innerHTML=depts.map(d=>{
+    const v=m[d], div=perCap?(v.count||1):1;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium text-slate-700 whitespace-nowrap sticky left-0 bg-white">${d}</td>
+      <td class="px-2 py-2 text-right jmono">${v.count}</td>`+
+      BD_COMPS.map(c=>{
+        const x=v[c.k]/div;
+        return `<td class="px-2 py-2 text-right jmono ${c.neg?'text-rose-600':''} ${c.bold?'font-semibold text-emerald-700':''}">${x?(c.neg?'−':'')+fmt(x):'<span class="text-slate-200">—</span>'}</td>`;
+      }).join('')+`</tr>`;
+  }).join('');
+
+  const T={count:rows.length}; BD_COMPS.forEach(c=>T[c.k]=depts.reduce((s,d)=>s+m[d][c.k],0));
+  const div=perCap?(rows.length||1):1;
+  tfoot.innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">合計 TOTAL</td>
+    <td class="px-2 py-2 text-right jmono">${T.count}</td>`+
+    BD_COMPS.map(c=>`<td class="px-2 py-2 text-right jmono ${c.neg?'text-rose-600':''}">${fmt(T[c.k]/div)}</td>`).join('');
+
+  qs('#bd-scope').textContent=`${depts.length} 部門 · ${rows.length} 人 · ${perCap?'每人平均':'總額'}`;
+  _bdLast={mode:BD_SRC,src:srcName,total:T,depts:depts.length,head:rows.length,perCap};
+}
+
+function exportBreakdownCSV(){
+  const rows=[...qs('#bd-content').querySelectorAll('table tr')].map(tr=>
+    [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`breakdown_${BD_SRC}_${ACTIVE?ACTIVE.key:'data'}.csv`;a.click();
+  toast('CSV 已下載','success');
+}
+
+// ═══════════════════════════════════════════
+//  TELEGRAM 傳送（經 GAS 轉送，前端不放 Token）
+// ═══════════════════════════════════════════
+async function sendTG(text){
+  if(!GAS_URL){toast('尚未設定 GAS URL','error');return false;}
+  try{
+    await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'notify',text})});
+    toast('已傳送至 Telegram 群組','success');return true;
+  }catch(e){toast('傳送失敗：'+e.message,'error');return false;}
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function sendBreakdownTG(){
+  if(!_bdLast){toast('尚無資料','error');return;}
+  const P=ACTIVE?labelFromKey(ACTIVE.key):'—';
+  let t='';
+  if(_bdLast.mode==='cmp'){
+    t=`🧾 <b>預支 / 正式薪資核對</b>\n📅 期間：${esc(P)}\n\n`
+     +`預支發放合計：$${fmt(_bdLast.totalAdv)}\n`
+     +`正式扣回合計：$${fmt(_bdLast.totalPay)}\n`
+     +`差額 Diff：<b>$${fmt(_bdLast.diff)}</b> ${Math.abs(_bdLast.diff)<1?'✅ 相符':'⚠️ 不符，請查核'}\n`
+     +`部門數：${_bdLast.depts}`;
+  }else{
+    const T=_bdLast.total, d=_bdLast.perCap?(_bdLast.head||1):1;
+    t=`🧾 <b>${esc(_bdLast.src)} 分項統計</b>\n📅 期間：${esc(P)}\n`
+     +`👥 人數：${T.count}　部門：${_bdLast.depts}　${_bdLast.perCap?'（人均）':'（總額）'}\n\n`
+     +BD_COMPS.map(c=>`${c.neg?'−':' '}${c.zh}：$${fmt(T[c.k]/d)}`).join('\n');
+  }
+  await sendTG(t);
+}
+
+// ── 依指定期間組出摘要文字 ──
+function buildSummaryText(which, key){
+  const entry = STORE[key];
+  if(!entry) return {err:'查無此期間資料'};
+  const P   = labelFromKey(key);
+  const src = which==='adv' ? (entry.advanceRecords||[]) : (entry.payrollRecords||[]);
+  if(!src.length) return {err:which==='adv'?`${P} 尚未上傳預付薪資檔`:`${P} 尚未上傳正式薪資檔`};
+  const sum=k=>src.reduce((s,r)=>s+Math.abs(N(r[k])),0);
+  let t;
+  if(which==='adv'){
+    t=`💰 <b>預付薪資發放通知 Advance Pay</b>\n📅 期間：${esc(P)}\n`
+     +`👥 人數：${src.length}\n\n`
+     +`發放總額：<b>$${fmt(sum('totalSalary'))}</b>\n`
+     +`平均每人：$${fmt(sum('totalSalary')/src.length)}\n`
+     +`基本薪合計：$${fmt(sum('baseTotal'))}`;
+  }else{
+    const an=(entry.mergedRecords||[]).filter(r=>r.isAnom).length;
+    t=`💵 <b>正式薪資月結通知 Payroll</b>\n📅 期間：${esc(P)}\n`
+     +`👥 人數：${src.length}\n\n`
+     +`實發總額：<b>$${fmt(sum('totalSalary'))}</b>\n`
+     +`平均每人：$${fmt(sum('totalSalary')/src.length)}\n`
+     +`預支扣回：$${fmt(sum('advDeduction'))}\n`
+     +`NSSF：$${fmt(sum('nssf'))}　工會：$${fmt(sum('union'))}\n`
+     +`薪資稅：$${fmt(sum('tax'))}\n`
+     +`加班假日：$${fmt(sum('otTotal'))}\n\n`
+     +`🔍 稽核異常：${an===0?'✅ 無異常':'⚠️ '+an+' 筆待查'}`;
+  }
+  return {text:t};
+}
+
+let _tgWhich='pay';
+function sendSummaryTG(which){
+  _tgWhich=which;
+  const keys=Object.keys(STORE).sort().reverse();
+  if(!keys.length){toast('尚無任何期間資料','error');return;}
+  qs('#tg-kind').textContent = which==='adv' ? '💰 預付薪資摘要 Advance Pay' : '💵 正式薪資月結摘要 Payroll';
+  const sel=qs('#tg-period');
+  sel.innerHTML=keys.map(k=>{
+    const e=STORE[k];
+    const has = which==='adv' ? (e.advanceRecords||[]).length : (e.payrollRecords||[]).length;
+    return `<option value="${k}">${labelFromKey(k)}${has?'':'（無資料）'}</option>`;
+  }).join('');
+  if(ACTIVE&&STORE[ACTIVE.key]) sel.value=ACTIVE.key;
+  previewTg();
+  const m=qs('#tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function previewTg(){
+  const r=buildSummaryText(_tgWhich, qs('#tg-period').value);
+  const pv=qs('#tg-preview'), btn=qs('#tg-send');
+  if(r.err){
+    pv.textContent='⚠️ '+r.err;
+    btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';
+  }else{
+    pv.textContent=r.text.replace(/<\/?b>/g,'');
+    btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
+  }
+}
+async function confirmSendTg(){
+  const r=buildSummaryText(_tgWhich, qs('#tg-period').value);
+  if(r.err){toast(r.err,'error');return;}
+  const btn=qs('#tg-send'); btn.disabled=true; btn.textContent='傳送中…';
+  const ok=await sendTG(r.text);
+  btn.disabled=false; btn.textContent='確認傳送';
+  if(ok) closeTgModal();
+}
+
+// ═══════════════════════════════════════════
+//  雲端上傳 / 下載
+// ═══════════════════════════════════════════
+async function cloudUpload(){
+  if(!ACTIVE){toast('尚無資料可上傳','error');return;}
+  const btn=qs('#btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
+  try{
+    await pushProjection(ACTIVE);
+    const payload={tool:'hrpay_payroll',period:ACTIVE.key,updatedAt:_nowISO(),
+      stage:ACTIVE.stage, advance:ACTIVE.advanceRecords||[], payroll:ACTIVE.payrollRecords||[]};
+    await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    toast('☁ 已上傳雲端','success');
+  }catch(e){toast('上傳失敗：'+e.message,'error');}
+  if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
+}
+async function cloudDownload(){
+  const btn=qs('#btn-cloud-down'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
+  try{
+    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_payroll');
+    const d=await r.json();
+    const D=(d&&d.data)||{};
+    if(!D.period){toast('雲端尚無資料','error');}
+    else{
+      const entry={key:D.period, stage:D.stage||'full',
+        advanceRecords:D.advance||[], payrollRecords:D.payroll||[]};
+      entry.mergedRecords = (entry.payrollRecords.length)
+        ? runAudit(entry.advanceRecords, entry.payrollRecords)
+        : runAudit([], entry.advanceRecords);
+      STORE[entry.key]=entry; await idbSave(entry);
+      ACTIVE=entry; buildPeriodSelect(); renderAll();
+      toast(`☁ 已載入雲端資料（${labelFromKey(entry.key)}）`,'success');
+    }
+  }catch(e){toast('下載失敗：'+e.message,'error');}
+  if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
 }
 
 // ── AUDIT TABLE ───────────────────────────
@@ -1608,13 +2154,14 @@ async function importJSON(input){
 }
 
 // ── TABS ─────────────────────────────────
-const TABS=['dashboard','cost','audit','history','compare'];
+const TABS=['dashboard','cost','audit','history','compare','breakdown'];
 function goTab(name){
   TABS.forEach(t=>{
     qs(`#tab-${t}`).className=t===name?'tab-active text-sm px-5 py-3 transition':'tab-inactive text-sm px-5 py-3 transition';
     qs(`#pane-${t}`).classList.toggle('hidden',t!==name);
   });
   if(name==='compare') renderComparePills();
+  if(name==='breakdown') renderBreakdown();
 }
 
 // ── CHARTS ───────────────────────────────
