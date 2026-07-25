@@ -1,941 +1,1145 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VRT HR Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>👥 Employee HR Analytics | AC-HRA-PAY</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#f0f3f7;--bg2:#fff;--bg3:#f5f7fa;--bg4:#e8ecf2;
-  --navy:#1e3a5f;--navy2:#2a4f80;
-  --gold:#d4841a;--gold2:#f0a030;--gold3:#fbbf24;
-  --teal:#1a7a7a;--teal2:#28a0a0;
-  --red:#b83232;--red2:#e05040;--red3:#fca5a5;
-  --green:#1e7040;--green2:#28a060;--green3:#6ee7b7;
-  --blue:#2563eb;--blue2:#3b82f6;
-  --orange:#c2410c;--orange2:#f97316;
-  --pu:#6d28d9;--pu2:#8b5cf6;
-  --tx:#1a2235;--tx2:#445068;--tx3:#8595b0;--tx4:#b8c5d8;
-  --brd:#dde2ea;--brd2:#c8d0dc;
-  --sh:0 1px 3px #1a22351a,0 4px 12px #1a22350d;
-  --sh2:0 4px 16px #1a223528;
-  --mono:'DM Mono',monospace;
-  --sans:'DM Sans','Noto Sans TC','Noto Sans Khmer',sans-serif;
-  --kh:'Noto Sans Khmer','DM Sans',sans-serif;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--tx);font-family:var(--sans);min-height:100vh}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:var(--bg3)}
-::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
-
-/* HEADER */
-#hdr{background:var(--navy);height:50px;padding:0 18px;
-  display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:200;box-shadow:0 2px 10px #0005}
-.hlogo{display:flex;align-items:center;gap:10px}
-.hvrt{font-size:19px;font-weight:700;letter-spacing:2px;color:var(--gold2);
-  border-right:1px solid #fff2;padding-right:10px}
-.htit{font-size:11px;color:#ffffffaa}
-.hright{display:flex;align-items:center;gap:6px}
-.lb{font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;
-  border:1px solid #fff3;background:transparent;color:#fff8;cursor:pointer;transition:all .15s}
-.lb.on{background:var(--gold);color:#000;border-color:var(--gold)}
-.lb.kh-lb{font-family:var(--kh);font-size:11px}
-.tbtn{font-size:11px;font-weight:600;padding:4px 10px;border-radius:4px;
-  border:1px solid;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px}
-.tbtn.tg{background:#229ED9;color:#fff;border-color:#229ED9}
-.tbtn.tg:hover{background:#1a8cbf}
-.tbtn.png{background:var(--green);color:#fff;border-color:var(--green)}
-.tbtn.png:hover{background:var(--green2)}
-
-/* TABS */
-#tabbar{background:var(--bg2);border-bottom:2px solid var(--brd);
-  display:flex;padding:0 18px;position:sticky;top:50px;z-index:150;
-  box-shadow:0 1px 4px #0001;overflow-x:auto;gap:0}
-#tabbar::-webkit-scrollbar{height:2px}
-.tab{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
-  padding:9px 12px;border:none;background:transparent;color:var(--tx3);
-  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;
-  transition:all .15s;white-space:nowrap}
-.tab:hover{color:var(--navy);background:var(--bg3)}
-.tab.on{color:var(--navy);border-bottom-color:var(--gold)}
-
-/* UPLOAD */
-#uz{margin:14px 16px 0;border:2px dashed var(--brd2);border-radius:10px;
-  background:var(--bg2);padding:20px;text-align:center;cursor:pointer;transition:all .2s}
-#uz:hover,#uz.drag{border-color:var(--gold);background:#d4841a08}
-#uz.loaded{padding:10px 16px;border-style:solid;border-color:var(--teal);background:#1a7a7a08}
-#uz .uico{font-size:28px;margin-bottom:5px}
-#uz h3{font-size:13px;font-weight:600;color:var(--tx2)}
-#uz p{font-size:11px;color:var(--tx3);font-family:var(--mono);margin-top:2px}
-#uz.loaded .uico{display:none}
-#uz.loaded h3{color:var(--teal);margin:0;font-size:12px}
-#uz.loaded p{margin:0;color:var(--teal2)}
-#fst{font-size:11px;color:var(--teal);font-weight:600;margin-top:2px;font-family:var(--mono)}
-
-/* MAIN */
-.pane{display:none;padding:14px 16px 28px}
-.pane.on{display:block}
-
-/* KPI STRIP */
-.ks{display:grid;gap:10px;margin-bottom:12px}
-.ks5{grid-template-columns:repeat(5,1fr)}
-.ks4{grid-template-columns:repeat(4,1fr)}
-.ks6{grid-template-columns:repeat(6,1fr)}
-@media(max-width:900px){.ks5,.ks6{grid-template-columns:repeat(3,1fr)}.ks4{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;
-  padding:10px 13px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:box-shadow .15s}
-.kpi:hover{box-shadow:var(--sh2)}
-.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
-.kpi.nv::before{background:var(--navy)}.kpi.gd::before{background:var(--gold)}
-.kpi.tl::before{background:var(--teal)}.kpi.rd::before{background:var(--red)}
-.kpi.gn::before{background:var(--green)}.kpi.pu::before{background:var(--pu)}
-.kpi.or::before{background:var(--orange)}.kpi.bl::before{background:var(--blue)}
-.kl{font-size:9.5px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
-.kv{font-size:24px;font-weight:800;color:var(--navy);line-height:1;letter-spacing:-1px}
-.ks2{font-size:10px;color:var(--tx3);font-family:var(--mono);margin-top:1px}
-.kbar{margin-top:5px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
-.kbf{height:100%;border-radius:2px;transition:width .8s ease}
-.delta{font-size:10px;font-family:var(--mono);font-weight:600;padding:1px 5px;
-  border-radius:3px;margin-left:4px}
-.delta.up{background:#fef2f2;color:var(--red)}.delta.dn{background:#f0fdf4;color:var(--green)}
-.delta.neu{background:var(--bg3);color:var(--tx3)}
-
-/* GRID */
-.gr{display:grid;gap:10px;margin-bottom:10px}
-.gr2{grid-template-columns:repeat(2,1fr)}
-.gr3{grid-template-columns:repeat(3,1fr)}
-.gr21{grid-template-columns:2fr 1fr}
-.gr12{grid-template-columns:1fr 2fr}
-.gr13{grid-template-columns:1fr 3fr}
-@media(max-width:900px){.gr2,.gr21,.gr12,.gr13{grid-template-columns:1fr}.gr3{grid-template-columns:repeat(2,1fr)}}
-
-/* STAT PANEL = table left + chart right */
-.sp{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
-  box-shadow:var(--sh);overflow:hidden}
-.sp-hdr{background:var(--navy);color:#fff;padding:7px 13px;
-  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  display:flex;align-items:center;justify-content:space-between;gap:8px}
-.sp-hdr .nb{font-family:var(--mono);font-size:12px;color:var(--gold2);
-  background:#ffffff18;border-radius:3px;padding:1px 6px}
-.sp-inner{display:grid;grid-template-columns:1fr 1fr;min-height:160px}
-.sp-tbl{padding:8px 10px;border-right:1px solid var(--bg4)}
-.sp-chart{display:flex;align-items:center;justify-content:center;padding:6px}
-table.st{width:100%;border-collapse:collapse;font-size:11px}
-table.st tr{border-bottom:1px solid var(--bg3)}
-table.st tr:last-child{border-bottom:none;font-weight:700;background:var(--bg3)}
-table.st td{padding:3px 4px;color:var(--tx)}
-table.st td:first-child{color:var(--tx2);font-size:10.5px}
-table.st td:nth-child(2){text-align:right;font-family:var(--mono);font-weight:600;color:var(--navy)}
-table.st td:nth-child(3){text-align:right;font-size:10px;color:var(--tx3);font-family:var(--mono)}
-.bm{height:3px;background:var(--bg3);border-radius:2px;margin-top:2px;overflow:hidden}
-.bmf{height:100%;border-radius:2px}
-
-/* CHART CARD (full width) */
-.cc{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
-  box-shadow:var(--sh);overflow:hidden}
-.cc-hdr{background:var(--navy);color:#fff;padding:7px 13px;
-  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  display:flex;align-items:center;justify-content:space-between}
-.cc-body{padding:12px}
-.cc-body canvas{max-height:220px}
-
-/* SECTION TITLE */
-.stit{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
-  color:var(--tx3);margin:14px 0 8px;padding-bottom:6px;
-  border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:8px}
-.stit::before{content:'';display:block;width:3px;height:12px;background:var(--gold);border-radius:2px}
-
-/* DATA TABLE */
-.dtbl-wrap{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
-  overflow:hidden;box-shadow:var(--sh);margin-bottom:10px}
-.dtbl-hdr{background:var(--navy);color:#fff;padding:7px 13px;
-  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  display:flex;justify-content:space-between;align-items:center}
-.dtbl-hdr .expbtn{font-size:10px;padding:2px 7px;border-radius:3px;
-  border:1px solid #fff4;background:transparent;color:#fff9;cursor:pointer}
-.dtbl-hdr .expbtn:hover{background:#ffffff22}
-table.dtbl{width:100%;border-collapse:collapse;font-size:11px;font-family:var(--mono)}
-table.dtbl th{background:var(--bg3);color:var(--tx2);font-weight:700;
-  padding:5px 9px;text-align:right;font-size:9.5px;letter-spacing:.3px;
-  text-transform:uppercase;border-bottom:1px solid var(--brd)}
-table.dtbl th:first-child,table.dtbl th:nth-child(2){text-align:left;font-family:var(--sans)}
-table.dtbl td{padding:4px 9px;text-align:right;border-bottom:1px solid var(--bg3);color:var(--tx)}
-table.dtbl td:first-child,table.dtbl td:nth-child(2){text-align:left;font-family:var(--sans);font-size:11px;color:var(--tx2)}
-table.dtbl tr:hover td{background:var(--bg3)}
-table.dtbl tr.high td{background:#fef9ec}
-table.dtbl tr.alert td{background:#fff1f0}
-
-/* ANOMALY BOX */
-.anom-box{padding:8px 12px;border-radius:6px;font-size:11px;font-family:var(--mono);
-  margin-bottom:6px;display:flex;gap:7px;line-height:1.5;border-left:3px solid}
-.anom-box.crit{background:#fef2f2;color:var(--red);border-color:var(--red)}
-.anom-box.warn{background:#fffbeb;color:var(--orange);border-color:var(--orange)}
-.anom-box.good{background:#f0fdf4;color:var(--green);border-color:var(--green)}
-.anom-box.info{background:#eff6ff;color:var(--blue);border-color:var(--blue)}
-
-/* TOAST */
-#toast{position:fixed;bottom:20px;right:20px;z-index:999;
-  background:var(--navy);color:#fff;padding:9px 16px;border-radius:8px;
-  font-size:12px;font-family:var(--mono);box-shadow:var(--sh2);
-  transition:opacity .3s,transform .3s;opacity:0;transform:translateY(10px);pointer-events:none}
-#toast.show{opacity:1;transform:translateY(0)}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid #fff4;
-  border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle}
-@keyframes sp{to{transform:rotate(360deg)}}
+  body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
+  .jmono{font-family:'IBM Plex Mono',monospace;} .km{font-family:'Noto Sans Khmer',sans-serif;}
+  .tab-active{border-bottom:2.5px solid #7c3aed;color:#6d28d9;font-weight:700;}
+  .tab-inactive{border-bottom:2.5px solid transparent;color:#64748b;}
+  .ch260{height:260px;} .ch300{height:300px;}
+  .anim{animation:fade .35s ease both;} .anim-1{animation-delay:.05s;} .anim-2{animation-delay:.1s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  @media print{.no-print{display:none!important}}
+  @media (max-width:640px){
+    header select{max-width:130px;font-size:12px}
+    header button{font-size:11px;padding:6px 8px}
+    table{font-size:11px}
+  }
 </style>
 </head>
-<body>
+<body class="text-slate-800">
 
-<div id="hdr">
-  <div class="hlogo">
-    <div class="hvrt">VRT</div>
-    <div class="htit" id="htit">HR Dashboard · Mar 2026</div>
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center text-white font-bold text-lg shrink-0">👥</div>
+    <div class="mr-2">
+      <h1 class="text-base font-bold leading-tight">Employee HR Analytics</h1>
+      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+    </div>
+    <div class="flex items-center gap-1.5 ml-auto flex-wrap">
+      <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
+        <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="hidden md:inline" data-en="Upload">上傳</span></button>
+        <span class="w-px h-4 bg-sky-200"></span>
+        <button id="btn-cloud-down" onclick="cloudDownload()" title="從雲端下載"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span class="hidden md:inline" data-en="Download">下載</span></button>
+      </div>
+      <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
+        ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="openEdit()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">
+        ✏️ <span data-en="Edit / Add">線上更新</span></button>
+      <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
+        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
+      <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition">中/EN</button>
+    </div>
   </div>
-  <div class="hright" style="gap:6px">
-    <button class="lb on" onclick="setLang('zh')">中文</button>
-    <button class="lb" onclick="setLang('en')">EN</button>
-    <button class="lb kh-lb" onclick="setLang('kh')">ខ្មែរ</button>
-    <button class="tbtn png" onclick="doExportPNG()">🖼 PNG</button>
-    <button class="tbtn tg" onclick="doExportTG()">✈️ TG</button>
+</header>
+
+<div class="bg-gradient-to-r from-violet-50 via-white to-sky-50 border-b border-slate-100 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3">
+    <label id="dz-smart" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-violet-300 rounded-xl px-4 py-3 cursor-pointer hover:border-violet-500 hover:bg-violet-50/60 transition group">
+      <div class="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center shrink-0 group-hover:bg-violet-200 transition"><span class="text-xl">🪄</span></div>
+      <div class="flex-1 min-w-[220px]">
+        <p class="text-sm font-bold text-violet-800" data-en="Smart Import — drop or click to select">智慧匯入 — 拖進來或點擊選檔</p>
+        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Both the new (2026) and legacy (≤2019) roster formats are supported. Each file becomes a dated snapshot.">
+          新版（2026 起）與舊版（2019 以前）兩種名冊格式都支援。每個檔案會存成一份「時點快照」，可互相比對。</p>
+        <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
+      </div>
+      <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-violet-600 text-white shrink-0 group-hover:bg-violet-700 transition" data-en="Choose files">選擇檔案</span>
+      <input type="file" accept=".xlsx,.xls,.xlsm,.csv" multiple class="hidden" onchange="smartImport(this)">
+    </label>
+    <div id="smart-report" class="hidden mt-2 text-[11px] bg-white border border-slate-200 rounded-lg p-2.5 space-y-1"></div>
   </div>
 </div>
 
-<div id="tabbar">
-  <button class="tab on" data-t="emp">👥 <span id="t-emp">員工資料</span></button>
-  <button class="tab" data-t="att">📅 <span id="t-att">每日考勤</span></button>
-  <button class="tab" data-t="cmp">🔍 <span id="t-cmp">異常分析</span></button>
-  <button class="tab" data-t="hist">📊 <span id="t-hist">歷史記錄</span></button>
-</div>
-
-<!-- UPLOAD -->
-<div id="uz" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="hdrop(event)" onclick="document.getElementById('fi').click()">
-  <div class="uico">📂</div>
-  <h3 id="uz-h3">拖入 / 點選 VRT Employee Information Excel (.xlsx)</h3>
-  <p id="uz-p">自動解析 Employee information 工作表</p>
-  <div id="fst"></div>
-</div>
-<input type="file" id="fi" accept=".xlsx,.xls" style="display:none" onchange="hfile(this.files[0])">
-
-<!-- ══ EMPLOYEE TAB ══ -->
-<div id="pane-emp" class="pane on">
-  <div class="stit" id="s-overview">👥 全廠概況</div>
-  <div class="ks ks5" id="kpi-emp"></div>
-  <div class="gr gr21" style="margin-bottom:10px">
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-dept">部門人數</span><span class="nb" id="nb-dept">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-dept"></table></div>
-        <div class="sp-chart"><canvas id="ch-dept" width="140" height="140"></canvas></div>
-      </div>
-    </div>
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-gender">男女分佈</span><span class="nb" id="nb-gender">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-gender"></table></div>
-        <div class="sp-chart"><canvas id="ch-gender" width="140" height="140"></canvas></div>
-      </div>
-    </div>
-  </div>
-  <div class="gr gr3">
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-age">年齡分佈</span><span class="nb" id="nb-age">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-age"></table></div>
-        <div class="sp-chart"><canvas id="ch-age" width="130" height="130"></canvas></div>
-      </div>
-    </div>
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-edu">學歷分佈</span><span class="nb" id="nb-edu">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-edu"></table></div>
-        <div class="sp-chart"><canvas id="ch-edu" width="130" height="130"></canvas></div>
-      </div>
-    </div>
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-sen">工齡分佈</span><span class="nb" id="nb-sen">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-sen"></table></div>
-        <div class="sp-chart"><canvas id="ch-sen" width="130" height="130"></canvas></div>
-      </div>
-    </div>
-  </div>
-  <div class="gr gr21" style="margin-top:10px">
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-ori">本地/外來</span><span class="nb" id="nb-ori">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-ori"></table></div>
-        <div class="sp-chart"><canvas id="ch-ori" width="130" height="130"></canvas></div>
-      </div>
-    </div>
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-pob">省份來源 Top 8</span><span class="nb" id="nb-pob">—</span></div>
-      <div class="sp-inner" style="grid-template-columns:1fr">
-        <div class="sp-chart" style="padding:8px"><canvas id="ch-pob" height="120"></canvas></div>
-      </div>
-    </div>
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-30 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button id="tab-dash"    onclick="goTab('dash')"    class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
+    <button id="tab-profile" onclick="goTab('profile')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🧬 Workforce Profile">🧬 人力結構</button>
+    <button id="tab-dept"    onclick="goTab('dept')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
+    <button id="tab-roster"  onclick="goTab('roster')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="👤 Employee List">👤 員工名單</button>
+    <button id="tab-diff"    onclick="goTab('diff')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔄 Snapshot Compare">🔄 快照比對</button>
+    <button id="tab-trend"   onclick="goTab('trend')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📈 Trend">📈 歷年趨勢</button>
   </div>
 </div>
 
-<!-- ══ ATTENDANCE TAB ══ -->
-<div id="pane-att" class="pane">
-  <div class="stit" id="s-att-kpi">📊 Mar 2026 考勤概況</div>
-  <div class="ks ks6" id="kpi-att"></div>
+<main class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-4">
 
-  <div class="cc" style="margin-bottom:10px">
-    <div class="cc-hdr"><span id="lbl-trend">每日出勤人數 / 應到人數趨勢</span></div>
-    <div class="cc-body"><canvas id="ch-trend" height="90"></canvas></div>
+<div id="empty-state" class="flex flex-col items-center justify-center py-28 text-center">
+  <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">👥</span></div>
+  <p class="text-slate-400 font-medium" data-en="Upload employee roster files to begin">上傳員工名冊後開始分析</p>
+  <p class="text-slate-300 text-xs mt-2" data-en="New and legacy formats can be mixed — drop them all at once.">新舊格式可以一起丟進來</p>
+</div>
+
+<div id="app" class="hidden">
+
+  <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="stepSnap(-1)" title="上一份快照"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-violet-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
+      <select id="nav-snap" onchange="jumpSnap(this.value)"
+        class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200 min-w-[190px] text-center"></select>
+      <button onclick="stepSnap(1)" title="下一份快照"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-violet-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
+      <span id="nav-hint" class="text-[11px] ml-1 text-slate-400"></span>
+      <select id="sel-dept" onchange="renderAll()"
+        class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200 min-w-[160px]">
+        <option value="" data-en="All Departments">全部部門 All</option></select>
+      <select id="sel-sec" onchange="renderAll()"
+        class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200 min-w-[140px]">
+        <option value="" data-en="All Sections">全部組別 All</option></select>
+      <select id="sel-gender" onchange="renderAll()"
+        class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200">
+        <option value="" data-en="All genders">不分性別</option>
+        <option value="F" data-en="Female">女 Female</option>
+        <option value="M" data-en="Male">男 Male</option></select>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14" data-en="Group by">分組</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="gb-dept" onclick="setGroup('dept')"   data-en="Department" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">部門</button>
+        <button id="gb-sec"  onclick="setGroup('section')" data-en="Section"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">組別</button>
+        <button id="gb-pos"  onclick="setGroup('position')" data-en="Position" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">職務</button>
+        <button id="gb-prov" onclick="setGroup('province')" data-en="Province" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">籍貫</button>
+      </div>
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider ml-2" data-en="Trend by">趨勢</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="tu-month"   onclick="setTUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每月</button>
+        <button id="tu-quarter" onclick="setTUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
+        <button id="tu-year"    onclick="setTUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">每年</button>
+      </div>
+      <span id="scope-txt" class="text-[11px] text-slate-400 ml-auto"></span>
+    </div>
   </div>
 
-  <div class="gr gr2">
-    <div class="cc">
-      <div class="cc-hdr"><span id="lbl-rate">每日出勤率 %</span></div>
-      <div class="cc-body"><canvas id="ch-rate" height="120"></canvas></div>
+  <!-- DASHBOARD -->
+  <div id="pane-dash" class="pane">
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="HEADCOUNT">總人數 HEADCOUNT</p>
+        <p id="k-head" class="text-2xl font-bold jmono mt-1 text-violet-700">—</p>
+        <p id="k-head-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="FEMALE RATIO">女性比例 FEMALE</p>
+        <p id="k-fem" class="text-2xl font-bold jmono mt-1 text-pink-600">—</p>
+        <p id="k-fem-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="AVG AGE">平均年齡 AVG AGE</p>
+        <p id="k-age" class="text-2xl font-bold jmono mt-1 text-sky-600">—</p>
+        <p id="k-age-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="AVG TENURE">平均年資 TENURE</p>
+        <p id="k-ten" class="text-2xl font-bold jmono mt-1 text-emerald-600">—</p>
+        <p id="k-ten-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="DEPARTMENTS">部門數 DEPTS</p>
+        <p id="k-dept" class="text-2xl font-bold jmono mt-1">—</p>
+        <p id="k-dept-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="NEW THIS YEAR">本年到職 NEW</p>
+        <p id="k-new" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
+        <p id="k-new-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
     </div>
-    <div class="sp">
-      <div class="sp-hdr"><span id="lbl-absent-type">缺勤類型分佈</span><span class="nb" id="nb-absent">—</span></div>
-      <div class="sp-inner">
-        <div class="sp-tbl"><table class="st" id="st-absent"></table></div>
-        <div class="sp-chart"><canvas id="ch-absent" width="130" height="130"></canvas></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-sm font-semibold text-slate-700 mb-1" id="grp-title">各部門人數</p>
+        <p class="text-[11px] text-slate-400 mb-3" data-en="Top 15 · by selected grouping">依上方所選分組 · 前 15 名</p>
+        <div class="ch300"><canvas id="grp-chart"></canvas></div>
+      </div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Join-Date Distribution">到職年份分布</p>
+        <p class="text-[11px] text-slate-400 mb-3" data-en="How many current staff joined in each year">目前在職者的到職年度</p>
+        <div class="ch300"><canvas id="join-chart"></canvas></div>
       </div>
     </div>
   </div>
 
-  <div class="gr gr2" style="margin-top:10px">
-    <div class="cc">
-      <div class="cc-hdr"><span id="lbl-jr">每日入職/離職</span></div>
-      <div class="cc-body"><canvas id="ch-jr" height="120"></canvas></div>
-    </div>
-    <div class="cc">
-      <div class="cc-hdr"><span id="lbl-abs-daily">每日缺勤明細</span></div>
-      <div class="cc-body"><canvas id="ch-abs-type" height="120"></canvas></div>
+  <!-- PROFILE -->
+  <div id="pane-profile" class="pane hidden"><div id="profile-body"></div></div>
+
+  <!-- DEPT -->
+  <div id="pane-dept" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p class="text-sm font-semibold text-slate-700 flex-1" id="dept-title">🏭 各部門明細</p>
+        <button onclick="exportCSV('dept')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="dept-thead"></tr></thead>
+        <tbody id="dept-tbody"></tbody>
+        <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr id="dept-tfoot"></tr></tfoot>
+      </table></div>
     </div>
   </div>
 
-  <div class="dtbl-wrap" style="margin-top:10px">
-    <div class="dtbl-hdr">
-      <span id="lbl-att-tbl">每日考勤記錄</span>
-      <button class="expbtn" onclick="exportAttCSV()">CSV ↓</button>
+  <!-- ROSTER -->
+  <div id="pane-roster" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <input id="ro-q" oninput="renderRoster()" placeholder="搜尋 工號 / 姓名 / 部門 / 職務…"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-violet-200 flex-1 min-w-[200px]">
+        <select id="ro-sort" onchange="renderRoster()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+          <option value="tenure" data-en="Sort: Tenure ↓">排序：年資 ↓</option>
+          <option value="age" data-en="Sort: Age ↓">排序：年齡 ↓</option>
+          <option value="join" data-en="Sort: Join date ↓">排序：到職日 ↓</option>
+          <option value="id" data-en="Sort: ID">排序：工號</option>
+        </select>
+        <span id="ro-count" class="text-[11px] text-slate-400"></span>
+        <button onclick="exportCSV('roster')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr id="ro-thead"></tr></thead>
+        <tbody id="ro-tbody"></tbody>
+      </table></div>
     </div>
-    <div style="overflow-x:auto"><table class="dtbl" id="att-tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
+
+  <!-- DIFF -->
+  <div id="pane-diff" class="pane hidden"><div id="diff-body"></div></div>
+
+  <!-- TREND -->
+  <div id="pane-trend" class="pane hidden"><div id="trend-body"></div></div>
+
+</div>
+</main>
+
+<!-- EDIT MODAL -->
+<div id="ed-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✏️</span>
+      <div class="flex-1"><p class="text-sm font-bold" data-en="Edit / Add Employee">線上新增／修改員工</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" id="ed-sub"></p></div>
+      <button onclick="closeEdit()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto" id="ed-form"></div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeEdit()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button onclick="saveEdit()" data-en="Save" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">儲存</button>
+    </div>
   </div>
 </div>
 
-<!-- ══ ANOMALY/COMPARE TAB ══ -->
-<div id="pane-cmp" class="pane">
-  <div class="stit" id="s-anom">🚨 異常偵測 Anomaly Detection</div>
-  <div id="anom-list"></div>
-
-  <div class="stit" id="s-weekly">📊 週別分析</div>
-  <div class="cc" style="margin-bottom:10px">
-    <div class="cc-hdr"><span id="lbl-weekly">週別平均出勤率對比</span></div>
-    <div class="cc-body"><canvas id="ch-weekly" height="110"></canvas></div>
-  </div>
-
-  <div class="gr gr2">
-    <div class="cc">
-      <div class="cc-hdr"><span id="lbl-al-trend">年假趨勢（AL）</span></div>
-      <div class="cc-body"><canvas id="ch-al" height="130"></canvas></div>
+<!-- TELEGRAM MODAL -->
+<div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✈️</span>
+      <div class="flex-1"><p class="text-sm font-bold" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" data-en="Workforce Summary">人力結構摘要</p></div>
+      <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
-    <div class="cc">
-      <div class="cc-hdr"><span id="lbl-headcount-trend">在職人數趨勢</span></div>
-      <div class="cc-body"><canvas id="ch-hc" height="130"></canvas></div>
+    <div class="px-5 py-4 space-y-3">
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Snapshot">選擇快照 Snapshot</label>
+        <select id="tg-snap" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Department">部門 Department</label>
+        <select id="tg-dept" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
     </div>
-  </div>
-
-  <div class="stit" id="s-summary">📋 月度考勤摘要</div>
-  <div class="gr gr2">
-    <div class="dtbl-wrap">
-      <div class="dtbl-hdr"><span id="lbl-summary-tbl">考勤統計摘要</span></div>
-      <div style="overflow-x:auto"><table class="dtbl" id="summary-tbl"><thead></thead><tbody></tbody></table></div>
-    </div>
-    <div class="dtbl-wrap">
-      <div class="dtbl-hdr"><span id="lbl-top-absent">最高缺勤日</span></div>
-      <div style="overflow-x:auto"><table class="dtbl" id="top-absent-tbl"><thead></thead><tbody></tbody></table></div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeTgModal()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" data-en="Send" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">確認傳送</button>
     </div>
   </div>
 </div>
 
-<!-- ══ HISTORY TAB ══ -->
-<div id="pane-hist" class="pane">
-  <div class="stit" id="s-hist">📊 跨月比對（localStorage 儲存）</div>
-  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="tbtn" style="background:var(--navy);color:#fff;border-color:var(--navy)" onclick="saveCurrentMonth()">💾 <span id="tb-save">儲存本月</span></button>
-    <button class="tbtn" style="background:var(--bg3);color:var(--tx2);border-color:var(--brd)" onclick="clearHistory()">🗑 <span id="tb-clear">清除記錄</span></button>
-  </div>
-  <div id="hist-charts" style="display:none">
-    <div class="cc" style="margin-bottom:10px">
-      <div class="cc-hdr"><span id="lbl-hist-trend">歷史出勤率趨勢</span></div>
-      <div class="cc-body"><canvas id="ch-hist-rate" height="100"></canvas></div>
-    </div>
-    <div class="cc" style="margin-bottom:10px">
-      <div class="cc-hdr"><span id="lbl-hist-hc">歷史在職人數</span></div>
-      <div class="cc-body"><canvas id="ch-hist-hc" height="100"></canvas></div>
-    </div>
-  </div>
-  <div id="no-hist" style="text-align:center;padding:40px;color:var(--tx3)">
-    <div style="font-size:36px;margin-bottom:8px">📭</div>
-    <div style="font-size:13px" id="no-hist-txt">點擊「儲存本月」建立記錄</div>
-  </div>
-  <div class="dtbl-wrap" id="hist-tbl-wrap" style="display:none">
-    <div class="dtbl-hdr"><span id="lbl-hist-tbl">月度記錄表</span></div>
-    <div style="overflow-x:auto"><table class="dtbl" id="hist-tbl"><thead></thead><tbody></tbody></table></div>
-  </div>
-</div>
-
-<div id="toast"></div>
+<div id="toast" class="fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border border-slate-100 px-4 py-3 hidden no-print text-sm"></div>
 
 <script>
-Chart.register(ChartDataLabels);
 'use strict';
+// ═══════════════════════════════════════════════════════
+//  AC-HRA-PAY · Employee HR Analytics v2.0
+//  支援兩種名冊格式（新版 2026 起 / 舊版 2019 以前），
+//  每個檔案存成一份「時點快照」，可跨快照比對人力變化。
+// ═══════════════════════════════════════════════════════
+const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
+  'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+const IDB_NAME='ac_hra_emp', IDB_VER=1, IDB_STORE='snapshots';
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const PALETTE=['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#f43f5e','#84cc16','#8b5cf6'];
 
-// ══ PRE-LOADED ATTENDANCE DATA (Mar 2026 from MSG) ══
-const ATT_DATA = [{"date":"2026-03-02","day":2,"M":66,"F":410,"TTL":476,"headcount":476,"join":1,"resign":1,"AL":29,"PL":0,"SL":1,"NP":1,"absent":31,"present":445,"rate":93.5},{"date":"2026-03-03","day":3,"M":67,"F":409,"TTL":476,"headcount":476,"join":2,"resign":2,"AL":14,"PL":2,"SL":1,"NP":1,"absent":18,"present":458,"rate":96.2},{"date":"2026-03-04","day":4,"M":67,"F":409,"TTL":476,"headcount":476,"join":1,"resign":1,"AL":13,"PL":6,"SL":1,"NP":1,"absent":21,"present":455,"rate":95.6},{"date":"2026-03-05","day":5,"M":67,"F":409,"TTL":476,"headcount":477,"join":1,"resign":0,"AL":12,"PL":6,"SL":1,"NP":2,"absent":21,"present":456,"rate":95.6},{"date":"2026-03-06","day":6,"M":67,"F":410,"TTL":477,"headcount":478,"join":3,"resign":2,"AL":13,"PL":6,"SL":1,"NP":0,"absent":20,"present":458,"rate":95.8},{"date":"2026-03-07","day":7,"M":67,"F":411,"TTL":478,"headcount":478,"join":0,"resign":0,"AL":17,"PL":4,"SL":1,"NP":0,"absent":22,"present":456,"rate":95.4},{"date":"2026-03-09","day":9,"M":67,"F":411,"TTL":478,"headcount":478,"join":0,"resign":0,"AL":22,"PL":5,"SL":0,"NP":0,"absent":27,"present":451,"rate":94.4},{"date":"2026-03-10","day":10,"M":67,"F":411,"TTL":478,"headcount":479,"join":2,"resign":1,"AL":13,"PL":4,"SL":1,"NP":1,"absent":19,"present":460,"rate":96.0},{"date":"2026-03-11","day":11,"M":67,"F":412,"TTL":479,"headcount":478,"join":1,"resign":2,"AL":12,"PL":2,"SL":1,"NP":1,"absent":16,"present":462,"rate":96.7},{"date":"2026-03-12","day":12,"M":67,"F":411,"TTL":478,"headcount":481,"join":3,"resign":0,"AL":14,"PL":3,"SL":1,"NP":3,"absent":21,"present":460,"rate":95.6},{"date":"2026-03-13","day":13,"M":67,"F":414,"TTL":481,"headcount":482,"join":2,"resign":1,"AL":21,"PL":6,"SL":1,"NP":2,"absent":30,"present":452,"rate":93.8},{"date":"2026-03-14","day":14,"M":67,"F":415,"TTL":482,"headcount":483,"join":2,"resign":1,"AL":29,"PL":5,"SL":1,"NP":2,"absent":37,"present":446,"rate":92.3},{"date":"2026-03-16","day":16,"M":67,"F":416,"TTL":483,"headcount":482,"join":1,"resign":2,"AL":20,"PL":3,"SL":1,"NP":3,"absent":27,"present":455,"rate":94.4},{"date":"2026-03-17","day":17,"M":67,"F":415,"TTL":482,"headcount":483,"join":1,"resign":0,"AL":13,"PL":6,"SL":1,"NP":2,"absent":22,"present":461,"rate":95.4},{"date":"2026-03-18","day":18,"M":67,"F":416,"TTL":483,"headcount":482,"join":1,"resign":2,"AL":12,"PL":7,"SL":1,"NP":2,"absent":22,"present":460,"rate":95.4},{"date":"2026-03-19","day":19,"M":67,"F":415,"TTL":482,"headcount":482,"join":2,"resign":2,"AL":14,"PL":5,"SL":1,"NP":2,"absent":22,"present":460,"rate":95.4},{"date":"2026-03-20","day":20,"M":67,"F":415,"TTL":482,"headcount":481,"join":1,"resign":2,"AL":8,"PL":3,"SL":1,"NP":1,"absent":13,"present":468,"rate":97.3},{"date":"2026-03-21","day":21,"M":67,"F":414,"TTL":481,"headcount":482,"join":1,"resign":0,"AL":15,"PL":3,"SL":1,"NP":1,"absent":20,"present":462,"rate":95.9},{"date":"2026-03-22","day":22,"M":67,"F":415,"TTL":482,"headcount":479,"join":0,"resign":3,"AL":22,"PL":4,"SL":1,"NP":0,"absent":27,"present":452,"rate":94.4},{"date":"2026-03-23","day":23,"M":67,"F":415,"TTL":482,"headcount":479,"join":0,"resign":3,"AL":22,"PL":4,"SL":1,"NP":0,"absent":27,"present":452,"rate":94.4},{"date":"2026-03-24","day":24,"M":67,"F":412,"TTL":479,"headcount":480,"join":1,"resign":0,"AL":13,"PL":4,"SL":1,"NP":1,"absent":19,"present":461,"rate":96.0},{"date":"2026-03-25","day":25,"M":67,"F":413,"TTL":480,"headcount":480,"join":1,"resign":1,"AL":7,"PL":4,"SL":1,"NP":1,"absent":13,"present":467,"rate":97.3},{"date":"2026-03-26","day":26,"M":67,"F":413,"TTL":480,"headcount":480,"join":1,"resign":1,"AL":11,"PL":2,"SL":1,"NP":1,"absent":15,"present":465,"rate":96.9},{"date":"2026-03-27","day":27,"M":66,"F":414,"TTL":480,"headcount":481,"join":1,"resign":0,"AL":17,"PL":3,"SL":1,"NP":1,"absent":22,"present":459,"rate":95.4},{"date":"2026-03-28","day":28,"M":66,"F":415,"TTL":481,"headcount":481,"join":0,"resign":0,"AL":18,"PL":6,"SL":1,"NP":1,"absent":26,"present":455,"rate":94.6},{"date":"2026-03-30","day":30,"M":66,"F":415,"TTL":481,"headcount":481,"join":0,"resign":0,"AL":14,"PL":6,"SL":0,"NP":1,"absent":21,"present":460,"rate":95.6},{"date":"2026-03-31","day":31,"M":66,"F":415,"TTL":481,"headcount":480,"join":0,"resign":1,"AL":9,"PL":7,"SL":1,"NP":0,"absent":17,"present":463,"rate":96.5}];
+let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='year', charts={};
 
-// ══ I18N ══
-const T = {
-  zh:{
-    'htit':'HR Dashboard · Mar 2026',
-    't-emp':'員工資料','t-att':'每日考勤','t-cmp':'異常分析','t-hist':'歷史記錄',
-    'uz-h3':'拖入 / 點選 VRT Employee Information Excel (.xlsx)',
-    'uz-p':'自動解析 Employee information 工作表',
-    's-overview':'👥 全廠概況','lbl-dept':'部門人數','lbl-gender':'男女分佈',
-    'lbl-age':'年齡分佈','lbl-edu':'學歷分佈','lbl-sen':'工齡分佈',
-    'lbl-ori':'本地/外來','lbl-pob':'省份來源 Top 8',
-    's-att-kpi':'📊 Mar 2026 考勤概況','lbl-trend':'每日出勤 / 應到人數趨勢',
-    'lbl-rate':'每日出勤率 %','lbl-absent-type':'缺勤類型分佈',
-    'lbl-jr':'每日入職/離職','lbl-abs-daily':'每日缺勤明細',
-    'lbl-att-tbl':'每日考勤記錄',
-    's-anom':'🚨 異常偵測','s-weekly':'📊 週別分析','lbl-weekly':'週別平均出勤率對比',
-    'lbl-al-trend':'年假趨勢（AL）','lbl-headcount-trend':'在職人數趨勢',
-    's-summary':'📋 月度考勤摘要','lbl-summary-tbl':'考勤統計摘要','lbl-top-absent':'最高缺勤日',
-    's-hist':'📊 跨月比對','tb-save':'儲存本月','tb-clear':'清除記錄',
-    'lbl-hist-trend':'歷史出勤率趨勢','lbl-hist-hc':'歷史在職人數','lbl-hist-tbl':'月度記錄表',
-    'no-hist-txt':'點擊「儲存本月」建立記錄',
-    'Total':'合計','kl-total':'全廠員工','kl-f':'女性','kl-m':'男性','kl-local':'本地',
-    'kl-avgrate':'月均出勤率','kl-avgabsent':'日均缺勤','kl-totalJoin':'月入職',
-    'kl-totalResign':'月離職','kl-avgHC':'月均人數',
-    DEPT_LABELS:['車縫/Sew','包裝/Pack','裁剪/Cut','倉庫/WH','QC','其它'],
-    AGE_LABELS:['<20歲','20-29','30-39','40-49','50+'],
-    EDU_LABELS:['大學/專科','高中(職)','國中','國中以下','未填'],
-    SEN_LABELS:['<1年','1-2年','2-3年','3-4年','4-5年','5-6年','>6年'],
-    ORI_LABELS:['外來','本地'],
-    ABS_LABELS:['年假AL','事假PL','病假SL','曠工NP'],
-  },
-  en:{
-    'htit':'HR Dashboard · Mar 2026',
-    't-emp':'Employees','t-att':'Daily Attendance','t-cmp':'Analysis','t-hist':'History',
-    'uz-h3':'Drop / Click to Load Employee Information Excel (.xlsx)',
-    'uz-p':'Auto-parse Employee information sheet',
-    's-overview':'👥 Overview','lbl-dept':'Dept Headcount','lbl-gender':'Gender',
-    'lbl-age':'Age Distribution','lbl-edu':'Education','lbl-sen':'Seniority',
-    'lbl-ori':'Local/External','lbl-pob':'Origin Province Top 8',
-    's-att-kpi':'📊 Mar 2026 Attendance Overview','lbl-trend':'Daily Present / Should Work Trend',
-    'lbl-rate':'Daily Attendance Rate %','lbl-absent-type':'Absence Type Distribution',
-    'lbl-jr':'Daily Join/Resign','lbl-abs-daily':'Daily Absence Breakdown',
-    'lbl-att-tbl':'Daily Attendance Records',
-    's-anom':'🚨 Anomaly Detection','s-weekly':'📊 Weekly Analysis','lbl-weekly':'Weekly Avg Attendance Rate',
-    'lbl-al-trend':'Annual Leave Trend (AL)','lbl-headcount-trend':'Headcount Trend',
-    's-summary':'📋 Monthly Summary','lbl-summary-tbl':'Attendance Summary','lbl-top-absent':'Highest Absence Days',
-    's-hist':'📊 Cross-Month Comparison','tb-save':'Save Month','tb-clear':'Clear Records',
-    'lbl-hist-trend':'Historical Attendance Rate','lbl-hist-hc':'Historical Headcount','lbl-hist-tbl':'Monthly Records',
-    'no-hist-txt':'Click "Save Month" to create a record',
-    'Total':'Total','kl-total':'Total Staff','kl-f':'Female','kl-m':'Male','kl-local':'Local',
-    'kl-avgrate':'Avg Rate','kl-avgabsent':'Avg Absent','kl-totalJoin':'Join','kl-totalResign':'Resign','kl-avgHC':'Avg HC',
-    DEPT_LABELS:['Sewing','Packing','Cutting','Warehouse','QC','Others'],
-    AGE_LABELS:['<20yrs','20-29','30-39','40-49','50+'],
-    EDU_LABELS:['University','High School','Jr High','Below JH','N/A'],
-    SEN_LABELS:['<1yr','1-2yr','2-3yr','3-4yr','4-5yr','5-6yr','>6yr'],
-    ORI_LABELS:['External','Local'],
-    ABS_LABELS:['Annual AL','Personal PL','Sick SL','No-pay NP'],
-  },
-  kh:{
-    'htit':'ផ្ទាំងគ្រប់គ្រង · Mar 2026',
-    't-emp':'បុគ្គលិក','t-att':'វត្តមានប្រចាំថ្ងៃ','t-cmp':'វិភាគ','t-hist':'ប្រវត្តិ',
-    'uz-h3':'ទម្លាក់/ចុចដើម្បីផ្ទុក Excel',
-    'uz-p':'ដំណើរការស្វ័យប្រវត្តិ',
-    's-overview':'👥 ទិដ្ឋភាពទូទៅ','lbl-dept':'ចំនួននៅតាមនាយកដ្ឋាន','lbl-gender':'ភេទ',
-    'lbl-age':'ការបែងចែកតាមអាយុ','lbl-edu':'ការអប់រំ','lbl-sen':'អាយុការងារ',
-    'lbl-ori':'មូលដ្ឋាន/ខាងក្រៅ','lbl-pob':'ខេត្តកំណើត',
-    's-att-kpi':'📊 វត្តមាន Mar 2026','lbl-trend':'វត្តមានប្រចាំថ្ងៃ',
-    'lbl-rate':'អត្រាវត្តមាន %','lbl-absent-type':'ប្រភេទអវត្តមាន',
-    'lbl-jr':'ចូល/ចេញប្រចាំថ្ងៃ','lbl-abs-daily':'អវត្តមានប្រចាំថ្ងៃ',
-    'lbl-att-tbl':'កំណត់ត្រាវត្តមានប្រចាំថ្ងៃ',
-    's-anom':'🚨 ការរកឃើញភាពមិនប្រក្រតី','s-weekly':'📊 ការវិភាគប្រចាំសប្តាហ៍',
-    'lbl-weekly':'អត្រាវត្តមានប្រចាំសប្តាហ៍','lbl-al-trend':'ការឈប់សម្រាក','lbl-headcount-trend':'ចំនួនបុគ្គលិក',
-    's-summary':'📋 សង្ខេបប្រចាំខែ','lbl-summary-tbl':'សង្ខេបវត្តមាន','lbl-top-absent':'ថ្ងៃអវត្តមានខ្ពស់',
-    's-hist':'📊 ប្រៀបធៀបរវាងខែ','tb-save':'រក្សាទុក','tb-clear':'លុប',
-    'lbl-hist-trend':'អត្រាវត្តមានប្រវត្តិ','lbl-hist-hc':'ចំនួនបុគ្គលិក','lbl-hist-tbl':'កំណត់ត្រាប្រចាំខែ',
-    'no-hist-txt':'ចុច "រក្សាទុក" ដើម្បីបង្កើតកំណត់ត្រា',
-    'Total':'សរុប','kl-total':'បុគ្គលិកសរុប','kl-f':'ស្ត្រី','kl-m':'ប្រុស','kl-local':'មូលដ្ឋាន',
-    'kl-avgrate':'អត្រាបញ្ចូល','kl-avgabsent':'អវត្តមានជា','kl-totalJoin':'ចូល','kl-totalResign':'ចេញ','kl-avgHC':'ចំនួនជា',
-    DEPT_LABELS:['ដេរ','ខ្ចប់','កាត់','ឃ្លាំង','QC','ផ្សេងៗ'],
-    AGE_LABELS:['<20','20-29','30-39','40-49','50+'],
-    EDU_LABELS:['សាកល','វិទ្យាល័យ','អន','ក្រោម','មិនបំពេញ'],
-    SEN_LABELS:['<1ឆ','1-2','2-3','3-4','4-5','5-6','>6ឆ'],
-    ORI_LABELS:['ខាងក្រៅ','មូលដ្ឋាន'],
-    ABS_LABELS:['AL','PL','SL','NP'],
+const qs=s=>document.querySelector(s);
+const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const int=n=>Math.round(n||0).toLocaleString('en-US');
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const T=(zh,en)=>LANG==='en'?en:zh;
+const pad=n=>String(n).padStart(2,'0');
+function _nowISO(){const d=new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+function toast(msg,kind){
+  const t=qs('#toast');
+  const c={success:'border-emerald-200 text-emerald-700',error:'border-rose-200 text-rose-700',
+           warning:'border-amber-200 text-amber-700'}[kind]||'border-slate-100 text-slate-700';
+  t.className='fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border px-4 py-3 no-print text-sm '+c;
+  t.textContent=msg; t.classList.remove('hidden');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.add('hidden'),3200);
+}
+function toggleLang(){LANG=LANG==='zh'?'en':'zh';applyLang();}
+function applyLang(){
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.zhOrig===undefined)el.dataset.zhOrig=el.textContent;
+    el.textContent=LANG==='en'?el.dataset.en:el.dataset.zhOrig;});
+  if(Object.keys(SNAPS).length){try{renderAll();}catch(e){console.warn(e);}}
+}
+
+// ━━━━ IndexedDB ━━━━
+let _dbReady=null;
+function idbOpen(){
+  if(_dbReady)return _dbReady;
+  _dbReady=new Promise(res=>{
+    const rq=indexedDB.open(IDB_NAME,IDB_VER);
+    rq.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE,{keyPath:'key'});};
+    rq.onsuccess=e=>res(e.target.result); rq.onerror=()=>res(null);});
+  return _dbReady;
+}
+async function idbSave(s){const db=await idbOpen();if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(s);tx.oncomplete=()=>r();tx.onerror=()=>r();});}
+async function idbAll(){const db=await idbOpen();if(!db)return [];
+  return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
+    rq.onsuccess=()=>r(rq.result||[]);rq.onerror=()=>r([]);});}
+async function idbClear(){const db=await idbOpen();if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).clear();tx.oncomplete=()=>r();tx.onerror=()=>r();});}
+
+// ━━━━ 日期工具 ━━━━
+function toDate(v){
+  if(v instanceof Date)return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'&&v>20000){const p=XLSX.SSF.parse_date_code(v);if(p)return new Date(p.y,p.m-1,p.d);}
+  if(typeof v==='string'){
+    const s=v.trim();
+    let m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+    m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if(m)return new Date(+m[3],+m[1]-1,+m[2]);
+    const d=new Date(s); if(!isNaN(d))return new Date(d.getFullYear(),d.getMonth(),d.getDate());
   }
-};
+  return null;
+}
+const dStr=d=>d?`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`:'';
+function yearsBetween(a,b){ if(!a||!b)return 0; return (b-a)/(365.25*86400000); }
 
-let LANG='zh';
-const CH={};
-let EMP=null;
-const PAL=['#2563eb','#d4841a','#1e7040','#b83232','#6d28d9','#1a7a7a','#f97316','#3b82f6','#28a060','#e05040','#8b5cf6','#28a0a0','#fbbf24','#c2410c'];
-const PAL_A=PAL.map(c=>c+'cc');
+// ━━━━ 解析：員工名冊（新舊格式共用，以英文表頭定位）━━━━
+const HDR_MAP=[
+  ['factoryId',  [/^factory\s*id$/i, /^vrt\s*card/i]],
+  ['vrtCode',    [/^vrt\s*code$/i]],
+  ['nssf',       [/^nssf/i]],
+  ['idNo',       [/^id\s*\/?\s*pass/i, /^id\s*no/i]],
+  ['idExpire',   [/^date\s*ex[dp]/i]],
+  ['khSur',      [/^khmer\s*sure/i]],
+  ['khName',     [/^khmer\s*name$/i]],
+  ['enSur',      [/^english\s*sure/i]],
+  ['enName',     [/^english\s*name$/i]],
+  ['gender',     [/^gender$/i, /^sex$/i]],
+  ['birth',      [/^birth\s*of\s*date$/i, /^date\s*of\s*birth$/i, /^birth\s*date$/i]],
+  ['age',        [/^age$/i, /^age\s*\/\s*years?$/i]],
+  ['education',  [/^education$/i]],
+  ['marital',    [/^marital\s*status$/i]],
+  ['workStatus', [/^work\s*status$/i]],
+  ['empStatus',  [/^employee\s*status$/i]],
+  ['phone',      [/^phone$/i]],
+  ['nationality',[/^nationality$/i]],
+  ['joinDate',   [/^join\s*date$/i]],
+  ['contractOld',[/^contract\s*date/i]],
+  ['dept',       [/^department$/i]],
+  ['section',    [/^section$/i]],
+  ['position',   [/^position$/i]],
+  ['status',     [/^status$/i]],
+  ['province',   [/^place\s*of\s*b/i]],
+];
+function parseRoster(wb, fileName){
+  for(const sn of wb.SheetNames){
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+    if(raw.length<3)continue;
+    // 找英文表頭列：含 Join Date 且含 (Factory ID 或 VRT Code)
+    let hr=-1;
+    for(let i=0;i<8&&hr<0;i++){
+      const r=(raw[i]||[]).map(x=>String(x||'').trim());
+      if(r.some(x=>/^join\s*date$/i.test(x)) &&
+         r.some(x=>/^factory\s*id$/i.test(x)||/^vrt\s*code$/i.test(x))) hr=i;
+    }
+    if(hr<0)continue;
+    const hdr=raw[hr].map(x=>String(x||'').trim());
+    const col={};
+    HDR_MAP.forEach(([key,pats])=>{
+      for(let c=0;c<hdr.length;c++){
+        if(col[key]!==undefined)break;
+        if(pats.some(p=>p.test(hdr[c]))) col[key]=c;
+      }
+    });
+    // 工號欄：2014–2016 版本沒有 Factory ID，改以 VRT Code 為主鍵
+    const cId = col.factoryId!==undefined ? col.factoryId
+              : (col.vrtCode!==undefined ? col.vrtCode : undefined);
+    if(cId===undefined)continue;
 
-function t(k){return (T[LANG]||T.zh)[k]||(T.zh)[k]||k}
-function tA(k){return (T[LANG]||T.zh)[k]||(T.zh)[k]||[]}
-const nv=v=>{const n=parseFloat(String(v||'').replace(/[,$]/g,''));return isNaN(n)?0:n};
-const sv=v=>String(v==null?'':v).trim();
-const pct=(a,b)=>b>0?((a/b)*100).toFixed(1)+'%':'—';
-const avg=arr=>arr.length?arr.reduce((s,v)=>s+v,0)/arr.length:0;
+    const rows=[];
+    for(let i=hr+1;i<raw.length;i++){
+      const r=raw[i]||[];
+      const id=r[cId];
+      if(id==null||String(id).trim()==='')continue;
+      if(!/^[A-Za-z0-9\-]+$/.test(String(id).trim()))continue;
+      // 性別可能為 F/M、Unicode 柬文（ស្រី/ប្រុស），
+      // 或 2014-2016 早期檔的 Limon 舊編碼（RsI = 女、Rbus = 男）
+      const g=(v=>{const s=String(v||'').trim();
+        if(/^f$/i.test(s)||/ស្រី/.test(s)||/^rsi$/i.test(s)||/^female$/i.test(s))return 'F';
+        if(/^m$/i.test(s)||/ប្រុស/.test(s)||/^rbus$/i.test(s)||/^male$/i.test(s))return 'M';
+        return '';})(col.gender!==undefined?r[col.gender]:'');
+      const birth=col.birth!==undefined?toDate(r[col.birth]):null;
+      const join =col.joinDate!==undefined?toDate(r[col.joinDate]):null;
+      const nm=[col.enSur!==undefined?String(r[col.enSur]||'').trim():'',
+                col.enName!==undefined?String(r[col.enName]||'').trim():''].filter(Boolean).join(' ');
+      const km=[col.khSur!==undefined?String(r[col.khSur]||'').trim():'',
+                col.khName!==undefined?String(r[col.khName]||'').trim():''].filter(Boolean).join(' ');
+      rows.push({
+        id:String(id).trim(),
+        name:nm||km||'—', nameKm:km,
+        gender:g,
+        birth:dStr(birth),
+        age:col.age!==undefined&&N(r[col.age])?N(r[col.age]):null,
+        nationality:col.nationality!==undefined?String(r[col.nationality]||'').trim():'',
+        join:dStr(join),
+        dept:(col.dept!==undefined?String(r[col.dept]||'').trim():'')||'—',
+        section:(col.section!==undefined?String(r[col.section]||'').trim():'')||'—',
+        position:(col.position!==undefined?String(r[col.position]||'').trim():'')||'—',
+        status:col.status!==undefined?String(r[col.status]||'').trim():'',
+        province:col.province!==undefined?String(r[col.province]||'').trim():'',
+        nssf:col.nssf!==undefined?String(r[col.nssf]||'').trim():'',
+        vrtCode:col.vrtCode!==undefined?String(r[col.vrtCode]||'').trim():'',
+        education:col.education!==undefined?String(r[col.education]||'').trim():'',
+        marital:col.marital!==undefined?String(r[col.marital]||'').trim():'',
+        workStatus:col.workStatus!==undefined?String(r[col.workStatus]||'').trim():'',
+        phone:col.phone!==undefined?String(r[col.phone]||'').trim():''
+      });
+    }
+    if(!rows.length)continue;
+    const fmt = col.section!==undefined ? 'new'
+              : (col.education!==undefined ? 'classic' : 'legacy');
+    return {sheet:sn, rows, format:fmt, fields:Object.keys(col)};
+  }
+  return null;
+}
+// 快照期別：優先取檔名（Jun-_2026 / _2019），否則取名冊中最晚到職日
+function snapKeyOf(fileName, rows){
+  const f=String(fileName||'');
+  let m=f.match(/([A-Za-z]{3,})[-_\s.]*?(20\d{2})/);
+  if(m){
+    const mi=MS.findIndex(x=>new RegExp('^'+x,'i').test(m[1]));
+    if(mi>=0)return {key:`${m[2]}-${pad(mi+1)}`, label:`${MS[mi]} ${m[2]}`};
+  }
+  m=f.match(/(20\d{2})/);
+  if(m)return {key:`${m[1]}-12`, label:`${m[1]} ${T('年末','year-end')}`};
+  const ds=rows.map(r=>r.join).filter(Boolean).sort();
+  if(ds.length){const d=ds[ds.length-1];return {key:d.slice(0,7),label:`${MS[+d.slice(5,7)-1]} ${d.slice(0,4)}`};}
+  return {key:'unknown',label:'—'};
+}
 
-// ══ LANGUAGE ══
-function setLang(l){
-  LANG=l;
-  document.querySelectorAll('.lb').forEach(b=>{b.classList.toggle('on',
-    (b.textContent==='中文'&&l==='zh')||(b.textContent==='EN'&&l==='en')||(b.textContent==='ខ្មែរ'&&l==='kh'));
-    b.style.fontFamily=l==='kh'?'var(--kh)':'';
-  });
-  Object.keys(T.zh).forEach(k=>{
-    if(typeof T.zh[k]==='string'){const el=document.getElementById(k);if(el)el.textContent=t(k);}
-  });
+// ━━━━ 智慧匯入 ━━━━
+async function smartImport(input){
+  const files=[...input.files]; input.value='';
+  if(!files.length)return;
+  const st=qs('#smart-status'), rep=qs('#smart-report');
+  st.textContent=T(`⏳ 解析 ${files.length} 個檔案中…`,`⏳ Parsing ${files.length} file(s)…`);
+  st.style.color='#6d28d9'; rep.classList.add('hidden'); rep.innerHTML='';
+
+  const log=[];
+  for(const file of files){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
+      const d=parseRoster(wb,file.name);
+      if(!d){ log.push({ok:false,f:file.name,msg:T('無法辨識名冊格式（需有 Join Date 與 Factory ID 表頭）','Unrecognised roster format')}); continue; }
+      const sk=snapKeyOf(file.name,d.rows);
+      SNAPS[sk.key]={key:sk.key,label:sk.label,format:d.format,sheet:d.sheet,
+        rows:d.rows,src:file.name,updatedAt:_nowISO()};
+      await idbSave(SNAPS[sk.key]);
+      const f=d.rows.filter(r=>r.gender==='F').length;
+      log.push({ok:true,f:file.name,key:sk.key,label:sk.label,n:d.rows.length,
+        fmt:d.format,fem:f,depts:new Set(d.rows.map(r=>r.dept)).size,sheet:d.sheet});
+    }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
+  }
+  const ks=snapKeys(); if(ks.length)ACTIVE=ks[ks.length-1];
+  showApp(); renderAll(); pushProjection();
+
+  const okN=log.filter(l=>l.ok).length;
+  st.textContent = okN===log.length
+    ? T(`✅ ${okN} 個檔案全部匯入成功`,`✅ All ${okN} file(s) imported`)
+    : T(`⚠ ${okN}/${log.length} 個成功`,`⚠ ${okN}/${log.length} succeeded`);
+  st.style.color = okN===log.length?'#059669':'#b45309';
+  rep.innerHTML=log.map(l=>l.ok
+    ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${
+        l.fmt==='new'?`<span class="text-violet-700 font-semibold">${T('新版格式 (2026)','New (2026)')}</span>`
+      :l.fmt==='classic'?`<span class="text-amber-700 font-semibold">${T('早期格式 (2014-16，含學歷)','Classic (2014-16, incl. education)')}</span>`
+      :`<span class="text-sky-700 font-semibold">${T('舊版格式 (2017-19)','Legacy (2017-19)')}</span>`
+      } · ${l.label} · ${l.n} ${T('人','staff')} · ${T('女性','female')} ${l.fem} · ${l.depts} ${T('部門','depts')}
+      <span class="text-slate-400">（${T('工作表','sheet')}：${esc(l.sheet)}）</span></span></div>`
+    : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
+  ).join('');
+  rep.classList.remove('hidden');
+  applyLang();
+}
+
+// ━━━━ 資料存取 ━━━━
+const snapKeys=()=>Object.keys(SNAPS).sort();
+function baseRows(){ return (ACTIVE&&SNAPS[ACTIVE])?SNAPS[ACTIVE].rows:[]; }
+function filtered(){
+  const d=qs('#sel-dept')?qs('#sel-dept').value:'';
+  const s=qs('#sel-sec')?qs('#sel-sec').value:'';
+  const g=qs('#sel-gender')?qs('#sel-gender').value:'';
+  return baseRows().filter(r=>(!d||r.dept===d)&&(!s||r.section===s)&&(!g||r.gender===g));
+}
+// 年資（以快照時點計算，而非今天）
+function snapDate(){
+  if(!ACTIVE)return new Date();
+  const [y,m]=ACTIVE.split('-').map(Number);
+  return new Date(y,(m||12)-1,28);
+}
+const tenureOf=r=>{const j=toDate(r.join);return j?yearsBetween(j,snapDate()):0;};
+const ageOf=r=>{ if(r.age)return r.age; const b=toDate(r.birth); return b?yearsBetween(b,snapDate()):0; };
+const groupVal=r=>({dept:r.dept,section:r.section,position:r.position,province:r.province||'—'}[GROUP]||'—');
+const groupName=()=>({dept:T('部門','Department'),section:T('組別','Section'),
+  position:T('職務','Position'),province:T('籍貫','Province')}[GROUP]);
+
+function _btn(on,color){return on
+  ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setGroup(g){GROUP=g;
+  ['dept','sec','pos','prov'].forEach((k,i)=>{
+    qs('#gb-'+k).className=_btn(['dept','section','position','province'][i]===g,'violet');});
+  renderAll();}
+function setTUnit(u){TUNIT=u;
+  ['month','quarter','year'].forEach(k=>qs('#tu-'+k).className=_btn(k===u,'violet'));renderAll();}
+function jumpSnap(k){if(SNAPS[k]){ACTIVE=k;renderAll();}}
+function stepSnap(dir){
+  const ks=snapKeys(); if(!ks.length)return;
+  const i=ks.indexOf(ACTIVE);
+  const n=Math.min(ks.length-1,Math.max(0,(i<0?ks.length-1:i)+dir));
+  if(n!==i)jumpSnap(ks[n]);
+}
+const TABS=['dash','profile','dept','roster','diff','trend'];
+function goTab(name){
+  TABS.forEach(t=>{
+    qs('#pane-'+t).classList.toggle('hidden',t!==name);
+    qs('#tab-'+t).className=(t===name?'tab-active':'tab-inactive')+' text-sm px-4 py-3 whitespace-nowrap transition';});
   renderAll();
 }
-
-// ══ TABS ══
-function switchTab(id){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===id));
-  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+id));
-  if(id==='hist')renderHistory();
+function showApp(){
+  const has=Object.keys(SNAPS).length>0;
+  qs('#empty-state').classList.toggle('hidden',has);
+  qs('#app').classList.toggle('hidden',!has);
 }
-document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 
-// ══ FILE HANDLING ══
-function hdrop(e){e.preventDefault();document.getElementById('uz').classList.remove('drag');hfile(e.dataTransfer.files[0]);}
-function hfile(file){
-  if(!file)return;
-  const uz=document.getElementById('uz');uz.classList.add('loaded');
-  document.getElementById('fst').textContent='⏳ '+file.name;
-  const r=new FileReader();
-  r.onload=e=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
-      const ws=wb.Sheets['Employee information'];
-      if(!ws)throw new Error('找不到 Employee information 工作表');
-      EMP=parseEmp(ws);
-      document.getElementById('fst').textContent='✅ '+file.name+' · '+EMP.total+'人';
-      document.getElementById('uz-h3').textContent='✅ '+file.name;
-      renderEmp();
-    }catch(ex){document.getElementById('fst').textContent='❌ '+ex.message;console.error(ex);}
-  };
-  r.readAsArrayBuffer(file);
-}
-
-// ══ EMPLOYEE PARSER ══
-function parseEmp(ws){
-  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
-  const REF=new Date(2026,2,1);
-  const emps=[];
-  for(let ri=2;ri<rows.length;ri++){
-    const row=rows[ri];if(!row)continue;
-    if(row[0]===null||row[0]===undefined||isNaN(Number(row[0])))continue;
-    const g=sv(row[10]).toUpperCase();if(g!=='M'&&g!=='F')continue;
-    let jd=null;const jv=row[14];
-    if(jv instanceof Date)jd=jv;else if(typeof jv==='string'&&jv.includes('-'))jd=new Date(jv);
-    emps.push({g,age:nv(row[12]),jd,dept:sv(row[15]),sec:sv(row[16]),pos:sv(row[17]),pob:sv(row[18]),edu:row[21]});
-  }
-  const total=emps.length;
-  const gM=emps.filter(e=>e.g==='M').length,gF=total-gM;
-  const ageBkts=[['<20',a=>a>0&&a<20],['20~29',a=>a>=20&&a<30],['30~39',a=>a>=30&&a<40],['40~49',a=>a>=40&&a<50],['50+',a=>a>=50]];
-  const ageD=ageBkts.map(([l,fn])=>({l,v:emps.filter(e=>fn(e.age)).length}));
-  const eduC={'大學/專科':0,'高中(職)':0,'國中':0,'國中以下':0,'未填':0};
-  emps.forEach(e=>{
-    const ed=e.edu;
-    if(ed===null||ed===undefined||sv(ed).toLowerCase()==='no')return eduC['未填']++;
-    if(typeof ed==='number'||(typeof ed==='string'&&!isNaN(ed))){
-      const n=parseInt(ed);if(n===0)return eduC['未填']++;
-      if(n>=12)return eduC['高中(職)']++;if(n>=7)return eduC['國中']++;return eduC['國中以下']++;
-    }
-    if(/bachelor|university|doctor|bbu|ume|college/i.test(sv(ed))||/បរិញ្ញ|មហាវ/.test(sv(ed)))return eduC['大學/專科']++;
-    eduC['未填']++;
-  });
-  const DEPTS=['Sew','Pack','Cut','WH','QC','Oth'];
-  const mapDept=e=>{
-    const s=e.sec.toLowerCase().replace(/\s+/g,''),p=e.pos.toLowerCase();
-    if(/^line\d+$|^supervisor$|^sample$/.test(s)||/sewing|operator/i.test(p))return 'Sew';
-    if(/pack|finish/.test(s))return 'Pack';
-    if(/cut/.test(s))return 'Cut';
-    if(/^wh|warehouse|fabric|trims/.test(s))return 'WH';
-    if(/^qc/.test(s)||/^qc/.test(p))return 'QC';
-    return 'Oth';
-  };
-  const deptC={};DEPTS.forEach(d=>deptC[d]=0);
-  emps.forEach(e=>deptC[mapDept(e)]++);
-  const isLocal=pob=>/ព្រះសីហនុ|sihanouk/i.test(pob);
-  const localTotal=emps.filter(e=>isLocal(e.pob)).length;
-  const pobDist={};emps.forEach(e=>{const p=e.pob;if(p)pobDist[p]=(pobDist[p]||0)+1;});
-  const pobTop=Object.entries(pobDist).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  function senBkt(jd){
-    if(!jd)return null;
-    const mo=(REF-jd)/(1000*60*60*24*30.44);
-    if(mo<12)return '<1yr';if(mo<24)return '1-2yr';if(mo<36)return '2-3yr';
-    if(mo<48)return '3-4yr';if(mo<60)return '4-5yr';if(mo<72)return '5-6yr';return '>6yr';
-  }
-  const senLbls=['<1yr','1-2yr','2-3yr','3-4yr','4-5yr','5-6yr','>6yr'];
-  const senC={};senLbls.forEach(l=>senC[l]=0);
-  emps.forEach(e=>{const b=senBkt(e.jd);if(b)senC[b]++;});
-  const senD=senLbls.map(l=>({l,v:senC[l]}));
-  return{total,gM,gF,ageD,eduC,deptC,DEPTS,localTotal,extTotal:total-localTotal,pobTop,senD};
-}
-
-// ══ CHART HELPER ══
-function mkC(id,type,data,opts={}){
-  if(CH[id])CH[id].destroy();
-  const el=document.getElementById(id);if(!el)return;
-  const isRound=type==='pie'||type==='doughnut';
-  CH[id]=new Chart(el,{type,data,options:{
-    responsive:true,maintainAspectRatio:true,
-    plugins:{
-      legend:{position:isRound?'bottom':'top',labels:{color:'#445068',font:{size:10},padding:8,boxWidth:11,boxHeight:8},...(opts.legend||{})},
-      datalabels:opts.datalabels!==false?{
-        display:isRound?ctx=>ctx.dataset.data[ctx.dataIndex]/ctx.dataset.data.reduce((s,v)=>s+v,0)>0.04:false,
-        formatter:(v,ctx)=>{if(!isRound)return null;const sum=ctx.dataset.data.reduce((s,x)=>s+x,0);return v+'\n'+(v/sum*100).toFixed(1)+'%';},
-        color:'#fff',font:{size:9,weight:'bold'},textAlign:'center',anchor:'center',align:'center',
-      }:{display:false},
-      tooltip:{backgroundColor:'#1e3a5f',titleColor:'#fff',bodyColor:'#ffffffcc',padding:8,cornerRadius:6,...(opts.tooltip||{})},
-      ...(opts.plugins||{})
-    },
-    scales:isRound?undefined:{
-      x:{ticks:{color:'#8595b0',font:{size:9}},grid:{color:'#e8ecf2',lineWidth:.8},...(opts.sx||{})},
-      y:{ticks:{color:'#8595b0',font:{size:9}},grid:{color:'#e8ecf2',lineWidth:.8},...(opts.sy||{})},
-      ...(opts.scales||{})
-    },...(opts.extra||{})
-  }});
-}
-
-function spTable(tbId,rows,total){
-  const tbl=document.getElementById(tbId);if(!tbl)return;
-  tbl.innerHTML=rows.map((r,i)=>{
-    const p=total>0?(r.v/total*100):0;
-    return`<tr><td>${r.l}</td><td>${r.v}</td><td>${p.toFixed(1)}%<div class="bm"><div class="bmf" style="width:${p.toFixed(1)}%;background:${PAL[i%PAL.length]}"></div></div></td></tr>`;
-  }).join('')+`<tr><td>${t('Total')}</td><td><b>${total}</b></td><td>100%</td></tr>`;
-}
-
-// ══ RENDER EMPLOYEE ══
-function renderEmp(){
-  if(!EMP)return;
-  const E=EMP,tot=E.total;
-  const dL=tA('DEPT_LABELS');
-  document.getElementById('nb-dept').textContent=tot;
-  document.getElementById('nb-gender').textContent=tot;
-  document.getElementById('nb-age').textContent=tot;
-  document.getElementById('nb-edu').textContent=tot;
-  document.getElementById('nb-sen').textContent=tot;
-  document.getElementById('nb-ori').textContent=tot;
-  document.getElementById('nb-pob').textContent=tot;
-
-  // KPIs
-  document.getElementById('kpi-emp').innerHTML=[
-    {l:'kl-total',v:tot.toLocaleString(),s:'Mar 2026',c:'nv',b:100},
-    {l:'kl-f',v:E.gF,s:pct(E.gF,tot),c:'gd',b:E.gF/tot*100},
-    {l:'kl-m',v:E.gM,s:pct(E.gM,tot),c:'tl',b:E.gM/tot*100},
-    {l:'kl-local',v:E.localTotal,s:pct(E.localTotal,tot)+' local',c:'gn',b:E.localTotal/tot*100},
-    {l:'kl-avgHC',v:tot,s:'on record',c:'nv',b:100},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${t(k.l)}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div><div class="kbar"><div class="kbf" style="width:${k.b.toFixed(1)}%;background:var(--${k.c==='nv'?'navy':k.c==='gd'?'gold':k.c==='tl'?'teal':k.c==='gn'?'green':'red'})"></div></div></div>`).join('');
-
-  // Dept
-  const dRows=E.DEPTS.map((d,i)=>({l:dL[i]||d,v:E.deptC[d]||0}));
-  spTable('st-dept',dRows,tot);
-  mkC('ch-dept','pie',{labels:dRows.map(r=>r.l),datasets:[{data:dRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:6}]});
-
-  // Gender
-  const gRows=[{l:tA('ORI_LABELS')[1]||'女/F',v:E.gF},{l:tA('ORI_LABELS')[0]||'男/M',v:E.gM}];
-  spTable('st-gender',[{l:(LANG==='kh'?'ស្ត្រី':'女/F'),v:E.gF},{l:(LANG==='kh'?'ប្រុស':'男/M'),v:E.gM}],tot);
-  mkC('ch-gender','doughnut',{labels:[LANG==='kh'?'ស្ត្រី':'女/F',LANG==='kh'?'ប្រុស':'男/M'],datasets:[{data:[E.gF,E.gM],backgroundColor:[PAL[0]+'cc',PAL[1]+'cc'],borderColor:[PAL[0],PAL[1]],borderWidth:2,hoverOffset:6}]});
-
-  // Age
-  const aL=tA('AGE_LABELS');
-  const aRows=E.ageD.map((a,i)=>({l:aL[i]||a.l,v:a.v}));
-  spTable('st-age',aRows,tot);
-  mkC('ch-age','pie',{labels:aRows.map(r=>r.l),datasets:[{data:aRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:5}]},{legend:{labels:{font:{size:9}}}});
-
-  // Education
-  const eL=tA('EDU_LABELS');
-  const eRows=Object.entries(E.eduC).map(([k,v],i)=>({l:eL[i]||k,v}));
-  spTable('st-edu',eRows,tot);
-  mkC('ch-edu','doughnut',{labels:eRows.map(r=>r.l),datasets:[{data:eRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:5}]},{legend:{labels:{font:{size:9}}}});
-
-  // Seniority
-  const sL=tA('SEN_LABELS');
-  const sRows=E.senD.map((s,i)=>({l:sL[i]||s.l,v:s.v}));
-  spTable('st-sen',sRows,tot);
-  mkC('ch-sen','bar',{labels:sRows.map(r=>r.l),datasets:[{data:sRows.map(r=>r.v),backgroundColor:PAL_A,borderRadius:4,borderWidth:0}]},{plugins:{legend:{display:false}},datalabels:false,legend:{display:false}});
-
-  // Origin
-  const oL=tA('ORI_LABELS');
-  spTable('st-ori',[{l:oL[0],v:E.extTotal},{l:oL[1],v:E.localTotal}],tot);
-  mkC('ch-ori','doughnut',{labels:[oL[0],oL[1]],datasets:[{data:[E.extTotal,E.localTotal],backgroundColor:[PAL[1]+'cc',PAL[0]+'cc'],borderColor:[PAL[1],PAL[0]],borderWidth:2,hoverOffset:5}]});
-
-  // POB bar
-  mkC('ch-pob','bar',{
-    labels:E.pobTop.map(([l])=>{const m=l.match(/ខេត្ត(.+)/);return m?m[1].trim():l.trim().slice(0,12);}),
-    datasets:[{data:E.pobTop.map(([,v])=>v),backgroundColor:PAL_A,borderRadius:4,borderWidth:0}]
-  },{plugins:{legend:{display:false}},datalabels:false,sx:{ticks:{font:{size:9}}}});
-}
-
-// ══ RENDER ATTENDANCE ══
-function renderAtt(){
-  const D=ATT_DATA;
-  const n=D.length;
-  const avgRate=+(avg(D.map(d=>d.rate))).toFixed(1);
-  const avgAbsent=+(avg(D.map(d=>d.absent))).toFixed(1);
-  const totalJoin=D.reduce((s,d)=>s+d.join,0);
-  const totalResign=D.reduce((s,d)=>s+d.resign,0);
-  const avgHC=Math.round(avg(D.map(d=>d.headcount)));
-  const totalAL=D.reduce((s,d)=>s+d.AL,0);
-  const totalPL=D.reduce((s,d)=>s+d.PL,0);
-  const totalSL=D.reduce((s,d)=>s+d.SL,0);
-  const totalNP=D.reduce((s,d)=>s+d.NP,0);
-
-  // KPIs
-  const kpi=document.getElementById('kpi-att');
-  kpi.innerHTML=[
-    {l:'kl-avgHC',v:avgHC,s:'avg headcount',c:'nv'},
-    {l:'kl-avgrate',v:avgRate+'%',s:'avg attendance',c:'gn'},
-    {l:'kl-avgabsent',v:avgAbsent,s:'avg absent/day',c:'rd'},
-    {l:'kl-totalJoin',v:totalJoin,s:'this month',c:'tl'},
-    {l:'kl-totalResign',v:totalResign,s:'this month',c:'or'},
-    {l:'lbl-absent-type',v:totalAL+totalPL+totalSL+totalNP,s:'total absences',c:'pu'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${t(k.l)}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
-
-  // Trend chart
-  const labels=D.map(d=>d.day+'/3');
-  mkC('ch-trend','line',{labels,datasets:[
-    {label:LANG==='kh'?'វត្តមាន':LANG==='en'?'Present':'出勤人數',data:D.map(d=>d.present),borderColor:PAL[2],backgroundColor:PAL[2]+'20',tension:.3,pointRadius:3,fill:true,borderWidth:2},
-    {label:LANG==='kh'?'ត្រូវវត្តមាន':LANG==='en'?'Should Work':'應到人數',data:D.map(d=>d.headcount),borderColor:PAL[0],borderDash:[5,3],tension:.3,pointRadius:2,borderWidth:1.5},
-  ]},{datalabels:false,sy:{min:440,ticks:{stepSize:10}}});
-
-  // Rate chart
-  const rateColors=D.map(d=>d.rate>=97?PAL[2]+'cc':d.rate>=95?PAL[0]+'cc':d.rate>=93?PAL[6]+'cc':PAL[3]+'cc');
-  mkC('ch-rate','bar',{labels,datasets:[{label:'%',data:D.map(d=>d.rate),backgroundColor:rateColors,borderRadius:4,borderWidth:0}]},{
-    datalabels:false,plugins:{legend:{display:false}},
-    sy:{min:90,max:100,ticks:{callback:v=>v+'%'}}
-  });
-
-  // Absent type donut
-  const aL=tA('ABS_LABELS');
-  spTable('st-absent',[{l:aL[0]||'AL',v:totalAL},{l:aL[1]||'PL',v:totalPL},{l:aL[2]||'SL',v:totalSL},{l:aL[3]||'NP',v:totalNP}],totalAL+totalPL+totalSL+totalNP);
-  document.getElementById('nb-absent').textContent=totalAL+totalPL+totalSL+totalNP;
-  mkC('ch-absent','doughnut',{
-    labels:[aL[0]||'AL',aL[1]||'PL',aL[2]||'SL',aL[3]||'NP'],
-    datasets:[{data:[totalAL,totalPL,totalSL,totalNP],backgroundColor:[PAL[1]+'cc',PAL[3]+'cc',PAL[4]+'cc',PAL[0]+'cc'],borderColor:[PAL[1],PAL[3],PAL[4],PAL[0]],borderWidth:1.5,hoverOffset:5}]
-  });
-
-  // Join/Resign bar
-  mkC('ch-jr','bar',{labels,datasets:[
-    {label:LANG==='kh'?'ចូល':LANG==='en'?'Join':'入職',data:D.map(d=>d.join),backgroundColor:PAL[2]+'cc',borderRadius:4,borderWidth:0},
-    {label:LANG==='kh'?'ចេញ':LANG==='en'?'Resign':'離職',data:D.map(d=>d.resign),backgroundColor:PAL[3]+'cc',borderRadius:4,borderWidth:0},
-  ]},{datalabels:false});
-
-  // Absence breakdown stacked
-  mkC('ch-abs-type','bar',{labels,datasets:[
-    {label:aL[0]||'AL',data:D.map(d=>d.AL),backgroundColor:PAL[1]+'cc',borderRadius:3,borderWidth:0},
-    {label:aL[1]||'PL',data:D.map(d=>d.PL),backgroundColor:PAL[3]+'cc',borderRadius:3,borderWidth:0},
-    {label:aL[2]||'SL',data:D.map(d=>d.SL),backgroundColor:PAL[4]+'cc',borderRadius:3,borderWidth:0},
-    {label:aL[3]||'NP',data:D.map(d=>d.NP),backgroundColor:PAL[0]+'cc',borderRadius:3,borderWidth:0},
-  ]},{datalabels:false,extra:{scales:{x:{stacked:true},y:{stacked:true}}}});
-
-  // Attendance table
-  const tbl=document.getElementById('att-tbl');
-  const zh=LANG==='zh',kh=LANG==='kh';
-  const th=(a,b,c)=>kh?c:zh?a:b;
-  tbl.querySelector('thead').innerHTML=`<tr>
-    <th>${th('日期','Date','ថ្ងៃ')}</th><th>${th('週','Day','ថ្ងៃ')}</th>
-    <th>${th('在職','HC','ចំ')}</th><th>${th('出勤','Present','វត')}</th>
-    <th>${th('出勤率','Rate','%')}</th><th>${th('缺勤','Absent','អ')}</th>
-    <th>AL</th><th>PL</th><th>SL</th><th>NP</th>
-    <th>${th('入職','Join','ចូ')}</th><th>${th('離職','Resign','ចេ')}</th>
-  </tr>`;
-  const DAYS=['日','一','二','三','四','五','六'];
-  tbl.querySelector('tbody').innerHTML=D.map(d=>{
-    const dayN=new Date(d.date).getDay();
-    const rateClass=d.rate<93?'alert':d.rate<95?'high':'';
-    const rateSpan=d.rate<93?`<span style="color:var(--red);font-weight:700">${d.rate}%</span>`:d.rate>=97?`<span style="color:var(--green)">${d.rate}%</span>`:`${d.rate}%`;
-    return`<tr class="${rateClass}">
-      <td>${d.date}</td><td>${DAYS[dayN]}</td>
-      <td>${d.headcount}</td><td>${d.present}</td>
-      <td>${rateSpan}</td><td>${d.absent}</td>
-      <td>${d.AL}</td><td>${d.PL}</td><td>${d.SL}</td><td>${d.NP}</td>
-      <td>${d.join>0?`<span style="color:var(--green)">${d.join}</span>`:0}</td>
-      <td>${d.resign>0?`<span style="color:var(--red)">${d.resign}</span>`:0}</td>
-    </tr>`;
-  }).join('');
-}
-
-// ══ RENDER ANOMALY ══
-function renderAnomaly(){
-  const D=ATT_DATA;
-  const avgRate=avg(D.map(d=>d.rate));
-  const avgAbsent=avg(D.map(d=>d.absent));
-  const anoms=[];
-
-  D.forEach(d=>{
-    if(d.rate<93)anoms.push({lvl:'crit',txt:`🔴 ${d.date}: ${t('lbl-rate')} ${d.rate}% (低於93%警戒線) — 缺勤 ${d.absent}人`});
-    else if(d.rate<94.5)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 出勤率 ${d.rate}% 偏低 — 缺勤 ${d.absent}人`});
-    if(d.AL>25)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 年假(AL) ${d.AL}人，偏高`});
-    if(d.resign>2)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 離職 ${d.resign}人，當日人數下降`});
-    if(d.NP>2)anoms.push({lvl:'crit',txt:`🔴 ${d.date}: 曠工(NP) ${d.NP}人`});
-  });
-  // Net flow
-  const netFlow=D.reduce((s,d)=>s+d.join-d.resign,0);
-  if(netFlow>0)anoms.push({lvl:'good',txt:`✅ 月度淨增員 ${netFlow} 人 (入職 ${D.reduce((s,d)=>s+d.join,0)} vs 離職 ${D.reduce((s,d)=>s+d.resign,0)})`});
-  else if(netFlow<0)anoms.push({lvl:'warn',txt:`⚠ 月度淨減員 ${Math.abs(netFlow)} 人`});
-  anoms.push({lvl:'info',txt:`ℹ 月均出勤率 ${avgRate.toFixed(1)}% · 日均缺勤 ${avgAbsent.toFixed(1)} 人 · ${D.length} 個工作日`});
-
-  document.getElementById('anom-list').innerHTML=anoms.map(a=>`<div class="anom-box ${a.lvl}">${a.txt}</div>`).join('');
-
-  // Weekly grouping
-  const weeks={};
-  D.forEach(d=>{const w=Math.ceil(d.day/7);if(!weeks[w])weeks[w]=[];weeks[w].push(d.rate);});
-  const wkLabels=Object.keys(weeks).map(w=>`W${w}`);
-  const wkAvgs=Object.values(weeks).map(arr=>(arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(1));
-  mkC('ch-weekly','bar',{
-    labels:wkLabels,
-    datasets:[{label:'%',data:wkAvgs.map(Number),backgroundColor:wkAvgs.map(v=>+v>=96?PAL[2]+'cc':+v>=94?PAL[1]+'cc':PAL[3]+'cc'),borderRadius:5,borderWidth:0}]
-  },{datalabels:false,sy:{min:90,max:100,ticks:{callback:v=>v+'%'}},plugins:{legend:{display:false}}});
-
-  // AL trend
-  mkC('ch-al','line',{
-    labels:D.map(d=>d.day+'/3'),
-    datasets:[{label:'AL',data:D.map(d=>d.AL),borderColor:PAL[1],backgroundColor:PAL[1]+'20',tension:.3,pointRadius:2,fill:true,borderWidth:2}]
-  },{datalabels:false,plugins:{legend:{display:false}}});
-
-  // Headcount trend
-  mkC('ch-hc','line',{
-    labels:D.map(d=>d.day+'/3'),
-    datasets:[{label:'HC',data:D.map(d=>d.headcount),borderColor:PAL[0],backgroundColor:PAL[0]+'15',tension:.3,pointRadius:2,fill:true,borderWidth:2}]
-  },{datalabels:false,plugins:{legend:{display:false}},sy:{min:470,max:490}});
-
-  // Summary table
-  const stbl=document.getElementById('summary-tbl');
-  const zh=LANG==='zh';
-  stbl.querySelector('thead').innerHTML=`<tr><th>${zh?'指標':'Metric'}</th><th>${zh?'數值':'Value'}</th></tr>`;
-  stbl.querySelector('tbody').innerHTML=[
-    [zh?'工作天數':'Working Days',D.length],
-    [zh?'月均應到':'Avg HC',Math.round(avg(D.map(d=>d.headcount)))],
-    [zh?'月均出勤':'Avg Present',Math.round(avg(D.map(d=>d.present)))],
-    [zh?'月均出勤率':'Avg Rate',avgRate.toFixed(1)+'%'],
-    [zh?'最高出勤率':'Max Rate',Math.max(...D.map(d=>d.rate))+'%'],
-    [zh?'最低出勤率':'Min Rate',Math.min(...D.map(d=>d.rate))+'%'],
-    [zh?'月均缺勤':'Avg Absent',avgAbsent.toFixed(1)],
-    [zh?'總年假AL':'Total AL',D.reduce((s,d)=>s+d.AL,0)],
-    [zh?'總事假PL':'Total PL',D.reduce((s,d)=>s+d.PL,0)],
-    [zh?'總病假SL':'Total SL',D.reduce((s,d)=>s+d.SL,0)],
-    [zh?'總曠工NP':'Total NP',D.reduce((s,d)=>s+d.NP,0)],
-    [zh?'月入職':'Total Join',D.reduce((s,d)=>s+d.join,0)],
-    [zh?'月離職':'Total Resign',D.reduce((s,d)=>s+d.resign,0)],
-  ].map(([l,v])=>`<tr><td>${l}</td><td><b>${v}</b></td></tr>`).join('');
-
-  // Top absent days
-  const atbl=document.getElementById('top-absent-tbl');
-  atbl.querySelector('thead').innerHTML=`<tr><th>${zh?'日期':'Date'}</th><th>${zh?'缺勤':'Absent'}</th><th>${zh?'出勤率':'Rate'}</th><th>AL</th><th>PL</th><th>SL</th><th>NP</th></tr>`;
-  const sorted=[...D].sort((a,b)=>b.absent-a.absent).slice(0,10);
-  atbl.querySelector('tbody').innerHTML=sorted.map(d=>`<tr class="${d.rate<93?'alert':d.rate<95?'high':''}"><td>${d.date}</td><td>${d.absent}</td><td>${d.rate}%</td><td>${d.AL}</td><td>${d.PL}</td><td>${d.SL}</td><td>${d.NP}</td></tr>`).join('');
-}
-
-// ══ HISTORY ══
-function getRecs(){try{return JSON.parse(localStorage.getItem('vrt_att_records')||'[]')}catch{return[]}}
-function saveCurrentMonth(){
-  const D=ATT_DATA;
-  const rec={
-    period:'2026-03',month:'Mar 2026',
-    avgRate:+(avg(D.map(d=>d.rate))).toFixed(1),
-    avgAbsent:+(avg(D.map(d=>d.absent))).toFixed(1),
-    avgHC:Math.round(avg(D.map(d=>d.headcount))),
-    totalJoin:D.reduce((s,d)=>s+d.join,0),
-    totalResign:D.reduce((s,d)=>s+d.resign,0),
-    days:D.length,savedAt:new Date().toISOString()
-  };
-  const recs=getRecs().filter(r=>r.period!=='2026-03');
-  recs.push(rec);localStorage.setItem('vrt_att_records',JSON.stringify(recs));
-  toast(t('tb-save')+' · 2026-03 ✅');renderHistory();
-}
-function clearHistory(){if(!confirm('Clear all?'))return;localStorage.removeItem('vrt_att_records');renderHistory();toast(t('tb-clear')+' ✅')}
-
-function renderHistory(){
-  const recs=getRecs().sort((a,b)=>a.period.localeCompare(b.period));
-  document.getElementById('no-hist').style.display=recs.length?'none':'block';
-  document.getElementById('hist-tbl-wrap').style.display=recs.length?'block':'none';
-  document.getElementById('hist-charts').style.display=recs.length>=2?'block':'none';
-  if(!recs.length)return;
-  const zh=LANG==='zh';
-  const htbl=document.getElementById('hist-tbl');
-  htbl.querySelector('thead').innerHTML=`<tr><th>${zh?'月份':'Month'}</th><th>${zh?'均出勤率':'Avg Rate'}</th><th>${zh?'均缺勤':'Avg Absent'}</th><th>${zh?'均人數':'Avg HC'}</th><th>${zh?'入職':'Join'}</th><th>${zh?'離職':'Resign'}</th><th>${zh?'工作天':'Days'}</th></tr>`;
-  htbl.querySelector('tbody').innerHTML=recs.map((r,i)=>{
-    const prev=recs[i-1];const chg=(a,b)=>{if(!prev||!b)return'';const d=a-b;const cl=d>0?'up':'dn';return`<span class="delta ${cl}">${d>0?'+':''}${d.toFixed?d.toFixed(1):d}</span>`;};
-    return`<tr><td><b>${r.month}</b></td><td>${r.avgRate}% ${chg(r.avgRate,prev?.avgRate)}</td><td>${r.avgAbsent}${chg(r.avgAbsent,prev?.avgAbsent)}</td><td>${r.avgHC}${chg(r.avgHC,prev?.avgHC)}</td><td>${r.totalJoin}</td><td>${r.totalResign}</td><td>${r.days}</td></tr>`;
-  }).join('');
-  if(recs.length>=2){
-    mkC('ch-hist-rate','line',{labels:recs.map(r=>r.month),datasets:[{label:'%',data:recs.map(r=>r.avgRate),borderColor:PAL[2],backgroundColor:PAL[2]+'20',tension:.4,pointRadius:4,fill:true,borderWidth:2}]},{datalabels:false,sy:{min:88,ticks:{callback:v=>v+'%'}}});
-    mkC('ch-hist-hc','bar',{labels:recs.map(r=>r.month),datasets:[{label:'HC',data:recs.map(r=>r.avgHC),backgroundColor:PAL_A,borderRadius:6,borderWidth:0}]},{datalabels:false,plugins:{legend:{display:false}}});
-  }
-}
-
-// ══ EXPORT ══
-function doExportPNG(){
-  const target=document.querySelector('.pane.on');
-  toast('📸 Exporting…');
-  html2canvas(target,{scale:1.5,backgroundColor:'#f0f3f7',useCORS:true}).then(c=>{
-    const a=document.createElement('a');a.href=c.toDataURL('image/png');
-    a.download='VRT_HR_Mar2026.png';a.click();toast('✅ PNG saved');
-  }).catch(()=>toast('❌ Export failed'));
-}
-
-function doExportTG(){
-  const D=ATT_DATA;
-  const avgRate=avg(D.map(d=>d.rate)).toFixed(1);
-  const avgAbsent=avg(D.map(d=>d.absent)).toFixed(1);
-  const totalJoin=D.reduce((s,d)=>s+d.join,0);
-  const totalResign=D.reduce((s,d)=>s+d.resign,0);
-  const txt=`📊 *VRT HR Daily Attendance · Mar 2026*\n👥 Avg HC: *${Math.round(avg(D.map(d=>d.headcount)))}*\n✅ Avg Attendance: *${avgRate}%*\n🔴 Avg Absent: ${avgAbsent}/day\n📅 Working Days: ${D.length}\n📈 Join: ${totalJoin} | 📉 Resign: ${totalResign}\n🗓 AL: ${D.reduce((s,d)=>s+d.AL,0)} | PL: ${D.reduce((s,d)=>s+d.PL,0)} | SL: ${D.reduce((s,d)=>s+d.SL,0)} | NP: ${D.reduce((s,d)=>s+d.NP,0)}\n\n_Generated by VRT HR Dashboard_`;
-  // Export PNG + copy text
-  const target=document.querySelector('.pane.on');
-  html2canvas(target,{scale:1.5,backgroundColor:'#f0f3f7',useCORS:true}).then(c=>{
-    const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='VRT_HR_TG.png';a.click();
-    navigator.clipboard.writeText(txt).then(()=>toast('📸 PNG下載 + 文字已複製！在TG發圖+貼文字')).catch(()=>toast('📸 PNG下載！複製文字再傳TG'));
-  }).catch(()=>{navigator.clipboard.writeText(txt).catch(()=>{});toast('✅ 文字已複製到剪貼板');});
-}
-
-function exportAttCSV(){
-  const D=ATT_DATA;
-  const h='Date,Headcount,Present,Rate%,Absent,AL,PL,SL,NP,Join,Resign';
-  const rows=D.map(d=>`${d.date},${d.headcount},${d.present},${d.rate},${d.absent},${d.AL},${d.PL},${d.SL},${d.NP},${d.join},${d.resign}`);
-  const b=new Blob([[h,...rows].join('\n')],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='VRT_Attendance_Mar2026.csv';a.click();
-}
-
-// ══ TOAST ══
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
-
-// ══ RENDER ALL ══
+// ━━━━ 渲染 ━━━━
 function renderAll(){
-  renderAtt();
-  renderAnomaly();
-  renderHistory();
-  if(EMP)renderEmp();
+  if(!Object.keys(SNAPS).length){showApp();return;}
+  showApp();
+  const ks=snapKeys();
+  if(!ACTIVE||!SNAPS[ACTIVE])ACTIVE=ks[ks.length-1];
+  renderNav(); buildFilters(); renderDash(); renderProfile();
+  renderDept(); renderRoster(); renderDiff(); renderTrend();
+}
+function renderNav(){
+  const ks=snapKeys(), sel=qs('#nav-snap');
+  sel.innerHTML=ks.slice().reverse().map(k=>{
+    const s=SNAPS[k];
+    return `<option value="${k}">${s.label} · ${s.rows.length} ${T('人','staff')}</option>`;}).join('');
+  if(ACTIVE)sel.value=ACTIVE;
+  const i=ks.indexOf(ACTIVE), s=SNAPS[ACTIVE];
+  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ks.length}</span>
+    <span class="ml-1 ${s.format==='new'?'text-violet-600':s.format==='classic'?'text-amber-600':'text-sky-600'}">${
+      s.format==='new'?T('新版格式','New'):s.format==='classic'?T('早期格式','Classic'):T('舊版格式','Legacy')}</span>`;
+}
+function buildFilters(){
+  const rows=baseRows();
+  const fill=(sel,vals,allLabel)=>{
+    const keep=sel.value;
+    sel.innerHTML=`<option value="">${allLabel}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(keep&&vals.includes(keep))sel.value=keep;};
+  fill(qs('#sel-dept'),[...new Set(rows.map(r=>r.dept))].sort(),T('全部部門 All','All Departments'));
+  const d=qs('#sel-dept').value;
+  fill(qs('#sel-sec'),[...new Set(rows.filter(r=>!d||r.dept===d).map(r=>r.section))].sort(),T('全部組別 All','All Sections'));
 }
 
-// INIT
-renderAll();
-setLang('zh');
+function renderDash(){
+  const rows=filtered(), all=baseRows();
+  const fem=rows.filter(r=>r.gender==='F').length;
+  const ages=rows.map(ageOf).filter(a=>a>5&&a<80);
+  const tens=rows.map(tenureOf).filter(t=>t>0);
+  const snapY=+ACTIVE.slice(0,4);
+  const newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===snapY).length;
+
+  qs('#k-head').textContent=int(rows.length);
+  qs('#k-head-s').textContent=rows.length!==all.length?T(`全廠 ${all.length} 人`,`of ${all.length} total`):SNAPS[ACTIVE].label;
+  qs('#k-fem').textContent=rows.length?Math.round(fem/rows.length*100)+'%':'—';
+  qs('#k-fem-s').textContent=T(`女 ${fem} · 男 ${rows.length-fem}`,`F ${fem} · M ${rows.length-fem}`);
+  qs('#k-age').textContent=ages.length?(ages.reduce((a,b)=>a+b,0)/ages.length).toFixed(1):'—';
+  qs('#k-age-s').textContent=ages.length?T(`最小 ${Math.round(Math.min(...ages))} · 最大 ${Math.round(Math.max(...ages))}`,`min ${Math.round(Math.min(...ages))} · max ${Math.round(Math.max(...ages))}`):'';
+  qs('#k-ten').textContent=tens.length?(tens.reduce((a,b)=>a+b,0)/tens.length).toFixed(1):'—';
+  qs('#k-ten-s').textContent=T('年 · 以快照時點計算','years · at snapshot date');
+  qs('#k-dept').textContent=new Set(rows.map(r=>r.dept)).size;
+  qs('#k-dept-s').textContent=T(`${new Set(rows.map(r=>r.section)).size} 個組別`,`${new Set(rows.map(r=>r.section)).size} sections`);
+  qs('#k-new').textContent=int(newN);
+  qs('#k-new-s').textContent=T(`${snapY} 年到職`,`joined in ${snapY}`);
+
+  const dv=qs('#sel-dept').value, sv=qs('#sel-sec').value, gv=qs('#sel-gender').value;
+  qs('#scope-txt').textContent=[SNAPS[ACTIVE].label,dv||T('全廠','All'),sv||'',gv?(gv==='F'?T('女','F'):T('男','M')):'',
+    `${rows.length} ${T('人','staff')}`].filter(Boolean).join(' · ');
+
+  // 分組圖
+  qs('#grp-title').textContent=T(`各${groupName()}人數`,`Headcount by ${groupName()}`);
+  const gm={};
+  rows.forEach(r=>{const k=groupVal(r);(gm[k]=gm[k]||{n:0,f:0});gm[k].n++;if(r.gender==='F')gm[k].f++;});
+  const top=Object.entries(gm).sort((a,b)=>b[1].n-a[1].n).slice(0,15);
+  destroyChart('grp-chart');
+  charts['grp-chart']=new Chart(qs('#grp-chart'),{
+    type:'bar',
+    data:{labels:top.map(([k])=>k.length>18?k.slice(0,18)+'…':k),
+      datasets:[
+        {label:T('女','Female'),data:top.map(([,v])=>v.f),backgroundColor:'#ec489999',borderColor:'#ec4899',borderWidth:1,stack:'s'},
+        {label:T('男','Male'),data:top.map(([,v])=>v.n-v.f),backgroundColor:'#0ea5e999',borderColor:'#0ea5e9',borderWidth:1,stack:'s'}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
+      scales:{x:{stacked:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}}},
+              y:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+
+  // 到職年份
+  const jy={};
+  rows.forEach(r=>{if(r.join){const y=r.join.slice(0,4);jy[y]=(jy[y]||0)+1;}});
+  const ys=Object.keys(jy).sort();
+  destroyChart('join-chart');
+  charts['join-chart']=new Chart(qs('#join-chart'),{
+    type:'bar',
+    data:{labels:ys,datasets:[{data:ys.map(y=>jy[y]),
+      backgroundColor:'#7c3aed99',borderColor:'#7c3aed',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10},precision:0}},
+              x:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+}
+
+function bar(label,n,max,color,extra){
+  return `<div class="flex items-center gap-2 mb-1.5">
+    <span class="w-24 text-[11px] text-slate-500 truncate">${esc(label)}</span>
+    <div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden">
+      <div class="h-full rounded" style="width:${max?n/max*100:0}%;background:${color}"></div></div>
+    <span class="w-10 text-right text-[11px] jmono">${n}</span>
+    <span class="w-12 text-right text-[10px] jmono text-slate-400">${extra||''}</span></div>`;
+}
+function renderProfile(){
+  const rows=filtered();
+  const tot=rows.length||1;
+  // 年齡層
+  const ageB=[['<20',a=>a<20],['20–24',a=>a>=20&&a<25],['25–29',a=>a>=25&&a<30],
+    ['30–34',a=>a>=30&&a<35],['35–39',a=>a>=35&&a<40],['40–49',a=>a>=40&&a<50],['50+',a=>a>=50]];
+  const ageC=ageB.map(([l,f])=>({l,n:rows.filter(r=>f(ageOf(r))).length}));
+  // 年資層
+  const tenB=[['<1',t=>t<1],['1–2',t=>t>=1&&t<3],['3–5',t=>t>=3&&t<6],
+    ['6–9',t=>t>=6&&t<10],['10+',t=>t>=10]];
+  const tenC=tenB.map(([l,f])=>({l,n:rows.filter(r=>f(tenureOf(r))).length}));
+  // 國籍 / 籍貫
+  const natC={},provC={};
+  rows.forEach(r=>{const n=r.nationality||'—';natC[n]=(natC[n]||0)+1;
+    const p=r.province||'—';if(p!=='—')provC[p]=(provC[p]||0)+1;});
+  const provTop=Object.entries(provC).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const eduC={},marC={};
+  rows.forEach(r=>{ if(r.education)eduC[r.education]=(eduC[r.education]||0)+1;
+                    if(r.marital)marC[r.marital]=(marC[r.marital]||0)+1; });
+  const eduTop=Object.entries(eduC).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const marTop=Object.entries(marC).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const maxE=Math.max(1,...eduTop.map(x=>x[1])), maxM=Math.max(1,...marTop.map(x=>x[1]));
+  const fem=rows.filter(r=>r.gender==='F').length;
+  const maxA=Math.max(1,...ageC.map(x=>x.n)), maxT=Math.max(1,...tenC.map(x=>x.n));
+  const maxP=Math.max(1,...provTop.map(x=>x[1]));
+
+  qs('#profile-body').innerHTML=`
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('年齡層分布','Age Distribution')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('以快照時點計算','at snapshot date')}</p>
+      ${ageC.map(x=>bar(x.l,x.n,maxA,'#0ea5e9cc',(x.n/tot*100).toFixed(0)+'%')).join('')}
+    </div>
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('年資分布','Tenure Distribution')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('自到職日至快照時點','from join date to snapshot')}</p>
+      ${tenC.map(x=>bar(x.l+T(' 年',' yr'),x.n,maxT,'#10b981cc',(x.n/tot*100).toFixed(0)+'%')).join('')}
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('性別與國籍','Gender & Nationality')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('本快照','this snapshot')}</p>
+      <div class="flex gap-3 mb-4">
+        <div class="flex-1 bg-pink-50 border border-pink-100 rounded-lg p-3 text-center">
+          <p class="text-[11px] text-pink-500">${T('女性 Female','Female')}</p>
+          <p class="text-xl font-bold jmono text-pink-600 mt-1">${fem}</p>
+          <p class="text-[11px] text-slate-400">${(fem/tot*100).toFixed(1)}%</p></div>
+        <div class="flex-1 bg-sky-50 border border-sky-100 rounded-lg p-3 text-center">
+          <p class="text-[11px] text-sky-500">${T('男性 Male','Male')}</p>
+          <p class="text-xl font-bold jmono text-sky-600 mt-1">${rows.length-fem}</p>
+          <p class="text-[11px] text-slate-400">${((rows.length-fem)/tot*100).toFixed(1)}%</p></div>
+      </div>
+      ${Object.entries(natC).sort((a,b)=>b[1]-a[1]).slice(0,6)
+        .map(([k,v])=>bar(k,v,tot,'#7c3aedcc',(v/tot*100).toFixed(0)+'%')).join('')}
+    </div>
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('學歷分布','By Education')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${eduTop.length?T('本快照','this snapshot'):T('此格式無學歷欄位（2014–2016 版本才有）','Not available in this format')}</p>
+      ${eduTop.map(([k,v])=>bar(k,v,maxE,'#6366f1cc',(v/tot*100).toFixed(0)+'%')).join('')
+        ||`<p class="text-xs text-slate-400 py-6 text-center">${T('此格式無「Education」欄位','No education field in this format')}</p>`}
+      ${marTop.length?`<div class="mt-4 pt-3 border-t border-slate-100">
+        <p class="text-[12px] font-semibold text-slate-600 mb-2">${T('婚姻狀況','Marital Status')}</p>
+        ${marTop.map(([k,v])=>bar(k,v,maxM,'#14b8a6cc',(v/tot*100).toFixed(0)+'%')).join('')}</div>`:''}
+    </div>
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('籍貫分布','By Province')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${provTop.length?T('前 10 省份','Top 10'):T('本快照無籍貫欄位（舊版格式才有）','Not available in this format')}</p>
+      ${provTop.map(([k,v])=>bar(k,v,maxP,'#f59e0bcc',(v/tot*100).toFixed(0)+'%')).join('')
+        ||`<p class="text-xs text-slate-400 py-6 text-center">${T('此格式無「出生地」欄位','No place-of-birth field in this format')}</p>`}
+    </div>
+  </div>`;
+}
+
+function renderDept(){
+  const rows=filtered();
+  qs('#dept-title').textContent=T(`🏭 各${groupName()}明細`,`🏭 By ${groupName()}`);
+  const gm={};
+  rows.forEach(r=>{
+    const k=groupVal(r);
+    if(!gm[k])gm[k]={n:0,f:0,age:[],ten:[],newN:0};
+    const g=gm[k];g.n++;if(r.gender==='F')g.f++;
+    const a=ageOf(r); if(a>5&&a<80)g.age.push(a);
+    const t=tenureOf(r); if(t>0)g.ten.push(t);
+    if(r.join&&+r.join.slice(0,4)===+ACTIVE.slice(0,4))g.newN++;
+  });
+  const sorted=Object.entries(gm).sort((a,b)=>b[1].n-a[1].n);
+  const tot=rows.length||1;
+  const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'—';
+  qs('#dept-thead').innerHTML=[groupName(),T('人數','Staff'),T('占比','Share'),T('女','F'),T('男','M'),
+    T('女性比','Female %'),T('平均年齡','Avg age'),T('平均年資','Avg tenure'),T('本年到職','New')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#dept-tbody').innerHTML=sorted.map(([k,v])=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium text-slate-700">${esc(k)}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-violet-700">${v.n}</td>
+      <td class="px-3 py-2 text-right jmono">${(v.n/tot*100).toFixed(1)}%</td>
+      <td class="px-3 py-2 text-right jmono text-pink-600">${v.f}</td>
+      <td class="px-3 py-2 text-right jmono text-sky-600">${v.n-v.f}</td>
+      <td class="px-3 py-2 text-right jmono">${(v.f/v.n*100).toFixed(0)}%</td>
+      <td class="px-3 py-2 text-right jmono">${avg(v.age)}</td>
+      <td class="px-3 py-2 text-right jmono">${avg(v.ten)}</td>
+      <td class="px-3 py-2 text-right jmono ${v.newN?'text-amber-600':'text-slate-300'}">${v.newN||'—'}</td>
+    </tr>`).join('')||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  const F=rows.filter(r=>r.gender==='F').length;
+  const A=rows.map(ageOf).filter(a=>a>5&&a<80), TN=rows.map(tenureOf).filter(t=>t>0);
+  qs('#dept-tfoot').innerHTML=`
+    <td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2 text-right jmono">${rows.length}</td>
+    <td class="px-3 py-2 text-right jmono">100%</td>
+    <td class="px-3 py-2 text-right jmono">${F}</td>
+    <td class="px-3 py-2 text-right jmono">${rows.length-F}</td>
+    <td class="px-3 py-2 text-right jmono">${(F/tot*100).toFixed(0)}%</td>
+    <td class="px-3 py-2 text-right jmono">${avg(A)}</td>
+    <td class="px-3 py-2 text-right jmono">${avg(TN)}</td>
+    <td class="px-3 py-2 text-right jmono">${rows.filter(r=>r.join&&+r.join.slice(0,4)===+ACTIVE.slice(0,4)).length}</td>`;
+}
+
+function renderRoster(){
+  let list=filtered();
+  const q=(qs('#ro-q').value||'').trim().toLowerCase();
+  if(q)list=list.filter(r=>(r.id+' '+r.name+' '+r.nameKm+' '+r.dept+' '+r.section+' '+r.position).toLowerCase().includes(q));
+  const sort=qs('#ro-sort').value;
+  if(sort==='tenure')list=list.slice().sort((a,b)=>tenureOf(b)-tenureOf(a));
+  else if(sort==='age')list=list.slice().sort((a,b)=>ageOf(b)-ageOf(a));
+  else if(sort==='join')list=list.slice().sort((a,b)=>(b.join||'').localeCompare(a.join||''));
+  else list=list.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
+  qs('#ro-count').textContent=`${list.length} ${T('人','staff')}`;
+  qs('#ro-thead').innerHTML=[T('工號','ID'),T('姓名','Name'),T('性別','Sex'),T('年齡','Age'),
+    T('到職日','Join date'),T('年資','Tenure'),T('部門','Dept'),T('組別','Section'),T('職務','Position'),'']
+    .map((h,i)=>`<th class="px-3 py-2 ${i>2&&i<6?'text-right':'text-left'} font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
+  qs('#ro-tbody').innerHTML=list.slice(0,600).map(r=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 jmono text-slate-500">${esc(r.id)}</td>
+      <td class="px-3 py-2"><div class="text-slate-700">${esc(r.name)}</div>${r.nameKm?`<div class="km text-[10px] text-slate-400">${esc(r.nameKm)}</div>`:''}</td>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full ${r.gender==='F'?'bg-pink-50 text-pink-600':r.gender==='M'?'bg-sky-50 text-sky-600':'bg-slate-100 text-slate-400'}">${r.gender||'—'}</span></td>
+      <td class="px-3 py-2 text-right jmono">${ageOf(r)?Math.round(ageOf(r)):'—'}</td>
+      <td class="px-3 py-2 text-right jmono text-slate-500">${esc(r.join||'—')}</td>
+      <td class="px-3 py-2 text-right jmono">${tenureOf(r)?tenureOf(r).toFixed(1):'—'}</td>
+      <td class="px-3 py-2 text-slate-600">${esc(r.dept)}</td>
+      <td class="px-3 py-2 text-slate-500">${esc(r.section)}</td>
+      <td class="px-3 py-2 text-slate-500">${esc(r.position)}</td>
+      <td class="px-3 py-2"><button onclick="openEdit('${esc(r.id)}')" class="text-[11px] text-violet-600 hover:underline">${T('編輯','Edit')}</button></td>
+    </tr>`).join('')||`<tr><td colspan="10" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
+  if(list.length>600)qs('#ro-tbody').insertAdjacentHTML('beforeend',
+    `<tr><td colspan="10" class="px-3 py-3 text-center text-slate-400 text-[11px]">${T(`僅顯示前 600 筆，共 ${list.length} 筆`,`Showing 600 of ${list.length}`)}</td></tr>`);
+}
+
+function renderDiff(){
+  const ks=snapKeys();
+  const box=qs('#diff-body');
+  if(ks.length<2){
+    box.innerHTML=`<div class="bg-white border border-slate-100 rounded-xl p-10 text-center">
+      <p class="text-4xl mb-3">🔄</p><p class="text-slate-500 font-medium">${T('需至少兩份快照才能比對','At least two snapshots are required')}</p>
+      <p class="text-[12px] text-slate-400 mt-2">${T(`目前僅有 ${ks.length} 份`,`Currently ${ks.length}`)}</p></div>`;
+    return;
+  }
+  const i=ks.indexOf(ACTIVE);
+  const prev=ks[Math.max(0,i-1)];
+  const A=SNAPS[prev], B=SNAPS[ACTIVE];
+  if(prev===ACTIVE){
+    box.innerHTML=`<div class="bg-white border border-slate-100 rounded-xl p-10 text-center">
+      <p class="text-slate-500">${T('這是最早的一份快照，沒有更早的可比較。請切換到較新的快照。','This is the earliest snapshot.')}</p></div>`;
+    return;
+  }
+  const mA={},mB={};
+  A.rows.forEach(r=>mA[r.id]=r); B.rows.forEach(r=>mB[r.id]=r);
+  const left=A.rows.filter(r=>!mB[r.id]);
+  const joined=B.rows.filter(r=>!mA[r.id]);
+  const moved=B.rows.filter(r=>mA[r.id]&&(mA[r.id].dept!==r.dept||mA[r.id].position!==r.position));
+  const stay=B.rows.length-joined.length;
+  const rate=A.rows.length?(left.length/A.rows.length*100):0;
+
+  const tbl=(title,arr,cls,cols)=>`
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden mb-4">
+      <div class="px-4 py-3 border-b border-slate-100 text-sm font-semibold ${cls}">${title}（${arr.length}）</div>
+      <div class="overflow-x-auto max-h-72 overflow-y-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr>${cols.map((c,i)=>
+          `<th class="px-3 py-2 text-left font-semibold">${c}</th>`).join('')}</tr></thead>
+        <tbody>${arr.slice(0,200).map(r=>`<tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="px-3 py-2 jmono text-slate-500">${esc(r.id)}</td>
+          <td class="px-3 py-2 text-slate-700">${esc(r.name)}</td>
+          <td class="px-3 py-2 text-slate-500">${esc(r.dept)}</td>
+          <td class="px-3 py-2 text-slate-500">${esc(r.position)}</td>
+          <td class="px-3 py-2 text-slate-400 jmono">${esc(r.join||'—')}</td></tr>`).join('')
+          ||`<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">${T('無','None')}</td></tr>`}
+        </tbody></table></div></div>`;
+  const C=[T('工號','ID'),T('姓名','Name'),T('部門','Dept'),T('職務','Position'),T('到職日','Join')];
+
+  box.innerHTML=`
+  <div class="bg-white border border-slate-100 rounded-xl p-4 mb-4">
+    <p class="text-sm font-semibold text-slate-700 mb-1">${T('快照比對','Snapshot Comparison')}</p>
+    <p class="text-[11px] text-slate-500">${esc(A.label)}（${A.rows.length} ${T('人','staff')}） → <b>${esc(B.label)}</b>（${B.rows.length} ${T('人','staff')}）</p>
+  </div>
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('人數變化','Net change')}</p>
+      <p class="text-2xl font-bold jmono mt-1 ${B.rows.length>=A.rows.length?'text-emerald-600':'text-rose-600'}">${B.rows.length-A.rows.length>0?'+':''}${B.rows.length-A.rows.length}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🟢 新進','🟢 Joined')}</p>
+      <p class="text-2xl font-bold jmono mt-1 text-emerald-600">${joined.length}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🔴 離職','🔴 Left')}</p>
+      <p class="text-2xl font-bold jmono mt-1 text-rose-600">${left.length}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🔵 職務異動','🔵 Moved')}</p>
+      <p class="text-2xl font-bold jmono mt-1 text-sky-600">${moved.length}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('離職率','Turnover')}</p>
+      <p class="text-2xl font-bold jmono mt-1 text-amber-600">${rate.toFixed(1)}%</p>
+      <p class="text-[11px] text-slate-400">${T(`留任 ${stay} 人`,`${stay} retained`)}</p></div>
+  </div>
+  ${tbl(T('🟢 新進人員','🟢 New Joiners'),joined,'text-emerald-700',C)}
+  ${tbl(T('🔴 已離職（前一快照有、本次無）','🔴 Left'),left,'text-rose-700',C)}
+  ${tbl(T('🔵 部門／職務異動','🔵 Department / Position Changed'),moved,'text-sky-700',C)}`;
+}
+
+function renderTrend(){
+  const ks=snapKeys();
+  const box=qs('#trend-body');
+  const g={};
+  ks.forEach(k=>{
+    const s=SNAPS[k];
+    const [y,m]=k.split('-').map(Number);
+    let gk,label;
+    if(TUNIT==='year'){gk=String(y);label=String(y);}
+    else if(TUNIT==='quarter'){const q=Math.floor((m-1)/3)+1;gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else{gk=k;label=`${MS[m-1]} ${y}`;}
+    const d=qs('#sel-dept').value, sv=qs('#sel-sec').value, gv=qs('#sel-gender').value;
+    const rows=s.rows.filter(r=>(!d||r.dept===d)&&(!sv||r.section===sv)&&(!gv||r.gender===gv));
+    const f=rows.filter(r=>r.gender==='F').length;
+    const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
+    g[gk]={key:gk,label,n:rows.length,f,
+      age:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,
+      depts:new Set(rows.map(r=>r.dept)).size, snaps:(g[gk]?g[gk].snaps:0)+1};
+  });
+  const list=Object.values(g).sort((a,b)=>a.key<b.key?-1:1);
+  box.innerHTML=`
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 mb-4">
+    <p class="text-sm font-semibold text-slate-700 mb-1">${T('人數與性別結構趨勢','Headcount & Gender Trend')}</p>
+    <p class="text-[11px] text-slate-400 mb-3">${T(`以「${TUNIT==='year'?'每年':TUNIT==='quarter'?'每季':'每月'}」彙總 · 共 ${list.length} 組快照`,`${list.length} snapshot groups`)}</p>
+    <div class="ch300"><canvas id="trend-chart"></canvas></div>
+  </div>
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">${T('歷年人力概況','Workforce by Period')}</div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        ${[T('區間','Period'),T('總人數','Headcount'),T('增減','Change'),T('女','F'),T('男','M'),T('女性比','Female %'),T('平均年齡','Avg age'),T('部門數','Depts')]
+          .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
+      </tr></thead><tbody>
+      ${list.slice().reverse().map((x,i,arr)=>{
+        const prev=arr[i+1];
+        const ch=prev?x.n-prev.n:null;
+        return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="px-3 py-2 font-semibold text-slate-700">${x.label}</td>
+          <td class="px-3 py-2 text-right jmono font-semibold text-violet-700">${int(x.n)}</td>
+          <td class="px-3 py-2 text-right jmono ${ch==null?'text-slate-300':ch>=0?'text-emerald-600':'text-rose-600'}">${ch==null?'—':(ch>0?'+':'')+ch}</td>
+          <td class="px-3 py-2 text-right jmono text-pink-600">${x.f}</td>
+          <td class="px-3 py-2 text-right jmono text-sky-600">${x.n-x.f}</td>
+          <td class="px-3 py-2 text-right jmono">${x.n?(x.f/x.n*100).toFixed(0):0}%</td>
+          <td class="px-3 py-2 text-right jmono">${x.age?x.age.toFixed(1):'—'}</td>
+          <td class="px-3 py-2 text-right jmono">${x.depts}</td></tr>`;}).join('')
+        ||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}
+      </tbody></table></div>
+  </div>`;
+  destroyChart('trend-chart');
+  if(list.length) charts['trend-chart']=new Chart(qs('#trend-chart'),{
+    type:'bar',
+    data:{labels:list.map(x=>x.label),datasets:[
+      {label:T('女','Female'),data:list.map(x=>x.f),backgroundColor:'#ec489999',borderColor:'#ec4899',borderWidth:1,stack:'s'},
+      {label:T('男','Male'),data:list.map(x=>x.n-x.f),backgroundColor:'#0ea5e999',borderColor:'#0ea5e9',borderWidth:1,stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
+      scales:{y:{stacked:true,beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}}},
+              x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+}
+
+// ━━━━ 線上新增 / 修改 ━━━━
+let EDIT_ID=null;
+const ED_FIELDS=[
+  ['id',T('工號 Factory ID','Factory ID'),'text'],
+  ['name',T('英文姓名 Name','Name'),'text'],
+  ['nameKm',T('柬文姓名 Khmer','Khmer name'),'text'],
+  ['gender',T('性別 Gender','Gender'),'select'],
+  ['birth',T('出生日期 Birth','Birth date'),'date'],
+  ['join',T('到職日 Join date','Join date'),'date'],
+  ['dept',T('部門 Department','Department'),'text'],
+  ['section',T('組別 Section','Section'),'text'],
+  ['position',T('職務 Position','Position'),'text'],
+  ['nationality',T('國籍 Nationality','Nationality'),'text'],
+  ['province',T('籍貫 Province','Province'),'text'],
+  ['education',T('學歷 Education','Education'),'text'],
+  ['marital',T('婚姻狀況 Marital','Marital status'),'text'],
+  ['nssf',T('NSSF 編號','NSSF code'),'text'],
+];
+function openEdit(id){
+  if(!ACTIVE){toast(T('請先匯入名冊','Import a roster first'),'error');return;}
+  EDIT_ID=id||null;
+  const r=id?baseRows().find(x=>x.id===id):{};
+  qs('#ed-sub').textContent=id?T(`修改 ${id} · ${SNAPS[ACTIVE].label}`,`Edit ${id} · ${SNAPS[ACTIVE].label}`)
+                              :T(`新增至 ${SNAPS[ACTIVE].label}`,`Add to ${SNAPS[ACTIVE].label}`);
+  qs('#ed-form').innerHTML=ED_FIELDS.map(([k,label,type])=>{
+    const v=r&&r[k]!=null?r[k]:'';
+    if(type==='select')return `<div><label class="text-[11px] font-semibold text-slate-500">${label}</label>
+      <select id="ed-${k}" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none">
+        <option value=""></option><option value="F"${v==='F'?' selected':''}>F</option><option value="M"${v==='M'?' selected':''}>M</option></select></div>`;
+    return `<div><label class="text-[11px] font-semibold text-slate-500">${label}</label>
+      <input id="ed-${k}" type="${type}" value="${esc(v)}" ${k==='id'&&id?'readonly':''}
+        class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-violet-200 ${k==='id'&&id?'bg-slate-50':''}"></div>`;
+  }).join('');
+  const m=qs('#ed-modal');m.classList.remove('hidden');m.classList.add('flex');
+}
+function closeEdit(){const m=qs('#ed-modal');m.classList.add('hidden');m.classList.remove('flex');}
+async function saveEdit(){
+  const o={};
+  ED_FIELDS.forEach(([k])=>{const el=qs('#ed-'+k);if(el)o[k]=el.value.trim();});
+  if(!o.id){toast(T('工號必填','Factory ID is required'),'error');return;}
+  const snap=SNAPS[ACTIVE];
+  const i=snap.rows.findIndex(x=>x.id===(EDIT_ID||o.id));
+  if(i>=0) snap.rows[i]={...snap.rows[i],...o};
+  else{
+    if(snap.rows.some(x=>x.id===o.id)){toast(T('此工號已存在','This ID already exists'),'error');return;}
+    snap.rows.push({...o,status:'',vrtCode:'',age:null});
+  }
+  snap.updatedAt=_nowISO();
+  await idbSave(snap);
+  closeEdit(); renderAll(); pushProjection();
+  toast(i>=0?T('已更新','Updated'):T('已新增','Added'),'success');
+}
+
+// ━━━━ TELEGRAM ━━━━
+function buildTgText(key,dept){
+  const s=SNAPS[key]; if(!s)return{err:T('查無此快照','Snapshot not found')};
+  const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;
+  if(!rows.length)return{err:T('此範圍無人員資料','No staff in this scope')};
+  const fem=rows.filter(r=>r.gender==='F').length;
+  const sd=(()=>{const [y,m]=key.split('-').map(Number);return new Date(y,(m||12)-1,28);})();
+  const ten=rows.map(r=>{const j=toDate(r.join);return j?yearsBetween(j,sd):0;}).filter(t=>t>0);
+  const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
+  const dm={};
+  rows.forEach(r=>{(dm[r.dept]=dm[r.dept]||{n:0,f:0});dm[r.dept].n++;if(r.gender==='F')dm[r.dept].f++;});
+  const list=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n);
+  const y=+key.slice(0,4);
+  const newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===y).length;
+
+  let t=`👥 <b>員工人力概況 Workforce Summary</b>\n`
+   +`📅 時點 Snapshot：${esc(s.label)}\n`
+   +(dept?`🏭 部門 Dept：${esc(dept)}\n`:'')
+   +`👤 總人數 Headcount：<b>${int(rows.length)}</b>\n`
+   +`⚧ 女 Female ${fem}（${(fem/rows.length*100).toFixed(1)}%）　男 Male ${rows.length-fem}\n`
+   +(ages.length?`🎂 平均年齡 Avg age：${(ages.reduce((a,b)=>a+b,0)/ages.length).toFixed(1)}\n`:'')
+   +(ten.length?`📆 平均年資 Avg tenure：${(ten.reduce((a,b)=>a+b,0)/ten.length).toFixed(1)} ${T('年','yr')}\n`:'')
+   +`🆕 ${y} ${T('年到職','joiners')}：${newN}\n`
+   +`— — — — — — — — — —\n<b>各部門人數 By Department</b>\n`
+   +`<i>部門 Dept ｜ 人數 Staff ｜ 女性比 F%</i>\n`;
+  list.forEach(([d,v])=>{t+=`${esc(d)}：${v.n} 人 · ${(v.f/v.n*100).toFixed(0)}%\n`;});
+  t+=`— — — — — — — — — —\n合計 TOTAL：${int(rows.length)} 人 Staff · ${list.length} ${T('部門','depts')}`;
+  return {text:t};
+}
+function openTgModal(){
+  const ks=snapKeys().reverse();
+  if(!ks.length){toast(T('尚無資料','No data yet'),'error');return;}
+  const sel=qs('#tg-snap');
+  sel.innerHTML=ks.map(k=>`<option value="${k}">${SNAPS[k].label} · ${SNAPS[k].rows.length} ${T('人','staff')}</option>`).join('');
+  if(ACTIVE&&ks.includes(ACTIVE))sel.value=ACTIVE;
+  fillTgDept();
+  previewTg();
+  const m=qs('#tg-modal');m.classList.remove('hidden');m.classList.add('flex');
+  applyLang();
+}
+function fillTgDept(){
+  const k=qs('#tg-snap').value, s=SNAPS[k];
+  const ds=s?[...new Set(s.rows.map(r=>r.dept))].sort():[];
+  qs('#tg-dept').innerHTML=`<option value="">${T('全部部門 All','All Departments')}</option>`
+    +ds.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+}
+function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function previewTg(){
+  if(qs('#tg-preview')._snap!==qs('#tg-snap').value){
+    qs('#tg-preview')._snap=qs('#tg-snap').value; fillTgDept();}
+  const r=buildTgText(qs('#tg-snap').value,qs('#tg-dept').value);
+  const pv=qs('#tg-preview'), b=qs('#tg-send');
+  if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
+    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
+  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
+}
+async function confirmSendTg(){
+  const r=buildTgText(qs('#tg-snap').value,qs('#tg-dept').value);
+  if(r.err){toast(r.err,'error');return;}
+  const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
+  const ok=await sendTG(r.text);
+  b.disabled=false;b.textContent=T('確認傳送','Send');
+  if(ok)closeTgModal();
+}
+async function sendTG(text){
+  if(!text||!text.trim()){toast(T('訊息內容是空的','Message empty'),'error');return false;}
+  try{
+    const r=await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'notify',text})});
+    let d=null; try{d=await r.json();}catch(e){}
+    if(d&&d.sent===false){toast(T('GAS 回報未送出','Not sent'),'error');return false;}
+    toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
+  }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
+}
+
+// ━━━━ 雲端 ━━━━
+async function pushProjection(){
+  try{
+    localStorage.setItem('hrpay:result:employee_hr',JSON.stringify({
+      module:'employee_hr',updatedAt:_nowISO(),
+      snapshots:snapKeys().map(k=>({period:k,label:SNAPS[k].label,headcount:SNAPS[k].rows.length,
+        rows:SNAPS[k].rows.map(r=>({employeeId:r.id,name:r.name,dept:r.dept,section:r.section,
+          position:r.position,gender:r.gender,join:r.join}))}))
+    }));
+  }catch(e){console.warn(e);}
+}
+async function cloudUpload(){
+  if(!Object.keys(SNAPS).length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
+  const b=qs('#btn-cloud-up');b.disabled=true;b.classList.add('opacity-50');
+  try{
+    await pushProjection();
+    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({tool:'hrpay_employee',updatedAt:_nowISO(),
+        snapshots:snapKeys().map(k=>SNAPS[k])})});
+    toast(T('☁ 已上傳雲端','☁ Uploaded'),'success');
+  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
+  b.disabled=false;b.classList.remove('opacity-50');
+}
+async function cloudDownload(){
+  const b=qs('#btn-cloud-down');b.disabled=true;b.classList.add('opacity-50');
+  try{
+    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_employee');
+    const d=await r.json();
+    const arr=(d&&d.data&&d.data.snapshots)||[];
+    if(!arr.length)toast(T('雲端尚無資料','No cloud data'),'warning');
+    else{
+      for(const s of arr){SNAPS[s.key]=s;await idbSave(s);}
+      const ks=snapKeys();ACTIVE=ks[ks.length-1];
+      renderAll();
+      toast(T(`☁ 已載入 ${arr.length} 份快照`,`☁ Loaded ${arr.length} snapshots`),'success');
+    }
+  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
+  b.disabled=false;b.classList.remove('opacity-50');
+}
+
+// ━━━━ 其他 ━━━━
+function exportCSV(which){
+  const tbl=which==='dept'?qs('#pane-dept table'):qs('#pane-roster table');
+  const rows=[...tbl.querySelectorAll('tr')].map(tr=>
+    [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`employee_${which}_${ACTIVE||'all'}.csv`;a.click();
+  toast(T('CSV 已下載','CSV downloaded'),'success');
+}
+async function clearAllData(){
+  if(!confirm(T('確定清除所有已匯入的名冊快照？','Clear all imported roster snapshots?')))return;
+  SNAPS={};ACTIVE=null;await idbClear();
+  localStorage.removeItem('hrpay:result:employee_hr');
+  qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
+  showApp();
+  toast(T('資料已清除','Data cleared'),'warning');
+}
+function setupDropZone(sel,handler,ringCls){
+  const el=document.querySelector(sel);if(!el)return;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>el.addEventListener(ev,stop,false));
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,()=>el.classList.add('ring-2','ring-offset-2',ringCls)));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,()=>el.classList.remove('ring-2','ring-offset-2',ringCls)));
+  el.addEventListener('drop',e=>{
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])]
+      .filter(f=>/\.(xlsx|xlsm|xls|csv)$/i.test(f.name));
+    if(files.length)handler({files,value:''});
+    else toast(T('請拖入 Excel 或 CSV 檔','Please drop an Excel or CSV file'),'warning');},false);
+  ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+    if(!el.contains(e.target))e.preventDefault();},false));
+}
+
+(async function init(){
+  const all=await idbAll();
+  all.forEach(s=>{SNAPS[s.key]=s;});
+  const ks=snapKeys(); if(ks.length)ACTIVE=ks[ks.length-1];
+  showApp();
+  if(ks.length)renderAll();
+  setupDropZone('#dz-smart',smartImport,'ring-violet-400');
+  applyLang();
+})();
 </script>
 </body>
 </html>
