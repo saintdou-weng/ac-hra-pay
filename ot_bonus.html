@@ -28,7 +28,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">OT &amp; Bonus Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -503,7 +503,9 @@ function allPeriods(){
   return [...new Set(RECS.map(r=>`${r.year}-${pad(r.month)}`))].sort();
 }
 // 月金額 → 選定時間單位
-const UNIT_F={day:1/WORK_DAYS, week:1/WEEKS, month:1, quarter:3, year:12};
+// ⚠ timeSeries() 已依單位完成分組彙總（每季 = 該季三個月加總、每年 = 全年加總），
+//    因此係數只負責「由月再細分成日／週」，季與年一律為 1，否則會重複放大 3 倍／12 倍。
+const UNIT_F={day:1/WORK_DAYS, week:1/WEEKS, month:1, quarter:1, year:1};
 const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
 const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
 
@@ -592,9 +594,27 @@ function renderNav(){
     +(hasBn?`<span class="text-amber-600">✓ ${T('獎金','Bonus')}</span>`:`<span class="text-slate-400">— ${T('無獎金表','no Bonus')}</span>`);
 }
 
+// 依目前時間單位，取出「包含 ACTIVE 的整個區間」的記錄
+function unitSpanRecs(){
+  const recs=typedRecs();
+  if(!ACTIVE)return recs;
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')    return recs.filter(r=>r.year===ay);
+  if(UNIT==='quarter'){const q=Math.floor((am-1)/3);
+    return recs.filter(r=>r.year===ay&&Math.floor((r.month-1)/3)===q);}
+  return recs.filter(r=>r.year===ay&&r.month===am);   // 日／週／月皆以該月為基數
+}
+function unitSpanLabel(){
+  if(!ACTIVE)return '';
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return String(ay);
+  if(UNIT==='quarter')return `${ay} Q${Math.floor((am-1)/3)+1}`;
+  return `${MS[am-1]} ${ay}`;
+}
+
 // ── 儀表板 ──
 function renderDash(){
-  const recs=typedRecs().filter(r=>`${r.year}-${pad(r.month)}`===ACTIVE);
+  const recs=unitSpanRecs();
   const F=UNIT_F[UNIT], perCap=(MODE==='cap');
   const exp=recs.reduce((s,r)=>s+r.expense,0);
   const ppl=recs.reduce((s,r)=>s+r.ppl,0);
@@ -615,7 +635,7 @@ function renderDash(){
   qs('#k-avg-s').textContent=T(`每人次 · ${uZh}`,`per person · ${uZh}`);
 
   qs('#scope-txt').textContent=
-    `${tZh} · ${qs('#sel-dept').value||T('全廠','All')} · ${MS[+ACTIVE.split('-')[1]-1]} ${ACTIVE.split('-')[0]} · ${perCap?T('人均','per capita'):T('總額','total')} · ${uZh}`;
+    `${tZh} · ${qs('#sel-dept').value||T('全廠','All')} · ${unitSpanLabel()} · ${perCap?T('人均','per capita'):T('總額','total')} · ${uZh}`;
 
   // 趨勢：依單位彙總全部期間
   const series=timeSeries();
@@ -719,7 +739,7 @@ function renderTime(){
 
 // ── 部門分析 ──
 function renderDept(){
-  const recs=typedRecs().filter(r=>`${r.year}-${pad(r.month)}`===ACTIVE);
+  const recs=unitSpanRecs();
   const F=UNIT_F[UNIT], perCap=(MODE==='cap');
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
   const dm={};
