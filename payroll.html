@@ -58,7 +58,7 @@ body{font-family:'DM Sans',sans-serif;}
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800">Payroll & Cost Analytics</p>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.4</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.5</span></p>
     </div>
 
     <div class="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
@@ -2782,6 +2782,30 @@ async function init(){
   }
 }
 init();
+
+// ━━━━━━━━━ 拖放上傳 Drag & Drop ━━━━━━━━━
+//  <label> 內的 file input 不會自動接收拖放，需自行掛載事件。
+//  同時攔截整個視窗的拖放，避免瀏覽器直接開啟檔案。
+function setupDropZone(sel, handler, ringCls){
+  const el=document.querySelector(sel); if(!el)return;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>el.addEventListener(ev,stop,false));
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,()=>{
+    el.classList.add('ring-2','ring-offset-2',ringCls);}));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,()=>{
+    el.classList.remove('ring-2','ring-offset-2',ringCls);}));
+  el.addEventListener('drop',e=>{
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])]
+      .filter(f=>/\.(xlsx|xlsm|xls|csv)$/i.test(f.name));
+    if(files.length) handler({files, value:''});
+    else toast(T('請拖入 Excel 或 CSV 檔','Please drop an Excel or CSV file'),'warning');
+  },false);
+  // 視窗層級：拖到非放置區時不要讓瀏覽器開檔
+  ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+    if(!el.contains(e.target)) e.preventDefault();},false));
+}
+
+setupDropZone('#dz-smart', smartImport, 'ring-sky-400');
 </script>
 </body>
 </html>
