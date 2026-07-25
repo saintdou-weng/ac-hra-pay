@@ -58,7 +58,7 @@ body{font-family:'DM Sans',sans-serif;}
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800">Payroll & Cost Analytics</p>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.3</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.4</span></p>
     </div>
 
     <div class="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
@@ -390,6 +390,21 @@ body{font-family:'DM Sans',sans-serif;}
       </div>
     </div>
 
+    <!-- ══ 期間導覽：◀ 上一期 · 下拉 · 下一期 ▶ ══ -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <button onclick="stepPeriod(-1)" title="上一期 Previous"
+        class="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-sky-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <select id="nav-period" onchange="jumpPeriod(this.value)"
+        class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-sky-200 outline-none min-w-[150px] text-center"></select>
+      <button onclick="stepPeriod(1)" title="下一期 Next"
+        class="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-sky-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <span id="nav-hint" class="text-[11px] text-slate-400 ml-1"></span>
+    </div>
+
     <!-- Time cost cards -->
     <div class="mb-4">
       <p class="text-sm font-semibold text-slate-600 mb-3">🕐 多維度時間成本 Time-Dimension Cost Analysis
@@ -432,8 +447,28 @@ body{font-family:'DM Sans',sans-serif;}
       </div>
     </div>
 
+    <!-- ══ 期間清單：月報 / 年報 ══ -->
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl mb-4 overflow-hidden anim">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p class="text-sm font-semibold text-slate-700 flex-1" data-en="📋 Period Report">📋 期間報表</p>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="rp-month" onclick="setReportMode('month')" data-en="Monthly"
+            class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">月報</button>
+          <button id="rp-year" onclick="setReportMode('year')" data-en="Yearly"
+            class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">年報</button>
+        </div>
+        <span id="rp-count" class="text-[11px] text-slate-400"></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 text-slate-500"><tr id="rp-thead"></tr></thead>
+          <tbody id="rp-tbody"></tbody>
+        </table>
     <!-- Per capita chart + dept breakdown -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      </div>
+    </div>
+
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
         <p class="text-sm font-semibold text-slate-700 mb-1">人均薪資成本 Per Capita Cost by Dept</p>
         <p class="text-[11px] text-slate-400 mb-3">Average salary per associate</p>
@@ -1666,6 +1701,119 @@ function renderSewing(data, isFull){
 }
 
 // ── TOP DEPT IN DASHBOARD ─────────────────
+// ═══════════════════════════════════════════
+//  期間導覽 ◀ ▶ ＋ 月報 / 年報 清單
+// ═══════════════════════════════════════════
+let REPORT_MODE='month';
+function sortedPeriods(){return Object.keys(STORE).sort();}   // 舊 → 新
+
+function jumpPeriod(k){
+  if(!k||!STORE[k])return;
+  ACTIVE=STORE[k];
+  const ps=qs('#period-sel'); if(ps) ps.value=k;
+  syncUploadZoneUI(); showStageBadge(); renderAll();
+}
+function stepPeriod(dir){
+  const ks=sortedPeriods(); if(!ks.length)return;
+  const cur=ACTIVE?ks.indexOf(ACTIVE.periodKey):-1;
+  const next=Math.min(ks.length-1, Math.max(0, (cur<0?ks.length-1:cur)+dir));
+  if(next!==cur) jumpPeriod(ks[next]);
+}
+function renderNav(){
+  const ks=sortedPeriods(), sel=qs('#nav-period');
+  if(!sel)return;
+  sel.innerHTML=ks.map(k=>{
+    const e=STORE[k];
+    const mark=(e.advanceRecords&&e.payrollRecords)?'' : ' ⚠';
+    return `<option value="${k}">${labelFromKey(k)}${mark}</option>`;
+  }).join('');
+  if(ACTIVE) sel.value=ACTIVE.periodKey;
+  const i=ACTIVE?ks.indexOf(ACTIVE.periodKey):-1;
+  const e=ACTIVE;
+  const miss=[];
+  if(e){ if(!e.advanceRecords) miss.push(T('缺預付檔','no Advance file'));
+         if(!e.payrollRecords) miss.push(T('缺正式檔','no Payroll file')); }
+  qs('#nav-hint').innerHTML =
+    `<span class="text-slate-400">${i+1} / ${ks.length}</span>`
+    + (miss.length?` <span class="text-amber-600 font-medium">⚠ ${miss.join('、')}</span>`
+                  :` <span class="text-emerald-600">✓ ${T('檔案齊全','complete')}</span>`);
+}
+function setReportMode(m){
+  REPORT_MODE=m;
+  qs('#rp-month').className=_cbtn(m==='month','sky');
+  qs('#rp-year').className =_cbtn(m==='year','sky');
+  renderReport();
+}
+// 取某期間在目前來源設定下的統計
+function periodStats(entry){
+  const pay=entry.payrollRecords||[], adv=entry.advanceRecords||[];
+  let rows;
+  if(COST_SRC==='adv')       rows=adv;
+  else if(COST_SRC==='both') rows=[...pay,...adv];
+  else                       rows=pay.length?pay:adv;
+  const dept=qs('#cost-dept')?qs('#cost-dept').value:'';
+  if(dept) rows=rows.filter(r=>r.dept===dept);
+  const head = COST_SRC==='both' ? new Set(rows.map(r=>String(r.id))).size : rows.length;
+  const total= rows.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+  return {head, total, hasAdv:!!adv.length, hasPay:!!pay.length,
+          nAdv:adv.length, nPay:pay.length};
+}
+function renderReport(){
+  const thead=qs('#rp-thead'), tbody=qs('#rp-tbody');
+  if(!thead)return;
+  const ks=sortedPeriods().reverse();   // 新 → 舊
+  const perCap=(COST_MODE==='cap');
+
+  const H=[T('期間','Period'),T('人數','Staff'),T('每小時','Hourly'),T('每日','Daily'),
+           T('每週','Weekly'),T('每月','Monthly'),T('每年','Yearly'),T('檔案','Files')];
+  thead.innerHTML=H.map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+
+  const hi='bg-sky-50 font-bold text-sky-800';
+  const cell=(v,unit)=>`<td class="px-3 py-2 text-right jmono ${COST_UNIT===unit?hi:''}">$${fmt(v)}</td>`;
+
+  if(REPORT_MODE==='month'){
+    qs('#rp-count').textContent=`${ks.length} ${T('個月份','months')}`;
+    tbody.innerHTML=ks.map(k=>{
+      const e=STORE[k], st=periodStats(e);
+      const b=perCap?(st.total/(st.head||1)):st.total;
+      const isAct=ACTIVE&&ACTIVE.periodKey===k;
+      const files=(st.hasAdv?`<span class="text-amber-600">預${st.nAdv}</span>`:`<span class="text-slate-300">預—</span>`)
+                +' / '+(st.hasPay?`<span class="text-emerald-600">正${st.nPay}</span>`:`<span class="text-slate-300">正—</span>`);
+      return `<tr onclick="jumpPeriod('${k}')" class="border-b border-slate-50 cursor-pointer transition ${isAct?'bg-sky-50/60':'hover:bg-slate-50'}">
+        <td class="px-3 py-2 font-semibold ${isAct?'text-sky-700':'text-slate-700'}">${labelFromKey(k)}${isAct?' ◀':''}</td>
+        <td class="px-3 py-2 text-right jmono">${st.head}</td>
+        ${cell(b/(WORK_DAYS*WORK_HRS),'hour')}${cell(b/WORK_DAYS,'day')}${cell(b/4.33,'week')}
+        ${cell(b,'month')}${cell(b*12,'year')}
+        <td class="px-3 py-2 text-right text-[11px] whitespace-nowrap">${files}</td></tr>`;
+    }).join('')||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('尚無資料','No data')}</td></tr>`;
+  }else{
+    // 年報：同年月份加總
+    const yr={};
+    ks.forEach(k=>{
+      const y=k.slice(0,4), st=periodStats(STORE[k]);
+      if(!yr[y]) yr[y]={months:0,head:0,total:0};
+      yr[y].months++; yr[y].head+=st.head; yr[y].total+=st.total;
+    });
+    const years=Object.keys(yr).sort().reverse();
+    qs('#rp-count').textContent=`${years.length} ${T('個年度','years')}`;
+    thead.innerHTML=[T('年度','Year'),T('月數','Months'),T('平均人數','Avg Staff'),
+      T('每小時','Hourly'),T('每日','Daily'),T('每週','Weekly'),T('月平均','Monthly Avg'),T('年度合計','Year Total')]
+      .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+    tbody.innerHTML=years.map(y=>{
+      const v=yr[y], avgHead=v.head/v.months;
+      const monthAvg = perCap ? (v.total/v.months)/(avgHead||1) : v.total/v.months;
+      const yearTot  = perCap ? v.total/(avgHead||1) : v.total;
+      return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+        <td class="px-3 py-2 font-semibold text-slate-700">${y}</td>
+        <td class="px-3 py-2 text-right jmono">${v.months}</td>
+        <td class="px-3 py-2 text-right jmono">${Math.round(avgHead)}</td>
+        ${cell(monthAvg/(WORK_DAYS*WORK_HRS),'hour')}${cell(monthAvg/WORK_DAYS,'day')}${cell(monthAvg/4.33,'week')}
+        ${cell(monthAvg,'month')}
+        <td class="px-3 py-2 text-right jmono font-bold text-sky-700">$${fmt(yearTot)}</td></tr>`;
+    }).join('')||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('尚無資料','No data')}</td></tr>`;
+  }
+}
+
 let COST_MODE='total';   // 'total' | 'cap'
 let COST_SRC ='pay';     // 'pay' | 'adv' | 'both'
 let COST_UNIT='month';   // 'hour'|'day'|'week'|'month'|'year'
@@ -1822,6 +1970,9 @@ function renderCost(){
       <td class="px-3 py-2 text-right jmono text-xs">$${fmt(v.total/(v.count||1))}</td>
       <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='year'?hi:''}">$${fmt(b*12)}</td>
     </tr>`;}).join('');
+
+  renderNav();
+  renderReport();
 }
 function setCostSrcSilent(s){
   COST_SRC=s;
@@ -1981,14 +2132,14 @@ function renderBreakdown(){
       }).join('')+`</tr>`;
   }).join('');
 
-  const T={count:rows.length}; BD_COMPS.forEach(c=>T[c.k]=depts.reduce((s,d)=>s+m[d][c.k],0));
+  const TOT={count:rows.length}; BD_COMPS.forEach(c=>TOT[c.k]=depts.reduce((s,d)=>s+m[d][c.k],0));
   const div=perCap?(rows.length||1):1;
   tfoot.innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">${T('合計','TOTAL')}</td>
-    <td class="px-2 py-2 text-right jmono">${T.count}</td>`+
-    BD_COMPS.map(c=>`<td class="px-2 py-2 text-right jmono ${c.neg?'text-rose-600':''}">${fmt(T[c.k]/div)}</td>`).join('');
+    <td class="px-2 py-2 text-right jmono">${TOT.count}</td>`+
+    BD_COMPS.map(c=>`<td class="px-2 py-2 text-right jmono ${c.neg?'text-rose-600':''}">${fmt(TOT[c.k]/div)}</td>`).join('');
 
   qs('#bd-scope').textContent=`${depts.length} 部門 · ${rows.length} 人 · ${perCap?'每人平均':'總額'}`;
-  _bdLast={mode:BD_SRC,src:srcName,total:T,depts:depts.length,head:rows.length,perCap};
+  _bdLast={mode:BD_SRC,src:srcName,total:TOT,depts:depts.length,head:rows.length,perCap};
 }
 
 function exportBreakdownCSV(){
@@ -2004,13 +2155,16 @@ function exportBreakdownCSV(){
 //  TELEGRAM 傳送（經 GAS 轉送，前端不放 Token）
 // ═══════════════════════════════════════════
 async function sendTG(text){
-  if(!GAS_URL){toast('尚未設定 GAS URL','error');return false;}
+  if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
+  if(!text||!text.trim()){toast(T('訊息內容是空的，未送出','Message is empty — not sent'),'error');return false;}
   try{
-    await fetch(GAS_URL,{method:'POST',
+    const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'notify',text})});
-    toast('已傳送至 Telegram 群組','success');return true;
-  }catch(e){toast('傳送失敗：'+e.message,'error');return false;}
+    let d=null; try{ d=await r.json(); }catch(e){}
+    if(d && d.sent===false){toast(T('GAS 回報未送出，請檢查 Bot 是否在群組內','GAS reported not sent'),'error');return false;}
+    toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
+  }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -2028,10 +2182,10 @@ async function sendBreakdownTG(){
      +`🟡 僅預支有 Advance only：${_bdLast.advOnly} 人\n`
      +`🔵 僅正式扣回 Payroll only：${_bdLast.payOnly} 人`;
   }else{
-    const T=_bdLast.total, d=_bdLast.perCap?(_bdLast.head||1):1;
+    const TOT=_bdLast.total, d=_bdLast.perCap?(_bdLast.head||1):1;
     t=`🧾 <b>${esc(_bdLast.src)} 分項統計 Component Breakdown</b>\n📅 期間 Period：${esc(P)}\n`
-     +`👥 人數 Headcount：${T.count}　部門 Depts：${_bdLast.depts}　${_bdLast.perCap?'（人均 Per Capita）':'（總額 Total）'}\n\n`
-     +BD_COMPS.map(c=>`${c.neg?'−':' '}${c.zh} ${c.en}：$${fmt(T[c.k]/d)}`).join('\n');
+     +`👥 人數 Headcount：${TOT.count}　部門 Depts：${_bdLast.depts}　${_bdLast.perCap?'（人均 Per Capita）':'（總額 Total）'}\n\n`
+     +BD_COMPS.map(c=>`${c.neg?'−':' '}${c.zh} ${c.en}：$${fmt(TOT[c.k]/d)}`).join('\n');
   }
   await sendTG(t);
 }
@@ -2074,17 +2228,28 @@ let _tgWhich='pay';
 function sendSummaryTG(which){
   _tgWhich=which;
   const keys=Object.keys(STORE).sort().reverse();
-  if(!keys.length){toast('尚無任何期間資料','error');return;}
-  qs('#tg-kind').textContent = which==='adv' ? '💰 預付薪資摘要 Advance Pay' : '💵 正式薪資月結摘要 Payroll';
+  if(!keys.length){toast(T('尚無任何期間資料','No period data yet'),'error');return;}
+  qs('#tg-kind').textContent = which==='adv'
+    ? T('💰 預付薪資摘要 Advance Pay','💰 Advance Pay Summary')
+    : T('💵 正式薪資月結摘要 Payroll','💵 Payroll Summary');
   const sel=qs('#tg-period');
   sel.innerHTML=keys.map(k=>{
     const e=STORE[k];
-    const has = which==='adv' ? (e.advanceRecords||[]).length : (e.payrollRecords||[]).length;
-    return `<option value="${k}">${labelFromKey(k)}${has?'':'（無資料）'}</option>`;
+    const n = which==='adv' ? (e.advanceRecords||[]).length : (e.payrollRecords||[]).length;
+    return `<option value="${k}"${n?'':' disabled'}>${labelFromKey(k)}${n?` · ${n} ${T('人','staff')}`:` · ${T('無資料','no data')}`}</option>`;
   }).join('');
-  if(ACTIVE&&STORE[ACTIVE.periodKey]) sel.value=ACTIVE.periodKey;
+  // 預設選當前期間；若當前期間沒有該類型資料，自動跳到最近一個有資料的期間
+  const hasData=k=>{const e=STORE[k];return which==='adv'?(e.advanceRecords||[]).length:(e.payrollRecords||[]).length;};
+  let pick = (ACTIVE&&hasData(ACTIVE.periodKey)) ? ACTIVE.periodKey : keys.find(hasData);
+  if(!pick){
+    toast(which==='adv'?T('所有期間都沒有預付薪資檔','No Advance file in any period')
+                       :T('所有期間都沒有正式薪資檔','No Payroll file in any period'),'error');
+    return;
+  }
+  sel.value=pick;
   previewTg();
   const m=qs('#tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  applyLang();
 }
 function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function previewTg(){
