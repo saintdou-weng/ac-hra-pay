@@ -32,7 +32,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Meal Fee Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
     </div>
 
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
@@ -89,7 +89,7 @@
 <div class="bg-white border-b border-slate-200 sticky top-[57px] z-30 no-print">
   <div class="max-w-screen-2xl mx-auto px-4 flex gap-1 overflow-x-auto">
     <button id="tab-dash"   onclick="goTab('dash')"   class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
-    <button id="tab-daily"  onclick="goTab('daily')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Daily Detail">📅 每日明細</button>
+    <button id="tab-daily"  onclick="goTab('daily')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
     <button id="tab-dept"   onclick="goTab('dept')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
     <button id="tab-roster" onclick="goTab('roster')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="👥 Roster">👥 員工名單</button>
     <button id="tab-recon"  onclick="goTab('recon')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔍 Reconcile">🔍 考勤核對</button>
@@ -190,9 +190,32 @@
 
   <!-- ────── DAILY ────── -->
   <div id="pane-daily" class="pane hidden">
+    <!-- 當期彙總卡片 -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p id="td-c1-l" class="text-[11px] text-slate-400 font-medium">—</p>
+        <p id="td-c1" class="text-xl font-bold jmono mt-1">—</p>
+        <p id="td-c1s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p id="td-c2-l" class="text-[11px] text-slate-400 font-medium">—</p>
+        <p id="td-c2" class="text-xl font-bold jmono mt-1 text-orange-600">—</p>
+        <p id="td-c2s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p id="td-c3-l" class="text-[11px] text-slate-400 font-medium">—</p>
+        <p id="td-c3" class="text-xl font-bold jmono mt-1 text-sky-600">—</p>
+        <p id="td-c3s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p id="td-c4-l" class="text-[11px] text-slate-400 font-medium">—</p>
+        <p id="td-c4" class="text-xl font-bold jmono mt-1 text-emerald-600">—</p>
+        <p id="td-c4s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p id="td-c5-l" class="text-[11px] text-slate-400 font-medium">—</p>
+        <p id="td-c5" class="text-xl font-bold jmono mt-1 text-amber-600">—</p>
+        <p id="td-c5s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+    </div>
     <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
       <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
-        <p class="text-sm font-semibold text-slate-700 flex-1" data-en="📅 Day-by-Day Detail">📅 每日明細</p>
+        <p id="daily-title" class="text-sm font-semibold text-slate-700 flex-1">📅 每日明細</p>
         <span id="daily-src" class="text-[11px] px-2 py-0.5 rounded-full"></span>
       </div>
       <div id="daily-note" class="px-4 py-2 text-[11px] text-slate-500 bg-slate-50 border-b border-slate-100"></div>
@@ -874,54 +897,128 @@ function renderDash(){
 }
 
 // ── 每日明細 ──
+// 跨期間的「日索引」：把所有已匯入資料攤平成每一天
+function dayIndex(){
+  const idx={}, pad=n=>String(n).padStart(2,'0');
+  const dept=qs('#sel-dept')?qs('#sel-dept').value:'';
+  sortedKeys().forEach(k=>{
+    const e=STORE[k];
+    const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]);
+    const rs=dept?rows.filter(r=>r.dept===dept):rows;
+    rs.forEach(r=>r.days.forEach(x=>{
+      const key=`${e.year}-${pad(e.month)}-${pad(x.d)}`;
+      const b=idx[key]||(idx[key]={y:e.year,m:e.month,d:x.d,riel:0,ot:0,served:0,otServed:0,ids:new Set(),src:e.att?'att':'meal'});
+      b.riel+=x.present+x.ot; b.ot+=x.ot;
+      if(x.present>0){b.served++; b.ids.add(r.id);}
+      if(x.ot>0)b.otServed++;
+    }));
+  });
+  return idx;
+}
+// ISO 週次
+function isoWeek(y,m,d){
+  const dt=new Date(y,m-1,d);
+  const t=new Date(dt.valueOf());
+  t.setDate(t.getDate()+3-((dt.getDay()+6)%7));
+  const w1=new Date(t.getFullYear(),0,4);
+  return {y:t.getFullYear(),
+          w:1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7)};
+}
+// 依目前時間單位分組
+function timeSeries(){
+  const idx=dayIndex(), keys=Object.keys(idx).sort();
+  const g={}, pad=n=>String(n).padStart(2,'0');
+  keys.forEach(k=>{
+    const b=idx[k];
+    let gk,label;
+    if(UNIT==='day'){ gk=k; label=`${b.y}/${pad(b.m)}/${pad(b.d)}`; }
+    else if(UNIT==='week'){ const w=isoWeek(b.y,b.m,b.d); gk=`${w.y}-W${pad(w.w)}`; label=gk; }
+    else if(UNIT==='half'){ const h=b.d<=15?1:2; gk=`${b.y}-${pad(b.m)}:${h}`;
+      label=`${MN[b.m-1]} ${b.y} · ${h===1?T('上半月','1st half'):T('下半月','2nd half')}`; }
+    else if(UNIT==='month'){ gk=`${b.y}-${pad(b.m)}`; label=`${MN[b.m-1]} ${b.y}`; }
+    else { gk=String(b.y); label=String(b.y); }
+    const t=g[gk]||(g[gk]={key:gk,label,days:0,riel:0,ot:0,served:0,otServed:0,ids:new Set(),first:k,last:k});
+    t.days++; t.riel+=b.riel; t.ot+=b.ot; t.served+=b.served; t.otServed+=b.otServed;
+    b.ids.forEach(id=>t.ids.add(id));
+    if(k<t.first)t.first=k; if(k>t.last)t.last=k;
+  });
+  return Object.values(g).sort((a,b)=>a.first<b.first?1:-1);   // 新 → 舊
+}
+
 function renderDaily(){
-  const {rows,src,dayList}=filtered();
-  const rate=rateOf(rows);
+  const {rows,src}=filtered();
+  const rate=rateOf(activeRows().rows)||4000;
+  const perCap=(MODE==='cap');
+  const series=timeSeries();
+
+  const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
+  const titleMap={day:T('📅 每日明細','📅 Daily Detail'),week:T('📅 每週明細','📅 Weekly Detail'),
+    half:T('📅 每期明細（半月）','📅 Per-Period Detail'),month:T('📅 每月明細','📅 Monthly Detail'),
+    year:T('📅 每年明細','📅 Yearly Detail')};
+  qs('#daily-title').textContent=titleMap[UNIT];
+
   const badge=qs('#daily-src');
   if(src==='att'){badge.className='text-[11px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700';badge.textContent=T('資料來源：考勤表','Source: Attendance');}
   else if(src==='meal'){badge.className='text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700';badge.textContent=T('資料來源：餐費表','Source: Meal-fee file');}
-  else {badge.textContent='';}
+  else badge.textContent='';
 
-  qs('#daily-note').textContent = ACTIVE&&ACTIVE.att
-    ? T('已載入考勤表，可看到每日實際用餐人數與加班餐。','Attendance loaded — daily served counts and OT meals available.')
-    : T('尚未載入考勤表，以下每日數字由餐費表的日欄推算。上傳考勤表後會更精確。','No attendance file — daily figures derived from the meal-fee sheet. Upload attendance for more detail.');
+  qs('#daily-note').textContent = (ACTIVE&&ACTIVE.att)
+    ? T(`已載入考勤表，每日用餐人數與加班餐為實際打卡結果。目前以「${uZh}」為單位彙總所有已匯入期間。`,
+        `Attendance loaded — daily served counts are actual. Aggregated by ${uZh} across all imported periods.`)
+    : T(`尚未載入考勤表，每日數字由餐費表日欄推算。目前以「${uZh}」為單位彙總所有已匯入期間。`,
+        `No attendance file — figures derived from meal-fee sheet. Aggregated by ${uZh} across all imported periods.`);
 
-  const byDay={};
-  dayList.forEach(d=>byDay[d]={n:0,ot:0,normal:0,otRiel:0});
-  rows.forEach(r=>r.days.forEach(d=>{
-    if(!byDay[d.d])byDay[d.d]={n:0,ot:0,normal:0,otRiel:0};
-    const b=byDay[d.d];
-    if(d.present>0)b.n++;
-    if(d.ot>0)b.ot++;
-    b.normal+=d.present; b.otRiel+=d.ot;
-  }));
-  const ds=Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+  // ── KPI 卡片：本單位最新一組 ──
+  const cur=series[0];
+  const setCard=(i,label,val,sub)=>{
+    qs('#td-c'+i+'-l').textContent=label; qs('#td-c'+i).textContent=val; qs('#td-c'+i+'s').textContent=sub;
+  };
+  if(cur){
+    const staff=cur.ids.size||1;
+    const usd=cur.riel/rate;
+    setCard(1,T('目前區間','Current'),cur.label,T(`${cur.days} 天 · ${series.length} 組`,`${cur.days} days · ${series.length} groups`));
+    setCard(2,T('餐費金額 USD','Meal fee USD'),'$'+fmt(perCap?usd/staff:usd),perCap?T('每人','per person'):T('總額','total'));
+    setCard(3,T('用餐人日','Meal-days'),int(cur.served),T(`平均 ${(cur.served/staff).toFixed(1)} 天/人`,`avg ${(cur.served/staff).toFixed(1)} d/person`));
+    setCard(4,T('用餐人數','Distinct staff'),int(cur.ids.size),T(`日均 ${Math.round(cur.served/(cur.days||1))} 人`,`${Math.round(cur.served/(cur.days||1))}/day`));
+    setCard(5,T('加班餐','OT meals'),int(cur.otServed),'$'+fmt(cur.ot/rate));
+  }
 
-  qs('#daily-thead').innerHTML=[T('日期','Date'),T('用餐人數','Served'),T('加班餐人數','OT meals'),
-    T('正常餐 ៛','Normal ៛'),T('加班餐 ៛','OT ៛'),T('合計 ៛','Total ៛'),T('折合 USD','USD')]
-    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  // ── 明細表 ──
+  const H=[T('區間','Period'),T('天數','Days'),T('用餐人數','Staff'),T('用餐人日','Meal-days'),
+           T('加班餐','OT meals'),T('正常餐 ៛','Normal ៛'),T('加班餐 ៛','OT ៛'),
+           T('合計 ៛','Total ៛'),T('折合 USD','USD'),T('人均 USD','Per capita')];
+  qs('#daily-thead').innerHTML=H.map((h,i)=>
+    `<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
 
-  qs('#daily-tbody').innerHTML=ds.map(d=>{
-    const b=byDay[d], tot=b.normal+b.otRiel;
-    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
-      <td class="px-3 py-2 font-semibold text-slate-700">${ACTIVE.month}/${String(d).padStart(2,'0')}</td>
-      <td class="px-3 py-2 text-right jmono">${b.n||'<span class="text-slate-300">—</span>'}</td>
-      <td class="px-3 py-2 text-right jmono">${b.ot||'<span class="text-slate-300">—</span>'}</td>
-      <td class="px-3 py-2 text-right jmono">${int(b.normal)}</td>
-      <td class="px-3 py-2 text-right jmono text-amber-600">${b.otRiel?int(b.otRiel):'<span class="text-slate-300">—</span>'}</td>
-      <td class="px-3 py-2 text-right jmono font-semibold">${int(tot)}</td>
-      <td class="px-3 py-2 text-right jmono text-orange-600">$${fmt(tot/rate)}</td></tr>`;
-  }).join('')||`<tr><td colspan="7" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  qs('#daily-tbody').innerHTML=series.map((t,i)=>{
+    const staff=t.ids.size||1, normal=t.riel-t.ot, usd=t.riel/rate;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-orange-50/40':''}">
+      <td class="px-3 py-2 font-semibold ${i===0?'text-orange-700':'text-slate-700'}">${t.label}</td>
+      <td class="px-3 py-2 text-right jmono">${t.days}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.ids.size)}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.served)}</td>
+      <td class="px-3 py-2 text-right jmono ${t.otServed?'text-amber-600':'text-slate-300'}">${t.otServed||'—'}</td>
+      <td class="px-3 py-2 text-right jmono">${int(normal)}</td>
+      <td class="px-3 py-2 text-right jmono ${t.ot?'text-amber-600':'text-slate-300'}">${t.ot?int(t.ot):'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold">${int(t.riel)}</td>
+      <td class="px-3 py-2 text-right jmono text-orange-700 font-semibold">$${fmt(usd)}</td>
+      <td class="px-3 py-2 text-right jmono">$${fmt(usd/staff)}</td></tr>`;
+  }).join('')||`<tr><td colspan="10" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
 
-  const T1=ds.reduce((s,d)=>s+byDay[d].normal,0), T2=ds.reduce((s,d)=>s+byDay[d].otRiel,0);
+  const TT=series.reduce((a,t)=>({days:a.days+t.days,served:a.served+t.served,ot:a.ot+t.ot,
+    otServed:a.otServed+t.otServed,riel:a.riel+t.riel}),{days:0,served:0,ot:0,otServed:0,riel:0});
+  const allIds=new Set(); series.forEach(t=>t.ids.forEach(x=>allIds.add(x)));
   qs('#daily-tfoot').innerHTML=`
     <td class="px-3 py-2">${T('合計','TOTAL')}</td>
-    <td class="px-3 py-2 text-right jmono">${int(ds.reduce((s,d)=>s+byDay[d].n,0))}</td>
-    <td class="px-3 py-2 text-right jmono">${int(ds.reduce((s,d)=>s+byDay[d].ot,0))}</td>
-    <td class="px-3 py-2 text-right jmono">${int(T1)}</td>
-    <td class="px-3 py-2 text-right jmono">${int(T2)}</td>
-    <td class="px-3 py-2 text-right jmono">${int(T1+T2)}</td>
-    <td class="px-3 py-2 text-right jmono text-orange-700">$${fmt((T1+T2)/rate)}</td>`;
+    <td class="px-3 py-2 text-right jmono">${TT.days}</td>
+    <td class="px-3 py-2 text-right jmono">${int(allIds.size)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.served)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.otServed)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.riel-TT.ot)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.ot)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.riel)}</td>
+    <td class="px-3 py-2 text-right jmono text-orange-700">$${fmt(TT.riel/rate)}</td>
+    <td class="px-3 py-2 text-right jmono">$${fmt(TT.riel/rate/(allIds.size||1))}</td>`;
 }
 
 // ── 部門分析 ──
