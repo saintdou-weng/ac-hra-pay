@@ -4574,14 +4574,21 @@ async function sendTelegramNotify(r, event){
   hcInit();
 })();
 
+
+/* ── GAS 端點遷移：舊值指向已停用的 AC_HRA_CloudSync(@vrthrbot)，一律改為 AC_HRA_PAY(@psjweng_bot) ── */
+(function(){
+  const NEW='https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+  try{
+    if(localStorage.getItem('vrt_hr_gas_url')!==NEW) localStorage.setItem('vrt_hr_gas_url',NEW);
+    if(localStorage.getItem('hrpay_gas_url')!==NEW)  localStorage.setItem('hrpay_gas_url',NEW);
+  }catch(e){}
+})();
 /* ═══════════════════════════════════════════════════════════
    AC-HRA-PAY · Transfer 統計分析 + Telegram 模組 v1.0
    獨立模組：只讀 state.transfers，不改動既有流程邏輯
    ═══════════════════════════════════════════════════════════ */
 (function(){
-  const GAS = localStorage.getItem('vrt_hr_gas_url')
-           || localStorage.getItem('hrpay_gas_url')
-           || 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+  const GAS = 'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
   const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const pad=n=>String(n).padStart(2,'0');
   const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
@@ -4592,7 +4599,10 @@ async function sendTelegramNotify(r, event){
 
   let A_UNIT='month', A_KEY='', A_DEPT='';
 
-  const recs=()=>((window.state&&Array.isArray(state.transfers))?state.transfers:[]).filter(t=>t.effectiveDate);
+  // ⚠ state 以 let 宣告於前一個 script 區塊，不會掛在 window 上，
+  //    必須直接參照（跨 script 的頂層 let 仍在同一全域語彙環境）。
+  const recs=()=>{ try{ return (Array.isArray(state.transfers)?state.transfers:[])
+    .filter(t=>t&&t.effectiveDate); }catch(e){ return []; } };
   const total=t=>N(t.newBasic)+N(t.newPosAdd)+N(t.newSkill)+N(t.newLang);
   const before=t=>N(t.origBasic)+N(t.origPosAdd)+N(t.origSkill)+N(t.origLang);
   function isoWeek(d){const t=new Date(d.valueOf());t.setDate(t.getDate()+3-((d.getDay()+6)%7));

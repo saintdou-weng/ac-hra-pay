@@ -43,6 +43,24 @@ body{font-family:'DM Sans',sans-serif;}
 /* sewing spotlight */
 .sew-card{background:linear-gradient(135deg,#eff6ff 0%,#e0f2fe 100%);border:1px solid #bae6fd}
 /* print */
+
+/* ── 手機版修正：頂部工具列會換行不外溢，按鈕縮小仍可點擊 ── */
+@media (max-width:640px){
+  header .max-w-screen-2xl{padding-top:8px;padding-bottom:8px}
+  header select{max-width:132px;font-size:12px;padding:4px 6px}
+  header button,header .no-print button{font-size:11px;padding:6px 8px}
+  header svg{width:14px;height:14px}
+  header .leading-none p:first-child{font-size:13px}
+  .upload-row .grid{grid-template-columns:1fr!important;gap:8px!important}
+  .upload-row .grid>div:nth-child(2){display:none}
+  main{padding-left:10px;padding-right:10px}
+  table{font-size:11px}
+  .tab-bar{overflow-x:auto}
+}
+@media (max-width:400px){
+  header button span:not(.zh):not(.en){display:none}
+  header select{max-width:110px}
+}
 @media print{header,.upload-row,.tab-bar,.no-print{display:none!important}.tab-pane{display:block!important;margin-top:0!important}}
 </style>
 </head>
@@ -50,7 +68,7 @@ body{font-family:'DM Sans',sans-serif;}
 
 <!-- ═══════════ HEADER ═══════════ -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-  <div class="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-3">
+  <div class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-2 min-h-14 flex flex-wrap items-center gap-x-3 gap-y-2">
     <!-- logo -->
     <div class="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center shrink-0">
       <span class="text-white text-[11px] font-bold">VRT</span>
@@ -58,7 +76,7 @@ body{font-family:'DM Sans',sans-serif;}
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800">Payroll & Cost Analytics</p>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.5</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.6</span></p>
     </div>
 
     <div class="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
