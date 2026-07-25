@@ -33,7 +33,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Employee HR Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -180,13 +180,36 @@
   </div>
 
   <!-- PROFILE -->
-  <div id="pane-profile" class="pane hidden"><div id="profile-body"></div></div>
+  <div id="pane-profile" class="pane hidden">
+    <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2.5">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Dimension">分析維度</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5 flex-wrap">
+        <button id="dm-age"    onclick="setDim('age')"    data-en="Age band"  class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">年齡層</button>
+        <button id="dm-tenure" onclick="setDim('tenure')" data-en="Tenure"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">年資</button>
+        <button id="dm-gender" onclick="setDim('gender')" data-en="Gender"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">性別</button>
+        <button id="dm-edu"    onclick="setDim('edu')"    data-en="Education" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">學歷</button>
+        <button id="dm-prov"   onclick="setDim('prov')"   data-en="Province"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">籍貫</button>
+        <button id="dm-nat"    onclick="setDim('nat')"    data-en="Nationality" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">國籍</button>
+        <button id="dm-mar"    onclick="setDim('mar')"    data-en="Marital"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">婚姻</button>
+      </div>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="pv-n" onclick="setPVal('n')" data-en="Count"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">人數</button>
+        <button id="pv-p" onclick="setPVal('p')" data-en="Percent" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">占比</button>
+      </div>
+      <span class="text-[11px] text-slate-400 ml-auto" data-en="Rows follow the Trend unit above (Monthly / Quarterly / Yearly)">列＝上方所選的趨勢單位（每月／每季／每年）</span>
+    </div>
+    <div id="profile-body"></div>
+  </div>
 
   <!-- DEPT -->
   <div id="pane-dept" class="pane hidden">
     <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
       <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
         <p class="text-sm font-semibold text-slate-700 flex-1" id="dept-title">🏭 各部門明細</p>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="dv-cur"  onclick="setDeptView('cur')"  data-en="This period" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">本期明細</button>
+          <button id="dv-hist" onclick="setDeptView('hist')" data-en="Across periods" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">跨期間人數</button>
+        </div>
         <button onclick="exportCSV('dept')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
       </div>
       <div class="overflow-x-auto"><table class="w-full text-xs">
@@ -647,91 +670,157 @@ function renderDash(){
   });
 }
 
-function bar(label,n,max,color,extra){
-  return `<div class="flex items-center gap-2 mb-1.5">
-    <span class="w-24 text-[11px] text-slate-500 truncate">${esc(label)}</span>
-    <div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden">
-      <div class="h-full rounded" style="width:${max?n/max*100:0}%;background:${color}"></div></div>
-    <span class="w-10 text-right text-[11px] jmono">${n}</span>
-    <span class="w-12 text-right text-[10px] jmono text-slate-400">${extra||''}</span></div>`;
+let DIM='age', PVAL='n';
+function setDim(d){DIM=d;
+  ['age','tenure','gender','edu','prov','nat','mar'].forEach(k=>
+    qs('#dm-'+k).className=_btn(k===d,'violet'));
+  renderProfile();}
+function setPVal(v){PVAL=v;
+  qs('#pv-n').className=_btn(v==='n','sky');
+  qs('#pv-p').className=_btn(v==='p','sky');
+  renderProfile();}
+
+// 維度定義：回傳 {cats:[分類名], of:(row)=>分類名}
+function dimDef(rows,sd){
+  if(DIM==='age'){
+    const B=[['<20',a=>a<20],['20–24',a=>a>=20&&a<25],['25–29',a=>a>=25&&a<30],
+      ['30–34',a=>a>=30&&a<35],['35–39',a=>a>=35&&a<40],['40–49',a=>a>=40&&a<50],['50+',a=>a>=50]];
+    return {cats:B.map(b=>b[0]),
+      of:(r,d)=>{const a=r.age||(toDate(r.birth)?yearsBetween(toDate(r.birth),d):0);
+        if(!a||a<5||a>85)return null; const b=B.find(x=>x[1](a)); return b?b[0]:null;}};
+  }
+  if(DIM==='tenure'){
+    const B=[[T('<1 年','<1 yr'),t=>t<1],['1–2',t=>t>=1&&t<3],['3–5',t=>t>=3&&t<6],
+      ['6–9',t=>t>=6&&t<10],[T('10+ 年','10+ yr'),t=>t>=10]];
+    return {cats:B.map(b=>b[0]),
+      of:(r,d)=>{const j=toDate(r.join); if(!j)return null;
+        const t=yearsBetween(j,d); const b=B.find(x=>x[1](t)); return b?b[0]:null;}};
+  }
+  if(DIM==='gender')return {cats:[T('女 F','Female'),T('男 M','Male')],
+    of:r=>r.gender==='F'?T('女 F','Female'):r.gender==='M'?T('男 M','Male'):null};
+  const key={edu:'education',prov:'province',nat:'nationality',mar:'marital'}[DIM];
+  const cnt={};
+  rows.forEach(r=>{const v=(r[key]||'').trim(); if(v)cnt[v]=(cnt[v]||0)+1;});
+  const cats=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]);
+  return {cats, of:r=>{const v=(r[key]||'').trim(); return cats.includes(v)?v:(v?T('其他','Other'):null);},
+          extra:Object.keys(cnt).length>12?T('其他','Other'):null};
 }
+// 依趨勢單位把快照分組（同組取最新一份快照為代表）
+function periodGroups(){
+  const g={};
+  snapKeys().forEach(k=>{
+    const [y,m]=k.split('-').map(Number);
+    let gk,label;
+    if(TUNIT==='year'){gk=String(y);label=String(y);}
+    else if(TUNIT==='quarter'){const q=Math.floor((m-1)/3)+1;gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else{gk=k;label=`${MS[m-1]} ${y}`;}
+    if(!g[gk]||k>g[gk].snapKey) g[gk]={key:gk,label,snapKey:k};
+  });
+  return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);   // 新 → 舊
+}
+function snapFiltered(k){
+  const s=SNAPS[k]; if(!s)return [];
+  const d=qs('#sel-dept')?qs('#sel-dept').value:'';
+  const sc=qs('#sel-sec')?qs('#sel-sec').value:'';
+  const g=qs('#sel-gender')?qs('#sel-gender').value:'';
+  return s.rows.filter(r=>(!d||r.dept===d)&&(!sc||r.section===sc)&&(!g||r.gender===g));
+}
+
 function renderProfile(){
-  const rows=filtered();
-  const tot=rows.length||1;
-  // 年齡層
-  const ageB=[['<20',a=>a<20],['20–24',a=>a>=20&&a<25],['25–29',a=>a>=25&&a<30],
-    ['30–34',a=>a>=30&&a<35],['35–39',a=>a>=35&&a<40],['40–49',a=>a>=40&&a<50],['50+',a=>a>=50]];
-  const ageC=ageB.map(([l,f])=>({l,n:rows.filter(r=>f(ageOf(r))).length}));
-  // 年資層
-  const tenB=[['<1',t=>t<1],['1–2',t=>t>=1&&t<3],['3–5',t=>t>=3&&t<6],
-    ['6–9',t=>t>=6&&t<10],['10+',t=>t>=10]];
-  const tenC=tenB.map(([l,f])=>({l,n:rows.filter(r=>f(tenureOf(r))).length}));
-  // 國籍 / 籍貫
-  const natC={},provC={};
-  rows.forEach(r=>{const n=r.nationality||'—';natC[n]=(natC[n]||0)+1;
-    const p=r.province||'—';if(p!=='—')provC[p]=(provC[p]||0)+1;});
-  const provTop=Object.entries(provC).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const eduC={},marC={};
-  rows.forEach(r=>{ if(r.education)eduC[r.education]=(eduC[r.education]||0)+1;
-                    if(r.marital)marC[r.marital]=(marC[r.marital]||0)+1; });
-  const eduTop=Object.entries(eduC).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const marTop=Object.entries(marC).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const maxE=Math.max(1,...eduTop.map(x=>x[1])), maxM=Math.max(1,...marTop.map(x=>x[1]));
-  const fem=rows.filter(r=>r.gender==='F').length;
-  const maxA=Math.max(1,...ageC.map(x=>x.n)), maxT=Math.max(1,...tenC.map(x=>x.n));
-  const maxP=Math.max(1,...provTop.map(x=>x[1]));
+  const groups=periodGroups();
+  const dimName={age:T('年齡層','Age band'),tenure:T('年資','Tenure'),gender:T('性別','Gender'),
+    edu:T('學歷','Education'),prov:T('籍貫','Province'),nat:T('國籍','Nationality'),mar:T('婚姻狀況','Marital')}[DIM];
+  // 分類清單取自全部快照（欄位才會一致）
+  const allRows=[]; snapKeys().forEach(k=>allRows.push(...snapFiltered(k)));
+  const def=dimDef(allRows,snapDate());
+  let cats=def.cats.slice();
+  if(def.extra&&!cats.includes(def.extra))cats.push(def.extra);
+
+  // 逐期統計
+  const data=groups.map(g=>{
+    const rows=snapFiltered(g.snapKey);
+    const [y,m]=g.snapKey.split('-').map(Number);
+    const d=new Date(y,(m||12)-1,28);
+    const c={}; cats.forEach(x=>c[x]=0);
+    let unk=0;
+    rows.forEach(r=>{const k=def.of(r,d); if(k&&c[k]!==undefined)c[k]++; else unk++;});
+    return {...g,n:rows.length,c,unk};
+  });
+  const hasData=cats.length&&data.some(x=>x.n);
+  const cell=(v,n)=>PVAL==='p'?(n?((v/n*100).toFixed(1)+'%'):'—'):(v||'<span class="text-slate-200">—</span>');
+
+  // 本期（ACTIVE 所屬組）明細
+  const cur=data.find(x=>x.snapKey===ACTIVE)||data[0];
 
   qs('#profile-body').innerHTML=`
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
-      <p class="text-sm font-semibold text-slate-700 mb-1">${T('年齡層分布','Age Distribution')}</p>
-      <p class="text-[11px] text-slate-400 mb-3">${T('以快照時點計算','at snapshot date')}</p>
-      ${ageC.map(x=>bar(x.l,x.n,maxA,'#0ea5e9cc',(x.n/tot*100).toFixed(0)+'%')).join('')}
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden mb-4">
+    <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+      <p class="text-sm font-semibold text-slate-700 flex-1">${T(`${dimName} × 期間交叉表`,`${dimName} by Period`)}</p>
+      <span class="text-[11px] text-slate-400">${T(`${groups.length} 個期間 · ${PVAL==='p'?'占比':'人數'}`,`${groups.length} periods · ${PVAL==='p'?'percent':'count'}`)}</span>
+      <button onclick="exportCSV('profile')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
     </div>
-    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
-      <p class="text-sm font-semibold text-slate-700 mb-1">${T('年資分布','Tenure Distribution')}</p>
-      <p class="text-[11px] text-slate-400 mb-3">${T('自到職日至快照時點','from join date to snapshot')}</p>
-      ${tenC.map(x=>bar(x.l+T(' 年',' yr'),x.n,maxT,'#10b981cc',(x.n/tot*100).toFixed(0)+'%')).join('')}
+    <div class="px-4 py-2 text-[11px] text-slate-500 bg-slate-50 border-b border-slate-100">
+      ${T('每一列是一個期間（依上方「趨勢」單位分組，同期間取最新一份名冊）。點列可切換至該期間。','Each row is a period; click a row to switch to that snapshot.')}
+      ${TUNIT!=='month'?T('　同一組內若有多份名冊，取最新的那份。','')/**/:''}
     </div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        <th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">${T('期間','Period')}</th>
+        <th class="px-3 py-2 text-right font-semibold">${T('總人數','Total')}</th>
+        ${cats.map(c=>`<th class="px-3 py-2 text-right font-semibold whitespace-nowrap">${esc(c)}</th>`).join('')}
+        <th class="px-3 py-2 text-right font-semibold text-slate-400">${T('未填','N/A')}</th>
+      </tr></thead>
+      <tbody>${hasData?data.map(x=>{
+        const act=x.snapKey===ACTIVE;
+        return `<tr onclick="jumpSnap('${x.snapKey}')" class="border-b border-slate-50 cursor-pointer ${act?'bg-violet-50/60':'hover:bg-slate-50'}">
+          <td class="px-3 py-2 font-semibold sticky left-0 ${act?'bg-violet-50 text-violet-700':'bg-white text-slate-700'}">${x.label}${act?' ◀':''}</td>
+          <td class="px-3 py-2 text-right jmono font-semibold">${int(x.n)}</td>
+          ${cats.map(c=>`<td class="px-3 py-2 text-right jmono">${cell(x.c[c],x.n)}</td>`).join('')}
+          <td class="px-3 py-2 text-right jmono text-slate-300">${x.unk||'—'}</td></tr>`;}).join('')
+        :`<tr><td colspan="${cats.length+3}" class="px-3 py-10 text-center text-slate-400">${T('此維度在已匯入的名冊中沒有資料（例如「學歷」僅 2014–2016 版本有）','No data for this dimension in the imported rosters')}</td></tr>`}
+      </tbody>
+      ${hasData?`<tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr>
+        <td class="px-3 py-2 sticky left-0 bg-slate-50">${T('全期合計','ALL')}</td>
+        <td class="px-3 py-2 text-right jmono">${int(data.reduce((a,x)=>a+x.n,0))}</td>
+        ${cats.map(c=>{const v=data.reduce((a,x)=>a+x.c[c],0),n=data.reduce((a,x)=>a+x.n,0);
+          return `<td class="px-3 py-2 text-right jmono">${cell(v,n)}</td>`;}).join('')}
+        <td class="px-3 py-2 text-right jmono">${data.reduce((a,x)=>a+x.unk,0)||'—'}</td></tr></tfoot>`:''}
+    </table></div>
   </div>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
-      <p class="text-sm font-semibold text-slate-700 mb-1">${T('性別與國籍','Gender & Nationality')}</p>
-      <p class="text-[11px] text-slate-400 mb-3">${T('本快照','this snapshot')}</p>
-      <div class="flex gap-3 mb-4">
-        <div class="flex-1 bg-pink-50 border border-pink-100 rounded-lg p-3 text-center">
-          <p class="text-[11px] text-pink-500">${T('女性 Female','Female')}</p>
-          <p class="text-xl font-bold jmono text-pink-600 mt-1">${fem}</p>
-          <p class="text-[11px] text-slate-400">${(fem/tot*100).toFixed(1)}%</p></div>
-        <div class="flex-1 bg-sky-50 border border-sky-100 rounded-lg p-3 text-center">
-          <p class="text-[11px] text-sky-500">${T('男性 Male','Male')}</p>
-          <p class="text-xl font-bold jmono text-sky-600 mt-1">${rows.length-fem}</p>
-          <p class="text-[11px] text-slate-400">${((rows.length-fem)/tot*100).toFixed(1)}%</p></div>
-      </div>
-      ${Object.entries(natC).sort((a,b)=>b[1]-a[1]).slice(0,6)
-        .map(([k,v])=>bar(k,v,tot,'#7c3aedcc',(v/tot*100).toFixed(0)+'%')).join('')}
+
+  ${cur?`<div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100">
+      <p class="text-sm font-semibold text-slate-700">${T(`本期明細 — ${cur.label}`,`Current period — ${cur.label}`)}</p>
+      <p class="text-[11px] text-slate-400 mt-0.5">${T(`${dimName} 各級距的人數、占比與累計占比`,`Count, share and cumulative share`)}</p>
     </div>
-    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
-      <p class="text-sm font-semibold text-slate-700 mb-1">${T('學歷分布','By Education')}</p>
-      <p class="text-[11px] text-slate-400 mb-3">${eduTop.length?T('本快照','this snapshot'):T('此格式無學歷欄位（2014–2016 版本才有）','Not available in this format')}</p>
-      ${eduTop.map(([k,v])=>bar(k,v,maxE,'#6366f1cc',(v/tot*100).toFixed(0)+'%')).join('')
-        ||`<p class="text-xs text-slate-400 py-6 text-center">${T('此格式無「Education」欄位','No education field in this format')}</p>`}
-      ${marTop.length?`<div class="mt-4 pt-3 border-t border-slate-100">
-        <p class="text-[12px] font-semibold text-slate-600 mb-2">${T('婚姻狀況','Marital Status')}</p>
-        ${marTop.map(([k,v])=>bar(k,v,maxM,'#14b8a6cc',(v/tot*100).toFixed(0)+'%')).join('')}</div>`:''}
-    </div>
-    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
-      <p class="text-sm font-semibold text-slate-700 mb-1">${T('籍貫分布','By Province')}</p>
-      <p class="text-[11px] text-slate-400 mb-3">${provTop.length?T('前 10 省份','Top 10'):T('本快照無籍貫欄位（舊版格式才有）','Not available in this format')}</p>
-      ${provTop.map(([k,v])=>bar(k,v,maxP,'#f59e0bcc',(v/tot*100).toFixed(0)+'%')).join('')
-        ||`<p class="text-xs text-slate-400 py-6 text-center">${T('此格式無「出生地」欄位','No place-of-birth field in this format')}</p>`}
-    </div>
-  </div>`;
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        ${[dimName,T('人數','Count'),T('占比','Share'),T('累計占比','Cumulative'),T('分布','Bar')]
+          .map((h,i)=>`<th class="px-3 py-2 ${i&&i<4?'text-right':'text-left'} font-semibold">${h}</th>`).join('')}
+      </tr></thead><tbody>
+      ${(()=>{let cum=0;const mx=Math.max(1,...cats.map(c=>cur.c[c]));
+        return cats.map(c=>{const v=cur.c[c];cum+=v;
+          return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="px-3 py-2 font-medium text-slate-700">${esc(c)}</td>
+            <td class="px-3 py-2 text-right jmono font-semibold">${v}</td>
+            <td class="px-3 py-2 text-right jmono">${cur.n?(v/cur.n*100).toFixed(1):0}%</td>
+            <td class="px-3 py-2 text-right jmono text-slate-400">${cur.n?(cum/cur.n*100).toFixed(1):0}%</td>
+            <td class="px-3 py-2"><div class="bg-slate-100 rounded h-3 w-40 overflow-hidden">
+              <div class="h-full bg-violet-500/70 rounded" style="width:${v/mx*100}%"></div></div></td></tr>`;}).join('');})()}
+      </tbody></table></div>
+  </div>`:''}`;
 }
 
+let DEPT_VIEW='cur';
+function setDeptView(v){DEPT_VIEW=v;
+  qs('#dv-cur').className=_btn(v==='cur','violet');
+  qs('#dv-hist').className=_btn(v==='hist','violet');
+  renderDept();}
+
 function renderDept(){
-  const rows=filtered();
   qs('#dept-title').textContent=T(`🏭 各${groupName()}明細`,`🏭 By ${groupName()}`);
+  if(DEPT_VIEW==='hist'){ renderDeptHist(); return; }
+  const rows=filtered();
   const gm={};
   rows.forEach(r=>{
     const k=groupVal(r);
@@ -771,6 +860,34 @@ function renderDept(){
     <td class="px-3 py-2 text-right jmono">${avg(A)}</td>
     <td class="px-3 py-2 text-right jmono">${avg(TN)}</td>
     <td class="px-3 py-2 text-right jmono">${rows.filter(r=>r.join&&+r.join.slice(0,4)===+ACTIVE.slice(0,4)).length}</td>`;
+}
+
+// 跨期間：列＝分組（部門/組別/職務/籍貫），欄＝各期間人數
+function renderDeptHist(){
+  const groups=periodGroups();
+  const keys=new Set();
+  const per=groups.map(g=>{
+    const rows=snapFiltered(g.snapKey), m={};
+    rows.forEach(r=>{const k=groupVal(r);m[k]=(m[k]||0)+1;keys.add(k);});
+    return {...g,m,n:rows.length};
+  });
+  const cats=[...keys].sort((a,b)=>{
+    const sa=per.reduce((x,p)=>x+(p.m[a]||0),0), sb=per.reduce((x,p)=>x+(p.m[b]||0),0);
+    return sb-sa;});
+  qs('#dept-thead').innerHTML=`<th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">${groupName()}</th>`
+    +per.map(p=>`<th class="px-3 py-2 text-right font-semibold whitespace-nowrap ${p.snapKey===ACTIVE?'text-violet-700':''}">${p.label}</th>`).join('')
+    +`<th class="px-3 py-2 text-right font-semibold text-slate-400">${T('最新增減','Δ latest')}</th>`;
+  qs('#dept-tbody').innerHTML=cats.map(c=>{
+    const vals=per.map(p=>p.m[c]||0);
+    const d=vals.length>1?vals[0]-vals[1]:null;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium text-slate-700 sticky left-0 bg-white">${esc(c)}</td>
+      ${per.map((p,i)=>`<td class="px-3 py-2 text-right jmono ${p.snapKey===ACTIVE?'bg-violet-50/60 font-semibold':''} ${vals[i]?'':'text-slate-200'}">${vals[i]||'—'}</td>`).join('')}
+      <td class="px-3 py-2 text-right jmono ${d==null?'text-slate-300':d>0?'text-emerald-600':d<0?'text-rose-600':'text-slate-400'}">${d==null?'—':(d>0?'+':'')+d}</td></tr>`;
+  }).join('')||`<tr><td colspan="${per.length+2}" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  qs('#dept-tfoot').innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">${T('合計','TOTAL')}</td>`
+    +per.map(p=>`<td class="px-3 py-2 text-right jmono">${int(p.n)}</td>`).join('')
+    +`<td class="px-3 py-2 text-right jmono">${per.length>1?((per[0].n-per[1].n>0?'+':'')+(per[0].n-per[1].n)):'—'}</td>`;
 }
 
 function renderRoster(){
@@ -1100,7 +1217,7 @@ async function cloudDownload(){
 
 // ━━━━ 其他 ━━━━
 function exportCSV(which){
-  const tbl=which==='dept'?qs('#pane-dept table'):qs('#pane-roster table');
+  const tbl=which==='dept'?qs('#pane-dept table'):which==='profile'?qs('#pane-profile table'):qs('#pane-roster table');
   const rows=[...tbl.querySelectorAll('tr')].map(tr=>
     [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
   const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
