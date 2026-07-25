@@ -929,12 +929,14 @@ function parseSheet(ws){
       // Advance deduction: col18 (main), col68 also carries "Advance Pay"
       const advDeduction = Math.abs(N(row[18]));
       const advGiven     = Math.abs(pickNonZero(row[68], row[18]));
-      // NSSF: primary col33, fallback col70 / col85 (extended summary columns)
-      const nssf  = Math.abs(pickNonZero(row[33], row[70], row[85]));
-      // Union: primary col34, fallback col69 (extended "Union" column)
-      const union = Math.abs(pickNonZero(row[34], row[69]));
-      // Tax: primary col35, fallback col66 (Withholding Tax) / col86
-      const tax   = Math.abs(pickNonZero(row[35], row[66], row[86]));
+      // ── 扣項：欄 33/34/35 為權威欄位 ──────────────────────
+      //  ⚠ 舊版曾對 NSSF/Union/Tax 設「延伸欄回退」(col66/69/70/85/86)，
+      //     但 col70 與 col86 存放的是 NSSF 的複本。當某人稅額本來就是 0 時，
+      //     回退會把 NSSF 值誤填成稅額，造成整批 −5.96 的假異常。
+      //     實檔驗證（May+Jun 全廠）顯示 33/34/35 永遠正確，故不再回退。
+      const nssf  = Math.abs(N(row[33]));
+      const union = Math.abs(N(row[34]));
+      const tax   = Math.abs(N(row[35]));
 
       // ── 收入組成（B 列為權威列）──
       // col10 = 基本+年資+技術+職務+語言 的合計（表內已算好，少數例外時回退為分項加總）
