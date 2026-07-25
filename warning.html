@@ -1,920 +1,1182 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>VRT Warning Record System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚠️ Warning Management | AC-HRA-PAY</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
-:root{
-  --bg:#f0f2f5;--white:#fff;--bd:#d0d5dd;--bd2:#e4e7ec;
-  --acc:#b91c1c;--acc2:#991b1b;--abg:#fef2f2;
-  --amb:#d97706;--amb2:#b45309;
-  --tx:#111827;--tx2:#374151;--dim:#6b7280;
-  --grn:#16a34a;--red:#dc2626;
-  --col:#f8fafc;--hdr:#1e293b;--htx:#f8fafc;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter','Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
-.topbar{background:var(--hdr);color:var(--htx);padding:10px 14px;display:flex;align-items:center;gap:9px;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.tb-icon{font-size:20px}
-.tb-title{font-size:13px;font-weight:700;flex:1}
-.tb-sub{font-size:9px;color:#94a3b8;font-family:'JetBrains Mono',monospace;margin-top:1px}
-.tb-r{display:flex;gap:4px;align-items:center;flex-shrink:0}
-.lbtn{background:transparent;border:1px solid #475569;border-radius:4px;color:#94a3b8;font-size:10px;font-weight:700;padding:3px 6px;cursor:pointer}
-.lbtn.on{background:var(--acc);border-color:var(--acc);color:#fff}
-.ibtn{background:transparent;border:1px solid #475569;border-radius:4px;color:#94a3b8;font-size:13px;padding:3px 8px;cursor:pointer}
-.ibtn:hover{background:#334155;color:#fff}
-.tabs{display:flex;background:var(--white);border-bottom:2px solid var(--bd2);padding:0 12px;overflow-x:auto}
-.tab{padding:9px 12px;font-size:12px;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .15s;flex-shrink:0}
-.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
-.tc{display:none}.tc.on{display:block}
-.main{padding:10px;max-width:1100px;margin:0 auto}
-.strip{background:var(--white);border:1px solid var(--bd2);border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--grn);animation:pu 1.5s infinite;flex-shrink:0}
-@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
-.tlive{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px}
-.sec{background:var(--white);border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:10px}
-.sh{background:var(--col);border-bottom:1px solid var(--bd2);padding:7px 12px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#7f1d1d;display:flex;align-items:center;gap:6px}
-.g4{display:grid;grid-template-columns:1fr 1fr 1fr 130px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr}
-.g2{display:grid;grid-template-columns:1fr 1fr}
-.ic{border-right:1px solid var(--bd2);display:flex;flex-direction:column}
-.ic:last-child{border-right:none}
-.cl{font-size:10px;font-weight:600;color:var(--dim);background:var(--col);padding:3px 10px;border-bottom:1px solid var(--bd2);display:flex;justify-content:space-between;align-items:center}
-.req{color:var(--red)}
-.ci{border:none;outline:none;font-family:'Inter','Noto Sans TC',sans-serif;font-size:13px;color:var(--tx);background:transparent;padding:7px 10px;width:100%;transition:background .15s}
-.ci:focus{background:var(--abg)}
-.ci::placeholder{color:#c5cdd8;font-size:12px}
-select.ci{cursor:pointer}
-textarea.ci{resize:vertical;min-height:68px;width:100%;border:none;display:block;padding:8px 10px;font-size:13px;font-family:'Inter','Noto Sans TC',sans-serif;outline:none}
-textarea.ci:focus{background:var(--abg)}
-.talert{display:none;background:#fef2f2;border:2px solid var(--red);border-radius:8px;padding:12px 14px;margin-bottom:10px}
-.talert.on{display:flex;gap:10px;align-items:flex-start;animation:sh .4s}
-@keyframes sh{0%,100%{transform:translateX(0)}33%{transform:translateX(-4px)}66%{transform:translateX(4px)}}
-.tai{font-size:28px;flex-shrink:0}
-.tat{font-size:13px;font-weight:700;color:#991b1b;margin-bottom:3px}
-.tab2{font-size:12px;color:#b91c1c;line-height:1.5}
-.bpr{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-family:'Inter','Noto Sans TC',sans-serif;font-size:13px;font-weight:700;border:none;border-radius:7px;padding:10px 16px;cursor:pointer;transition:opacity .2s}
-.bpr:hover{opacity:.9}.bpr:disabled{opacity:.45;cursor:not-allowed}
-.bsub{width:100%;font-size:14px;padding:13px;margin-bottom:14px;border-radius:8px}
-.bgrn{background:linear-gradient(135deg,#16a34a,#15803d)}
-.bamb{background:linear-gradient(135deg,var(--amb),var(--amb2))}
-.bgry{background:#e2e8f0;border:none;border-radius:7px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;color:var(--dim)}
-.bsm{font-size:11px;padding:5px 10px;border-radius:5px}
-.bdng{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer}
-.bedt{background:linear-gradient(135deg,var(--amb),var(--amb2));color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer}
-.scard{display:none;background:var(--white);border:1px solid var(--bd);border-radius:10px;padding:32px 20px;text-align:center;margin-bottom:14px}
-.si{font-size:50px;margin-bottom:10px}.st{font-size:17px;font-weight:700;margin-bottom:5px}
-.ss{font-size:12px;color:var(--dim);line-height:1.7}
-.sts{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--acc);background:var(--abg);border:1px solid #fca5a5;border-radius:6px;padding:4px 12px;display:inline-block}
-.fbar{background:var(--white);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
-.fg{display:flex;flex-direction:column;gap:3px}
-.fl{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
-.fi{border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px;font-family:'Inter','Noto Sans TC',sans-serif;color:var(--tx);background:var(--white);outline:none}
-.fi:focus{border-color:var(--acc)}
-select.fi{cursor:pointer;min-width:88px}
-.srow{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.sc{background:var(--white);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;flex:1;min-width:80px}
-.slbl{font-size:10px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
-.sval{font-size:22px;font-weight:700}
-.rw{background:var(--white);border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:10px}
-.rh{background:var(--col);border-bottom:1px solid var(--bd2);padding:7px 12px;font-size:10px;font-weight:700;letter-spacing:.8px;color:#64748b;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
-.rscr{overflow-x:auto}
-.rt{width:100%;border-collapse:collapse;font-size:11px;min-width:860px}
-.rt th{background:var(--col);padding:5px 8px;text-align:left;font-weight:700;color:var(--dim);border-bottom:2px solid var(--bd);font-size:10px;white-space:nowrap}
-.rt td{padding:5px 8px;border-bottom:1px solid var(--bd2);vertical-align:middle}
-.rt tr:last-child td{border-bottom:none}
-.rt tr:nth-child(even) td{background:#fafafa}
-.rt tr:hover td{background:var(--abg)}
-.rt tr.exp td{opacity:.5}
-.bge{display:inline-block;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;white-space:nowrap}
-.lV{background:#dbeafe;color:#1e40af}.lS{background:#fef9c3;color:#713f12}.lM{background:#ffedd5;color:#9a3412}
-.lB{background:#fee2e2;color:#991b1b}.lF{background:#fce7f3;color:#9d174d}.lSu{background:#f3e8ff;color:#6b21a8}
-.sP{background:#fef3c7;color:#92400e}.sA{background:#dcfce7;color:#166534}.sR{background:#fee2e2;color:#991b1b}
-.etag{font-size:9px;background:#e2e8f0;color:#64748b;border-radius:3px;padding:1px 4px;margin-left:3px}
-.cg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.cb{background:var(--white);border:1px solid var(--bd);border-radius:8px;overflow:hidden}
-.ch{background:var(--col);border-bottom:1px solid var(--bd2);padding:7px 12px;font-size:10px;font-weight:700;color:#7f1d1d;text-transform:uppercase;letter-spacing:.8px}
-.cbdy{padding:10px 12px}
-.br2{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.blbl{font-size:11px;color:var(--tx2);width:110px;flex-shrink:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.btr{flex:1;background:#f1f5f9;border-radius:4px;height:17px;overflow:hidden}
-.bfil{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:5px;font-size:10px;font-weight:700;color:#fff;transition:width .5s}
-.bcnt{font-size:11px;font-weight:700;color:var(--dim);width:28px;text-align:right;flex-shrink:0}
-.dz{border:2px dashed var(--bd);border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--white);margin-bottom:10px}
-.dz:hover,.dz.drag{border-color:var(--acc);background:var(--abg)}
-.dzi{font-size:38px;margin-bottom:8px}
-.dzt{font-size:14px;font-weight:700;margin-bottom:4px}
-.dzs{font-size:11px;color:var(--dim)}
-.pwrap{background:var(--white);border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:10px}
-.ptbl{width:100%;border-collapse:collapse;font-size:11px;min-width:700px}
-.ptbl th{background:#fef2f2;padding:5px 8px;text-align:left;font-weight:700;color:#991b1b;border-bottom:2px solid #fca5a5;font-size:10px;white-space:nowrap}
-.ptbl td{padding:4px 8px;border-bottom:1px solid #fee2e2}
-.ptbl tr:nth-child(even) td{background:#fff5f5}
-.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;align-items:center;justify-content:center;padding:16px}
-.ov.on{display:flex}
-.mo{background:var(--white);border-radius:12px;padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
-.mt{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
-.mclose{background:none;border:none;font-size:22px;cursor:pointer;color:var(--dim);line-height:1}
-.mf{margin-bottom:11px}
-.mf label{font-size:11px;font-weight:700;color:var(--dim);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
-.mf input,.mf select,.mf textarea{width:100%;border:1px solid var(--bd);border-radius:6px;padding:8px 10px;font-size:13px;font-family:'Inter','Noto Sans TC',sans-serif;outline:none}
-.mf input:focus,.mf select:focus,.mf textarea:focus{border-color:var(--acc)}
-.mf textarea{resize:vertical;min-height:60px}
-.mf-note{font-size:11px;color:var(--dim);margin-top:4px}
-.mac{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
-.cstep{background:var(--col);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.8;color:var(--tx2)}
-.cstep b{color:var(--tx)}.cstep code{background:#e2e8f0;border-radius:3px;padding:1px 5px;font-family:'JetBrains Mono',monospace;font-size:11px}
-.emp-st{text-align:center;padding:40px 20px;color:var(--dim)}
-.emp-ic{font-size:36px;margin-bottom:8px}
-.lding{text-align:center;padding:36px;color:var(--dim);font-size:13px}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;border-radius:7px;padding:9px 18px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;max-width:90vw;text-align:center}
-#toast.on{opacity:1}
-.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;margin-right:5px;vertical-align:middle}
-@keyframes sp{to{transform:rotate(360deg)}}
-.ptitle,.psub{display:none}
-@media print{
-  .topbar,.tabs,.fbar,.rh .bpr,.bpr,.bgry,#toast{display:none!important}
-  body{background:#fff}.rw{border:none}
-  .rt{font-size:10px}.rt th,.rt td{padding:4px 6px}
-  .ptitle,.psub{display:block!important}
-  .ptitle{font-size:16px;font-weight:700;text-align:center;margin-bottom:4px}
-  .psub{font-size:10px;color:#555;text-align:center;margin-bottom:12px}
-}
-@media(max-width:640px){
-  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}
-  .fbar{flex-direction:column;align-items:stretch}.fg{width:100%}
-  .cg{grid-template-columns:1fr}
-}
+  body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
+  .jmono{font-family:'IBM Plex Mono',monospace;}
+  .tab-active{border-bottom:2.5px solid #d97706;color:#b45309;font-weight:700;}
+  .tab-inactive{border-bottom:2.5px solid transparent;color:#64748b;}
+  .ch300{height:300px;}
+  .anim{animation:fade .35s ease both;} .anim-1{animation-delay:.05s;} .anim-2{animation-delay:.1s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  @media print{.no-print{display:none!important}}
+  @media (max-width:640px){header select{max-width:130px;font-size:12px}header button{font-size:11px;padding:6px 8px}table{font-size:11px}}
 </style>
 </head>
-<body>
+<body class="text-slate-800">
 
-<div class="topbar">
-  <div class="tb-icon">⚠️</div>
-  <div style="flex:1">
-    <div class="tb-title" id="tt">VRT 警告紀錄系統</div>
-    <div class="tb-sub" id="cfg-bar">⚙️ 點右上角齒輪完成系統設定</div>
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold text-lg shrink-0">⚠️</div>
+    <div class="mr-2">
+      <h1 class="text-base font-bold leading-tight">Warning Management</h1>
+      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+    </div>
+    <div class="flex items-center gap-1.5 ml-auto flex-wrap">
+      <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
+        <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端 Sheet"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="hidden md:inline" data-en="Upload">上傳</span></button>
+        <span class="w-px h-4 bg-sky-200"></span>
+        <button id="btn-cloud-down" onclick="cloudDownload()" title="從雲端下載"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span class="hidden md:inline" data-en="Download">下載</span></button>
+      </div>
+      <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
+        ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="goTab('apply')" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition">
+        📝 <span data-en="New Warning">提出警告</span></button>
+      <button id="btn-admin" onclick="toggleAdmin()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+        🔒 <span data-en="Admin">管理</span></button>
+      <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">中/EN</button>
+    </div>
   </div>
-  <div class="tb-r">
-    <button class="lbtn on" onclick="setLang('zh')">中</button>
-    <button class="lbtn" onclick="setLang('en')">EN</button>
-    <button class="lbtn" onclick="setLang('km')">ខ្មែរ</button>
-    
-    <button class="ibtn" onclick="openCfg()" title="設定">⚙️</button>
+</header>
+
+<div class="bg-gradient-to-r from-amber-50 via-white to-rose-50 border-b border-slate-100 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3">
+    <label id="dz-smart" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-amber-300 rounded-xl px-4 py-3 cursor-pointer hover:border-amber-500 hover:bg-amber-50/60 transition group">
+      <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 group-hover:bg-amber-200 transition"><span class="text-xl">🪄</span></div>
+      <div class="flex-1 min-w-[220px]">
+        <p class="text-sm font-bold text-amber-800" data-en="Smart Import — drop or click to select">智慧匯入 — 拖進來或點擊選檔</p>
+        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Matrix-style warning records (one sheet per year, dates in level columns) are flattened automatically. Historical records are marked approved.">
+          矩陣式警告記錄表（每年一張分頁、等級欄填日期）會自動攤平成一筆一筆記錄。歷史資料一律標為已核可。</p>
+        <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
+      </div>
+      <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-600 text-white shrink-0 group-hover:bg-amber-700 transition" data-en="Choose files">選擇檔案</span>
+      <input type="file" accept=".xlsx,.xls,.xlsm" multiple class="hidden" onchange="smartImport(this)">
+    </label>
+    <div id="smart-report" class="hidden mt-2 text-[11px] bg-white border border-slate-200 rounded-lg p-2.5 space-y-1"></div>
   </div>
 </div>
 
-<div class="tabs">
-  <div class="tab on" id="tab-form"    onclick="goTab('form')">📋 <span id="tl-f">申請</span></div>
-  <div class="tab"   id="tab-rec"     onclick="goTab('rec')">📂 <span id="tl-r">紀錄</span></div>
-  <div class="tab"   id="tab-stat"    onclick="goTab('stat')">📊 <span id="tl-s">統計</span></div>
-  <div class="tab" id="tab-imp" onclick="goTab('imp')">📥 <span id="tl-i">匯入</span></div>
-</div>
-
-<div class="main">
-
-<!-- ██ TAB 1: 申請表單 ██ -->
-<div id="tc-form" class="tc on">
-  <div class="strip">
-    <div class="tlive"><div class="dot"></div><span id="ts-now">--</span></div>
-    <span style="font-size:11px;color:var(--dim)" id="hint">* 為必填，提交後自動傳至 Telegram 審批群組</span>
-  </div>
-
-  <div class="talert" id="ta">
-    <div class="tai">🚨</div>
-    <div><div class="tat" id="ta-t">⚠️ 系統警示：建議考慮終止合約</div><div class="tab2" id="ta-b">有效大過/最後警告累積 3 次以上</div></div>
-  </div>
-
-  <div class="sec">
-    <div class="sh">👤 <span id="h-a">申請人資訊</span></div>
-    <div class="g4">
-      <div class="ic"><div class="cl"><span id="l-ap">申請人</span><span class="req">*</span></div><input class="ci" id="f-ap" placeholder="Your name" maxlength="50"></div>
-      <div class="ic"><div class="cl"><span id="l-ad">申請人部門</span><span class="req">*</span></div>
-        <select class="ci" id="f-ad"><option value="">-- Select --</option>
-          <option>生產部 Sewing</option><option>裁剪部 Cutting</option><option>QC</option>
-          <option>包裝部 Packing</option><option>倉庫 Warehouse</option><option>管理部 Admin/HR</option>
-          <option>維修部 Maintenance</option><option>其他 Others</option></select></div>
-      <div class="ic"><div class="cl"><span id="l-id2">發生日期</span><span class="req">*</span></div><input class="ci" id="f-dt" type="date"></div>
-      <div class="ic"><div class="cl"><span id="l-ts2">提交時間</span></div><input class="ci" id="f-ts" readonly style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim)"></div>
-    </div>
-  </div>
-
-  <div class="sec">
-    <div class="sh">🪪 <span id="h-e">被警告員工資訊</span></div>
-    <div class="g4">
-      <div class="ic"><div class="cl"><span id="l-en">員工姓名</span><span class="req">*</span></div><input class="ci" id="f-en" placeholder="Full name" maxlength="60" oninput="sched()"></div>
-      <div class="ic"><div class="cl"><span id="l-ei">Factory ID</span></div><input class="ci" id="f-ei" placeholder="e.g. 1427" maxlength="20" oninput="sched()"></div>
-      <div class="ic"><div class="cl"><span id="l-ed">員工部門</span><span class="req">*</span></div>
-        <select class="ci" id="f-ed"><option value="">-- Select --</option>
-          <option>生產部 Sewing</option><option>裁剪部 Cutting</option><option>QC</option>
-          <option>包裝部 Packing</option><option>倉庫 Warehouse</option><option>管理部 Admin/HR</option>
-          <option>維修部 Maintenance</option><option>其他 Others</option></select></div>
-      <div class="ic"><div class="cl"><span id="l-ep">職位</span></div><input class="ci" id="f-ep" placeholder="Operator/Supervisor" maxlength="50"></div>
-    </div>
-  </div>
-
-  <div class="sec">
-    <div class="sh">⚠️ <span id="h-w">警告詳情</span></div>
-    <div class="g3">
-      <div class="ic"><div class="cl"><span id="l-lv">警告等級</span><span class="req">*</span></div>
-        <select class="ci" id="f-lv" onchange="sched()"><option value="">-- Level --</option>
-          <option value="Verbal">💬 口頭 Verbal</option><option value="Small">🟡 小過 Small</option>
-          <option value="Medium">🟠 中過 Medium</option><option value="Big">🔴 大過 Big</option>
-          <option value="Final">⛔ 最後 Final</option><option value="Suspend">🚫 停職 Suspend</option></select></div>
-      <div class="ic"><div class="cl"><span id="l-7d">曠工 ≥ 7 天</span></div>
-        <div style="padding:9px 10px;display:flex;align-items:center;gap:8px">
-          <input type="checkbox" id="f-7d" style="width:17px;height:17px;accent-color:var(--red);cursor:pointer" onchange="sched()">
-          <label for="f-7d" style="font-size:12px;cursor:pointer" id="l-7dl">是 → 觸發開除警示</label></div></div>
-      <div class="ic"><div class="cl"><span id="l-rk">備註</span></div><input class="ci" id="f-rk" placeholder="Optional" maxlength="200"></div>
-    </div>
-    <div style="border-top:1px solid var(--bd2)">
-      <div class="cl" style="padding:4px 10px"><span id="l-rs">警告理由</span><span class="req">*</span></div>
-      <textarea class="ci" id="f-rs" placeholder="描述違規行為 / Describe the violation..." maxlength="500" rows="3"></textarea>
-    </div>
-  </div>
-
-  <button class="bpr bsub" id="sub-btn" onclick="doSubmit()">📨 <span id="sub-lbl">提交警告申請</span></button>
-
-  <div class="scard" id="scard">
-    <div class="si" id="s-ic">✅</div>
-    <div class="st" id="s-ti">申請已送出！</div>
-    <div class="ss" id="s-su">已傳至 Telegram 審批群組，等待核可人審批。</div>
-    <div class="sts" id="s-ts2"></div>
-    <button class="bpr" onclick="resetForm()" style="margin-top:14px"><span id="s-ag">再提交一筆</span></button>
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-30 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button id="tab-dash"   onclick="goTab('dash')"   class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
+    <button id="tab-time"   onclick="goTab('time')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
+    <button id="tab-dept"   onclick="goTab('dept')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
+    <button id="tab-list"   onclick="goTab('list')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📋 Records">📋 記錄清單</button>
+    <button id="tab-emp"    onclick="goTab('emp')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="👤 By Employee">👤 員工累計</button>
+    <button id="tab-apply"  onclick="goTab('apply')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📝 New Warning">📝 提出警告</button>
   </div>
 </div>
 
+<main class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-4">
 
-<!-- ██ TAB 2: 紀錄查詢 ██ -->
-<div id="tc-rec" class="tc">
-  <div class="fbar">
-    <div class="fg"><div class="fl" id="fl-yr">年份</div><select class="fi" id="r-yr"><option value="">All</option></select></div>
-    <div class="fg"><div class="fl" id="fl-mo">月份</div>
-      <select class="fi" id="r-mo"><option value="">All</option>
-        <option value="01">1</option><option value="02">2</option><option value="03">3</option>
-        <option value="04">4</option><option value="05">5</option><option value="06">6</option>
-        <option value="07">7</option><option value="08">8</option><option value="09">9</option>
-        <option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
-    <div class="fg"><div class="fl" id="fl-dp">部門</div>
-      <select class="fi" id="r-dp"><option value="">All</option>
-        <option>生產部 Sewing</option><option>裁剪部 Cutting</option><option>QC</option>
-        <option>包裝部 Packing</option><option>倉庫 Warehouse</option><option>管理部 Admin/HR</option>
-        <option>維修部 Maintenance</option><option>其他 Others</option></select></div>
-    <div class="fg"><div class="fl" id="fl-lv">等級</div>
-      <select class="fi" id="r-lv"><option value="">All</option>
-        <option value="Verbal">Verbal</option><option value="Small">Small</option>
-        <option value="Medium">Medium</option><option value="Big">Big</option>
-        <option value="Final">Final</option><option value="Suspend">Suspend</option></select></div>
-    <div class="fg"><div class="fl" id="fl-st">狀態</div>
-      <select class="fi" id="r-st"><option value="">All</option>
-        <option value="待審核">⏳ Pending</option><option value="已核可">✅ Approved</option><option value="已退件">❌ Rejected</option></select></div>
-    <div class="fg"><div class="fl" id="fl-em">員工</div><input class="fi" id="r-em" placeholder="Name / ID" style="min-width:90px"></div>
-    <div class="fg"><div class="fl" id="fl-ex">失效</div>
-      <select class="fi" id="r-ex"><option value="false">顯示</option><option value="true">隱藏</option></select></div>
-    <button class="bpr bsm" id="r-qb" onclick="qRec()">🔍 <span id="r-ql">查詢</span></button>
+<div id="empty-state" class="flex flex-col items-center justify-center py-24 text-center">
+  <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">⚠️</span></div>
+  <p class="text-slate-400 font-medium" data-en="Import warning records or submit a new warning">匯入警告記錄，或直接提出新的警告申請</p>
+  <div class="flex gap-2 mt-4">
+    <button onclick="goTab('apply')" class="text-xs font-semibold px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition" data-en="📝 New Warning">📝 提出警告</button>
+    <button onclick="cloudDownload()" class="text-xs font-semibold px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition" data-en="☁ Load from cloud">☁ 從雲端載入</button>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="stepPeriod(-1)" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-amber-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
+      <select id="nav-period" onchange="jumpPeriod(this.value)"
+        class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200 min-w-[170px] text-center"></select>
+      <button onclick="stepPeriod(1)" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-amber-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
+      <span id="nav-hint" class="text-[11px] ml-1 text-slate-400"></span>
+      <select id="sel-dept" onchange="renderAll()" class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200 min-w-[150px]">
+        <option value="" data-en="All Departments">全部部門 All</option></select>
+      <select id="sel-level" onchange="renderAll()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200">
+        <option value="" data-en="All levels">全部等級 All</option></select>
+      <select id="sel-status" onchange="renderAll()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200">
+        <option value="" data-en="All status">全部狀態 All</option>
+        <option value="待審核" data-en="Pending">待審核 Pending</option>
+        <option value="已核可" data-en="Approved">已核可 Approved</option>
+        <option value="已退件" data-en="Rejected">已退件 Rejected</option>
+        <option value="__active" data-en="Active only">僅有效（未失效）</option>
+        <option value="__expired" data-en="Expired only">僅已失效</option>
+      </select>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14" data-en="Time">時間</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="cu-day"     onclick="setUnit('day')"     data-en="Daily"     class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+        <button id="cu-week"    onclick="setUnit('week')"    data-en="Weekly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+        <button id="cu-month"   onclick="setUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-amber-700 transition">每月</button>
+        <button id="cu-quarter" onclick="setUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
+        <button id="cu-year"    onclick="setUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+      </div>
+      <span id="scope-txt" class="text-[11px] text-slate-400 ml-auto"></span>
+    </div>
   </div>
 
-  <div class="srow" id="r-stats" style="display:none">
-    <div class="sc"><div class="slbl" id="sl-to">總計</div><div class="sval" id="sv-to">0</div></div>
-    <div class="sc"><div class="slbl" id="sl-ap">已核可</div><div class="sval" id="sv-ap" style="color:var(--grn)">0</div></div>
-    <div class="sc"><div class="slbl" id="sl-pe">待審核</div><div class="sval" id="sv-pe" style="color:var(--amb)">0</div></div>
-    <div class="sc"><div class="slbl" id="sl-rj">已退件</div><div class="sval" id="sv-rj" style="color:var(--red)">0</div></div>
-    <div class="sc"><div class="slbl" id="sl-ex">已失效</div><div class="sval" id="sv-ex" style="color:var(--dim)">0</div></div>
-  </div>
-
-  <div class="rw">
-    <div class="rh">
-      <span id="r-hd">警告紀錄列表</span>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <span id="r-cnt" style="font-size:10px;color:var(--dim)"></span>
-        <button class="bpr bsm" id="r-pb" onclick="window.print()">🖨️ <span id="r-pl">列印</span></button>
-        <button class="bpr bsm bgrn" id="r-eb" onclick="expExcel()">📥 <span id="r-el">匯出 Excel</span></button>
+  <!-- DASHBOARD -->
+  <div id="pane-dash" class="pane">
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="TOTAL">本期警告 TOTAL</p>
+        <p id="k-tot" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
+        <p id="k-tot-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="PENDING">待審核 PENDING</p>
+        <p id="k-pend" class="text-2xl font-bold jmono mt-1 text-rose-600">—</p>
+        <p id="k-pend-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="ACTIVE">目前有效 ACTIVE</p>
+        <p id="k-act" class="text-2xl font-bold jmono mt-1 text-orange-600">—</p>
+        <p id="k-act-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="STAFF INVOLVED">涉及人數 STAFF</p>
+        <p id="k-emp" class="text-2xl font-bold jmono mt-1 text-sky-600">—</p>
+        <p id="k-emp-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="REPEAT">重複違規 REPEAT</p>
+        <p id="k-rep" class="text-2xl font-bold jmono mt-1 text-violet-600">—</p>
+        <p id="k-rep-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="AT RISK">達終止門檻 AT RISK</p>
+        <p id="k-risk" class="text-2xl font-bold jmono mt-1 text-red-700">—</p>
+        <p id="k-risk-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Trend by Level">各等級趨勢</p>
+        <p id="trend-note" class="text-[11px] text-slate-400 mb-3"></p>
+        <div class="ch300"><canvas id="trend-chart"></canvas></div>
+      </div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="By Department">各部門警告數</p>
+        <p class="text-[11px] text-slate-400 mb-3" data-en="Top 15 · this period">本期間 · 前 15 名</p>
+        <div class="ch300"><canvas id="dept-chart"></canvas></div>
       </div>
     </div>
-    <div class="ptitle" id="pt">VRT Warning Records</div>
-    <div class="psub" id="ps"></div>
-    <div class="rscr">
-      <table class="rt" id="r-tbl">
-        <thead><tr>
-          <th id="th-dt">發生日期</th><th id="th-nm">員工</th><th id="th-id3">ID</th>
-          <th id="th-dp3">部門</th><th id="th-lv3">等級</th><th id="th-rs3">理由</th>
-          <th id="th-st3">狀態</th><th id="th-ex3">到期</th><th id="th-ap3">申請人</th>
-          <th id="th-ac">操作</th>
-        </tr></thead>
-        <tbody id="r-body">
-          <tr><td colspan="10" class="emp-st"><div class="emp-ic">🔍</div><div id="r-emp">請先設定 GAS 網址，再點查詢</div></td></tr>
-        </tbody>
-      </table>
-    </div>
   </div>
-</div>
 
-
-<!-- ██ TAB 3: 統計分析 ██ -->
-<div id="tc-stat" class="tc">
-  <div class="fbar">
-    <div class="fg"><div class="fl">年份</div><select class="fi" id="st-yr"><option value="">All</option></select></div>
-    <div class="fg"><div class="fl">部門</div>
-      <select class="fi" id="st-dp"><option value="">All</option>
-        <option>生產部 Sewing</option><option>裁剪部 Cutting</option><option>QC</option>
-        <option>包裝部 Packing</option><option>倉庫 Warehouse</option><option>管理部 Admin/HR</option>
-        <option>維修部 Maintenance</option><option>其他 Others</option></select></div>
-    <button class="bpr bsm" id="st-btn" onclick="loadStat()">🔍 <span id="st-l">載入統計</span></button>
-  </div>
-  <div class="srow" id="st-kpi" style="display:none">
-    <div class="sc"><div class="slbl" id="stl-t">總紀錄</div><div class="sval" id="stv-t">0</div></div>
-    <div class="sc"><div class="slbl" id="stl-a">有效</div><div class="sval" id="stv-a" style="color:var(--red)">0</div></div>
-    <div class="sc"><div class="slbl" id="stl-p">待審核</div><div class="sval" id="stv-p" style="color:var(--amb)">0</div></div>
-    <div class="sc"><div class="slbl" id="stl-e">已失效</div><div class="sval" id="stv-e" style="color:var(--dim)">0</div></div>
-  </div>
-  <div class="cg">
-    <div class="cb"><div class="ch" id="ch-lv">等級分佈 By Level</div><div class="cbdy" id="c-lv"><div class="emp-st" style="padding:20px">點載入統計</div></div></div>
-    <div class="cb"><div class="ch" id="ch-dp">部門分佈 By Dept</div><div class="cbdy" id="c-dp"><div class="emp-st" style="padding:20px">點載入統計</div></div></div>
-    <div class="cb"><div class="ch" id="ch-mo">月份趨勢 By Month</div><div class="cbdy" id="c-mo"><div class="emp-st" style="padding:20px">點載入統計</div></div></div>
-    <div class="cb"><div class="ch" id="ch-rs">主要理由 Top Reasons</div><div class="cbdy" id="c-rs"><div class="emp-st" style="padding:20px">點載入統計</div></div></div>
-  </div>
-</div>
-
-
-<!-- ██ TAB 4: 匯入 (Admin) ██ -->
-<div id="tc-imp" class="tc">
-  <div class="sec" style="margin-bottom:10px">
-    <div class="sh">📋 <span id="h-imp">匯入舊 Excel 警告紀錄</span></div>
-    <div style="padding:12px;font-size:12px;color:var(--tx2);line-height:1.9" id="imp-g">
-      自動辨識工作表：<b>2019、2020、2021、2022、2023</b><br>
-      每個日期欄 = 一筆警告（Small 1st/2nd/3rd 各自獨立匯入）<br>
-      2019/2020 無姓名欄，將從 Sheet1 主資料查詢 ID 對應姓名<br>
-      匯入後狀態預設「已核可」，到期日 = 發生日 + 1 年<br>
-      <b style="color:var(--red)">⚠️ 分批 50 筆傳入 GAS，453+ 筆約需 60 秒，請耐心等待</b>
+  <!-- TIME -->
+  <div id="pane-time" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p id="time-title" class="text-sm font-semibold text-slate-700 flex-1">📅 每月明細</p>
+        <button onclick="exportCSV('time')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div id="time-note" class="px-4 py-2 text-[11px] text-slate-500 bg-slate-50 border-b border-slate-100"></div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="time-thead"></tr></thead>
+        <tbody id="time-tbody"></tbody>
+        <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr id="time-tfoot"></tr></tfoot>
+      </table></div>
     </div>
   </div>
 
-  <div class="dz" id="dz"
-    ondragover="event.preventDefault();this.classList.add('drag')"
-    ondragleave="this.classList.remove('drag')"
-    ondrop="onDrop(event)"
-    onclick="document.getElementById('fi2').click()">
-    <input type="file" id="fi2" accept=".xlsx,.xls" onchange="onSel(event)" style="display:none">
-    <div class="dzi">📂</div>
-    <div class="dzt" id="dzt">點擊或拖放 Excel 檔案</div>
-    <div class="dzs" id="dzs">VRT_warning_record.xlsx（支援 .xlsx/.xls）</div>
+  <!-- DEPT -->
+  <div id="pane-dept" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p class="text-sm font-semibold text-slate-700 flex-1" data-en="🏭 By Department">🏭 各部門明細</p>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="dv-cur"  onclick="setDeptView('cur')"  data-en="This period"    class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-amber-700 transition">本期明細</button>
+          <button id="dv-hist" onclick="setDeptView('hist')" data-en="Across periods" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">跨期間</button>
+        </div>
+        <button onclick="exportCSV('dept')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="dept-thead"></tr></thead>
+        <tbody id="dept-tbody"></tbody>
+        <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr id="dept-tfoot"></tr></tfoot>
+      </table></div>
+    </div>
   </div>
 
-  <div id="parea" style="display:none">
-    <div class="pwrap">
-      <div class="rh"><span id="ph">預覽 Preview</span><span id="pcnt" style="font-size:10px;color:var(--dim)"></span></div>
-      <div class="rscr">
-        <table class="ptbl" id="ptbl">
-          <thead><tr>
-            <th>年份</th><th id="pth-n">姓名</th><th>ID</th>
-            <th id="pth-d">部門</th><th id="pth-l">等級</th><th id="pth-dt2">日期</th><th id="pth-r">理由</th>
-          </tr></thead>
-          <tbody id="pb"></tbody>
-        </table>
+  <!-- LIST -->
+  <div id="pane-list" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <input id="li-q" oninput="renderList()" placeholder="搜尋 工號 / 姓名 / 部門 / 事由…"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-200 flex-1 min-w-[200px]">
+        <select id="li-scope" onchange="renderList()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+          <option value="period" data-en="Current period">本期間 Current</option>
+          <option value="all" data-en="All periods">全部期間 All</option>
+        </select>
+        <span id="li-count" class="text-[11px] text-slate-400"></span>
+        <button onclick="exportCSV('list')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr id="li-thead"></tr></thead>
+        <tbody id="li-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE -->
+  <div id="pane-emp" class="pane hidden"><div id="emp-body"></div></div>
+
+  <!-- APPLY -->
+  <div id="pane-apply" class="pane hidden">
+    <div class="max-w-3xl mx-auto">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white">
+          <p class="text-sm font-bold text-amber-800" data-en="📝 Submit a Warning">📝 提出員工警告</p>
+          <p class="text-[11px] text-slate-500 mt-1" data-en="After submitting, the record is sent to the Telegram group where Paul can approve or reject it directly with the buttons.">
+            送出後會發到 Telegram 群組，Paul 可以直接在訊息上按「✅ 核可」或「❌ 退件」，不必開系統。</p>
+        </div>
+        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4" id="ap-form"></div>
+        <div id="ap-check" class="mx-5 mb-4 hidden rounded-lg p-3 text-xs"></div>
+        <div class="px-5 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-2">
+          <button onclick="resetApply()" data-en="Reset" class="text-xs font-medium px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">清空</button>
+          <button onclick="checkApply()" data-en="Check history" class="text-xs font-medium px-4 py-2.5 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 transition">🔍 查詢累犯紀錄</button>
+          <div class="flex-1"></div>
+          <button id="ap-submit" onclick="submitApply()" data-en="Submit for approval"
+            class="text-xs font-bold px-5 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition">送出待核可</button>
+        </div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="bpr bsub" id="imp-btn" onclick="doImp()" style="margin-bottom:0;flex:1">✅ <span id="imp-l">確認匯入 Confirm Import</span></button>
-      <button class="bgry" onclick="clearImp()"><span id="imp-c">取消</span></button>
+  </div>
+</div>
+</main>
+
+<!-- TELEGRAM MODAL -->
+<div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✈️</span>
+      <div class="flex-1"><p class="text-sm font-bold" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" data-en="Warning Summary">警告摘要</p></div>
+      <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Scope">範圍 Scope</label>
+        <select id="tg-unit" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+          <option value="month" data-en="Monthly">月 Month</option>
+          <option value="quarter" data-en="Quarterly">季 Quarter</option>
+          <option value="year" data-en="Yearly">年 Year</option></select></div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Period">選擇期間 Period</label>
+        <select id="tg-key" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"></select></div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Preview">訊息預覽 Preview</label>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeTgModal()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" data-en="Send" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition">確認傳送</button>
     </div>
   </div>
 </div>
 
-</div><!-- /.main -->
-
-
-<!-- ██ CONFIG MODAL ██ -->
-<div class="ov" id="cfg-ov">
-  <div class="mo">
-    <div class="mt">⚙️ 系統設定 Config<button class="mclose" onclick="closeCfg()">×</button></div>
-    <div class="cstep"><b>① GAS 部署網址</b>（部署後從 GAS 複製 /exec 結尾的 URL）<br>格式：<code>https://script.google.com/macros/s/AKfy.../exec</code></div>
-    <div class="mf"><label>GAS Web App URL <span style="color:var(--red)">*</span></label>
-      <input type="url" id="cfg-g" placeholder="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"></div>
-    <div class="cstep"><b>② 管理員 Telegram User ID</b>（你的數字 ID，用於核可驗證）<br>取得方式：在 Telegram 搜尋 <code>@userinfobot</code> 發任意訊息</div>
-    <div class="mf"><label>Admin Telegram User ID <span style="color:var(--red)">*</span></label>
-      <input type="number" id="cfg-u" placeholder="例：5026942575">
-      <div class="mf-note">⚠️ 必須與 Code.gs 中 ADMIN_ID 完全相同（同一個數字）</div></div>
-    <div class="mac">
-      <button class="bgry" onclick="closeCfg()">取消</button>
-      <button class="bpr" onclick="saveCfg()">✅ 儲存設定</button>
-    </div>
-  </div>
-</div>
-
-<!-- ██ ADMIN UNLOCK MODAL ██ -->
-<div class="ov" id="adm-ov">
-  <div class="mo" style="max-width:360px">
-    <div class="mt"><span id="au-t">🔑 管理員登入</span><button class="mclose" onclick="closeAdm()">×</button></div>
-    <div class="mf">
-      <label id="au-l">輸入你的 Telegram User ID 解鎖管理功能</label>
-      <input type="number" id="au-i" placeholder="Your Telegram User ID">
-      <div class="mf-note" id="au-n">管理功能：刪除、編輯紀錄、匯入舊資料</div>
-    </div>
-    <div class="mac">
-      <button class="bgry" onclick="closeAdm()"><span id="au-c">取消</span></button>
-      <button class="bpr" onclick="doAdm()">🔓 <span id="au-ok">驗證</span></button>
-    </div>
-  </div>
-</div>
-
-<!-- ██ EDIT MODAL ██ -->
-<div class="ov" id="edt-ov">
-  <div class="mo">
-    <div class="mt"><span id="et-t">✏️ 編輯警告紀錄</span><button class="mclose" onclick="closeEdt()">×</button></div>
-    <div class="mf"><label id="el-n">員工姓名</label><input type="text" id="e-nm"></div>
-    <div class="mf"><label id="el-d">部門</label>
-      <select id="e-dp"><option>生產部 Sewing</option><option>裁剪部 Cutting</option>
-        <option>QC</option><option>包裝部 Packing</option><option>倉庫 Warehouse</option>
-        <option>管理部 Admin/HR</option><option>維修部 Maintenance</option><option>其他 Others</option></select></div>
-    <div class="mf"><label id="el-p">職位</label><input type="text" id="e-ps"></div>
-    <div class="mf"><label id="el-l">等級</label>
-      <select id="e-lv"><option value="Verbal">💬 Verbal</option><option value="Small">🟡 Small</option>
-        <option value="Medium">🟠 Medium</option><option value="Big">🔴 Big</option>
-        <option value="Final">⛔ Final</option><option value="Suspend">🚫 Suspend</option></select></div>
-    <div class="mf"><label id="el-r">理由</label><textarea id="e-rs" rows="3"></textarea></div>
-    <div class="mf"><label id="el-dt">發生日期</label><input type="date" id="e-dt"></div>
-    <div class="mf"><label id="el-st">狀態</label>
-      <select id="e-st"><option value="待審核">⏳ Pending</option><option value="已核可">✅ Approved</option><option value="已退件">❌ Rejected</option></select></div>
-    <div class="mf"><label id="el-rk">備註</label><input type="text" id="e-rk"></div>
-    <div class="mac">
-      <button class="bgry" onclick="closeEdt()"><span id="ec">取消</span></button>
-      <button class="bpr bamb" onclick="saveEdt()">✅ <span id="es">儲存</span></button>
-    </div>
-  </div>
-</div>
-
-<div id="toast"></div>
+<div id="toast" class="fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border border-slate-100 px-4 py-3 hidden no-print text-sm"></div>
 
 <script>
-// ══════════════════════════════════════════
-// CONFIG — localStorage
-// ══════════════════════════════════════════
-const DEFAULT_GAS='https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
-let CFG={gasUrl:DEFAULT_GAS,adminId:5026942575};
-let isAdm=false;
-let allRecs=[];
-let edtRow=null;
-let impRows=[];
+'use strict';
+// ═══════════════════════════════════════════════════════
+//  AC-HRA-PAY · Warning Management v2.0
+//  後端：AC_HRA_PAY_BOT.gs 的 warn* 系列（全部走 GET）
+//  流程：主管線上申請 → Telegram 群組通知（含核可/退件按鈕）→ Paul 核可
+// ═══════════════════════════════════════════════════════
+const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
+  'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+const ADMIN_ID='5026942575';                 // Paul 的 Telegram ID（GAS 用來驗證管理權限）
+const IDB_NAME='ac_hra_warn', IDB_VER=1, IDB_STORE='records';
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// 等級：代碼 → 中英名稱、失效月數（須與 GAS 的 WARN_MONTHS_* 一致）、顏色
+const LEVELS=[
+  {k:'Verbal', zh:'口頭警告', en:'Verbal',  mo:3,  c:'#94a3b8', bg:'bg-slate-100 text-slate-600'},
+  {k:'Small',  zh:'小過',    en:'Small',   mo:6,  c:'#0ea5e9', bg:'bg-sky-100 text-sky-700'},
+  {k:'Medium', zh:'中過',    en:'Medium',  mo:6,  c:'#f59e0b', bg:'bg-amber-100 text-amber-700'},
+  {k:'Big',    zh:'大過',    en:'Big',     mo:12, c:'#f97316', bg:'bg-orange-100 text-orange-700'},
+  {k:'Final',  zh:'最後警告', en:'Final',   mo:12, c:'#dc2626', bg:'bg-rose-100 text-rose-700'},
+  {k:'Suspend',zh:'停職',    en:'Suspend', mo:12, c:'#7c2d12', bg:'bg-red-200 text-red-900'},
+];
+const LV=k=>LEVELS.find(x=>x.k===k)||{k,zh:k,en:k,mo:6,c:'#94a3b8',bg:'bg-slate-100 text-slate-600'};
+const TERMINATE_AT=3;                        // 有效大過/最後警告達 N 次 → 建議終止
 
-(function init(){
-  try{const s=localStorage.getItem('vrt_cfg');if(s)CFG=Object.assign(CFG,JSON.parse(s));}catch(e){}
-  if(!CFG.gasUrl)CFG.gasUrl=DEFAULT_GAS;
-  if(!CFG.adminId)CFG.adminId=5026942575;
-  const UP=new URLSearchParams(location.search);
-  const tu=parseInt(UP.get('uid')||'0');
-  const tn=decodeURIComponent(UP.get('name')||'');
-  const it=UP.get('tab')||'form';
-  if(tn) document.getElementById('f-ap').value=tn;
-  if(tu&&CFG.adminId&&tu===CFG.adminId) setAdm(true,false);
-  document.getElementById('f-dt').value=new Date().toISOString().substring(0,10);
-  const cy=new Date().getFullYear();
-  ['r-yr','st-yr'].forEach(id=>{const s=document.getElementById(id);for(let y=cy;y>=2019;y--){const o=document.createElement('option');o.value=o.textContent=String(y);s.appendChild(o);}});
-  if(it!=='form') goTab(it);
-  updBar();
-  if(!CFG.gasUrl) setTimeout(openCfg,800);
-  tick(); setInterval(tick,1000);
-  setLang('zh');
-})();
+let LANG='zh', RECS=[], ACTIVE=null, UNIT='month', DEPT_VIEW='cur', IS_ADMIN=false, charts={};
 
-function tick(){
-  const d=new Date(),p=n=>String(n).padStart(2,'0');
-  const s=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  document.getElementById('ts-now').textContent=s;
-  document.getElementById('f-ts').value=s;
+const qs=s=>document.querySelector(s);
+const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const int=n=>Math.round(n||0).toLocaleString('en-US');
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const T=(zh,en)=>LANG==='en'?en:zh;
+const pad=n=>String(n).padStart(2,'0');
+const lvName=k=>LANG==='en'?LV(k).en:LV(k).zh;
+function _nowStr(){const d=new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;}
+function toast(msg,kind){
+  const t=qs('#toast');
+  const c={success:'border-emerald-200 text-emerald-700',error:'border-rose-200 text-rose-700',
+           warning:'border-amber-200 text-amber-700'}[kind]||'border-slate-100 text-slate-700';
+  t.className='fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border px-4 py-3 no-print text-sm '+c;
+  t.textContent=msg;t.classList.remove('hidden');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add('hidden'),3600);
 }
-
-function updBar(){
-  const ok=CFG.gasUrl&&CFG.gasUrl.includes('script.google.com');
-  document.getElementById('cfg-bar').textContent=ok
-    ?`✅ GAS 已連線 | Admin: ${CFG.adminId||'未設定'}`
-    :'⚠️ 尚未設定 GAS 網址，點右上角 ⚙️ 完成設定';
-}
-function openCfg(){document.getElementById('cfg-g').value=CFG.gasUrl||'';document.getElementById('cfg-u').value=CFG.adminId||'';document.getElementById('cfg-ov').classList.add('on');}
-function closeCfg(){document.getElementById('cfg-ov').classList.remove('on');}
-function saveCfg(){
-  const u=document.getElementById('cfg-g').value.trim();
-  const i=parseInt(document.getElementById('cfg-u').value)||0;
-  if(!u||!u.includes('script.google.com')){toast('❌ 請輸入正確的 GAS 網址');return;}
-  CFG.gasUrl=u;CFG.adminId=i;
-  localStorage.setItem('vrt_cfg',JSON.stringify(CFG));
-  updBar();closeCfg();toast('✅ 設定已儲存');
-}
-
-// ══ Admin ══
-function setAdm(v,notify=true){
-  isAdm=v;
-  // no-op
-  document.getElementById('lockbtn').textContent=v?'🔓':'🔑';
-  if(notify) toast(v?'🔓 管理員模式已解鎖':'🔒 已退出管理員');
+function toggleLang(){LANG=LANG==='zh'?'en':'zh';applyLang();}
+function applyLang(){
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.zhOrig===undefined)el.dataset.zhOrig=el.textContent;
+    el.textContent=LANG==='en'?el.dataset.en:el.dataset.zhOrig;});
+  if(RECS.length){try{renderAll();}catch(e){console.warn(e);}}
+  if(!qs('#pane-apply').classList.contains('hidden'))buildApplyForm();
 }
 function toggleAdmin(){
-  if(isAdm){setAdm(false);return;}
-  document.getElementById('au-i').value='';
-  document.getElementById('adm-ov').classList.add('on');
-  setTimeout(()=>document.getElementById('au-i').focus(),100);
+  if(IS_ADMIN){IS_ADMIN=false;syncAdminBtn();toast(T('已登出管理模式','Admin mode off'),'warning');return;}
+  const code=prompt(T('請輸入管理碼（Paul 的 Telegram ID）','Enter admin code (Paul\'s Telegram ID)'));
+  if(code===null)return;
+  if(String(code).trim()===ADMIN_ID){IS_ADMIN=true;syncAdminBtn();
+    toast(T('已進入管理模式，可編輯／刪除記錄','Admin mode on'),'success');renderAll();}
+  else toast(T('管理碼錯誤','Wrong admin code'),'error');
 }
-function closeAdm(){document.getElementById('adm-ov').classList.remove('on');}
-function doAdm(){
-  const v=parseInt(document.getElementById('au-i').value)||0;
-  if(!CFG.adminId){toast('❌ 請先在設定中填入 Admin ID');return;}
-  if(v===CFG.adminId){setAdm(true);closeAdm();}
-  else toast('❌ ID 不符');
-}
-
-// ══ Tabs ══
-function goTab(n){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
-  document.getElementById('tab-'+n).classList.add('on');
-  document.getElementById('tc-'+n).classList.add('on');
+function syncAdminBtn(){
+  const b=qs('#btn-admin');
+  b.className='no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border transition '
+    +(IS_ADMIN?'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              :'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100');
+  b.querySelector('span').textContent=IS_ADMIN?T('管理中','Admin ✓'):T('管理','Admin');
+  b.firstChild.textContent=IS_ADMIN?'🔓 ':'🔒 ';
 }
 
-// ══ Lang ══
-const L={
-  zh:{tt:'VRT 警告紀錄系統',hint:'* 為必填，提交後自動傳至 Telegram 審批群組',
-    'h-a':'申請人資訊','l-ap':'申請人','l-ad':'申請人部門','l-id2':'發生日期','l-ts2':'提交時間',
-    'h-e':'被警告員工資訊','l-en':'員工姓名','l-ei':'Factory ID','l-ed':'員工部門','l-ep':'職位',
-    'h-w':'警告詳情','l-lv':'警告等級','l-7d':'曠工 ≥ 7 天','l-7dl':'是 → 觸發開除警示','l-rk':'備註','l-rs':'警告理由',
-    'sub-lbl':'提交警告申請','s-ti':'申請已送出！','s-su':'已傳至 Telegram 審批群組，等待核可人審批。','s-ag':'再提交一筆',
-    'ta-t':'⚠️ 系統警示：建議考慮終止合約',
-    'tl-f':'申請','tl-r':'紀錄','tl-s':'統計','tl-i':'匯入',
-    'fl-yr':'年份','fl-mo':'月份','fl-dp':'部門','fl-lv':'等級','fl-st':'狀態','fl-em':'員工','fl-ex':'失效',
-    'r-ql':'查詢','r-pl':'列印','r-el':'匯出 Excel',
-    'sl-to':'總計','sl-ap':'已核可','sl-pe':'待審核','sl-rj':'已退件','sl-ex':'已失效',
-    'r-hd':'警告紀錄列表','r-emp':'請先設定 GAS 網址，再點查詢',
-    'th-dt':'發生日期','th-nm':'員工','th-id3':'ID','th-dp3':'部門','th-lv3':'等級','th-rs3':'理由','th-st3':'狀態','th-ex3':'到期','th-ap3':'申請人','th-ac':'操作',
-    'st-l':'載入統計','stl-t':'總紀錄','stl-a':'有效','stl-p':'待審核','stl-e':'已失效',
-    'ch-lv':'等級分佈','ch-dp':'部門分佈','ch-mo':'月份趨勢','ch-rs':'主要理由',
-    'h-imp':'匯入舊 Excel 警告紀錄','dzt':'點擊或拖放 Excel 檔案','dzs':'VRT_warning_record.xlsx',
-    'ph':'預覽','imp-l':'確認匯入','imp-c':'取消',
-    'pth-n':'姓名','pth-d':'部門','pth-l':'等級','pth-dt2':'日期','pth-r':'理由',
-    'au-t':'🔑 管理員登入','au-l':'輸入 Telegram User ID 解鎖管理功能','au-c':'取消','au-ok':'驗證',
-    'et-t':'✏️ 編輯','el-n':'員工姓名','el-d':'部門','el-p':'職位','el-l':'等級','el-r':'理由','el-dt':'發生日期','el-st':'狀態','el-rk':'備註','ec':'取消','es':'儲存'},
-  en:{tt:'VRT Warning Record System',hint:'* = required. Auto-notifies Telegram approval group.',
-    'h-a':'Applicant Info','l-ap':'Applicant','l-ad':'Department','l-id2':'Incident Date','l-ts2':'Submitted At',
-    'h-e':'Employee Info (Warned)','l-en':'Employee Name','l-ei':'Factory ID','l-ed':'Department','l-ep':'Position',
-    'h-w':'Warning Details','l-lv':'Warning Level','l-7d':'Absent ≥ 7 days','l-7dl':'Yes → Termination alert','l-rk':'Remark','l-rs':'Reason / Violation',
-    'sub-lbl':'Submit Warning','s-ti':'Submitted!','s-su':'Sent to Telegram. Pending approval.','s-ag':'Submit Another',
-    'ta-t':'⚠️ Alert: Termination Recommended',
-    'tl-f':'Form','tl-r':'Records','tl-s':'Stats','tl-i':'Import',
-    'fl-yr':'Year','fl-mo':'Month','fl-dp':'Dept','fl-lv':'Level','fl-st':'Status','fl-em':'Employee','fl-ex':'Expired',
-    'r-ql':'Search','r-pl':'Print','r-el':'Export Excel',
-    'sl-to':'Total','sl-ap':'Approved','sl-pe':'Pending','sl-rj':'Rejected','sl-ex':'Expired',
-    'r-hd':'Warning Records','r-emp':'Set GAS URL then click Search',
-    'th-dt':'Date','th-nm':'Employee','th-id3':'ID','th-dp3':'Dept','th-lv3':'Level','th-rs3':'Reason','th-st3':'Status','th-ex3':'Expires','th-ap3':'Applicant','th-ac':'Actions',
-    'st-l':'Load Stats','stl-t':'Total','stl-a':'Active','stl-p':'Pending','stl-e':'Expired',
-    'ch-lv':'By Level','ch-dp':'By Dept','ch-mo':'By Month','ch-rs':'Top Reasons',
-    'h-imp':'Import Old Excel Records','dzt':'Click or drag Excel file','dzs':'VRT_warning_record.xlsx',
-    'ph':'Preview','imp-l':'Confirm Import','imp-c':'Cancel',
-    'pth-n':'Name','pth-d':'Dept','pth-l':'Level','pth-dt2':'Date','pth-r':'Reason',
-    'au-t':'🔑 Admin Login','au-l':'Enter Telegram User ID','au-c':'Cancel','au-ok':'Verify',
-    'et-t':'✏️ Edit Record','el-n':'Name','el-d':'Dept','el-p':'Position','el-l':'Level','el-r':'Reason','el-dt':'Incident Date','el-st':'Status','el-rk':'Remark','ec':'Cancel','es':'Save'},
-  km:{tt:'ប្រព័ន្ធព្រមាន VRT',hint:'* ចាំបាច់',
-    'h-a':'ព័ត៌មានអ្នកស្នើ','l-ap':'អ្នកស្នើ','l-ad':'នាយកដ្ឋាន','l-id2':'កាលបរិច្ឆេទ','l-ts2':'ម៉ោង',
-    'h-e':'ព័ត៌មានបុគ្គលិក','l-en':'ឈ្មោះ','l-ei':'លេខ','l-ed':'នាយកដ្ឋាន','l-ep':'តំណែង',
-    'h-w':'ព័ត៌មានព្រមាន','l-lv':'កម្រិត','l-7d':'អវត្ដមាន ≥ ៧ ថ្ងៃ','l-7dl':'បាទ/ចាស','l-rk':'ចំណាំ','l-rs':'មូលហេតុ',
-    'sub-lbl':'ដាក់ស្នើ','s-ti':'ជោគជ័យ!','s-su':'បានផ្ញើ Telegram','s-ag':'ស្នើថ្មី',
-    'ta-t':'⚠️ ស្នើបញ្ចប់កិច្ចសន្យា',
-    'tl-f':'ទម្រង់','tl-r':'កំណត់ត្រា','tl-s':'ស្ថិតិ','tl-i':'នាំចូល',
-    'fl-yr':'ឆ្នាំ','fl-mo':'ខែ','fl-dp':'នាយកដ្ឋាន','fl-lv':'កម្រិត','fl-st':'ស្ថានភាព','fl-em':'បុគ្គលិក','fl-ex':'ផុតកំណត់',
-    'r-ql':'ស្វែងរក','r-pl':'បោះពុម្ព','r-el':'Excel',
-    'sl-to':'សរុប','sl-ap':'អនុម័ត','sl-pe':'រង់ចាំ','sl-rj':'បដិសេធ','sl-ex':'ផុតកំណត់',
-    'r-hd':'បញ្ជីព្រមាន','r-emp':'ដំឡើង GAS URL ជាមុន',
-    'th-dt':'កាលបរិច្ឆេទ','th-nm':'ឈ្មោះ','th-id3':'លេខ','th-dp3':'នាយកដ្ឋាន','th-lv3':'កម្រិត','th-rs3':'មូលហេតុ','th-st3':'ស្ថានភាព','th-ex3':'ផុតកំណត់','th-ap3':'អ្នកស្នើ','th-ac':'',
-    'st-l':'ផ្ទុក','stl-t':'សរុប','stl-a':'សកម្ម','stl-p':'រង់ចាំ','stl-e':'ផុតកំណត់',
-    'ch-lv':'កម្រិត','ch-dp':'នាយកដ្ឋាន','ch-mo':'ខែ','ch-rs':'មូលហេតុ',
-    'h-imp':'នាំចូល Excel','dzt':'ចុចឬអូស Excel','dzs':'VRT_warning_record.xlsx',
-    'ph':'មើលជាមុន','imp-l':'បញ្ជាក់','imp-c':'បោះបង់',
-    'pth-n':'ឈ្មោះ','pth-d':'នាយកដ្ឋាន','pth-l':'កម្រិត','pth-dt2':'ថ្ងៃ','pth-r':'មូលហេតុ',
-    'au-t':'🔑 ចូល','au-l':'Telegram User ID','au-c':'បោះបង់','au-ok':'ផ្ទៀងផ្ទាត់',
-    'et-t':'✏️ កែប្រែ','el-n':'ឈ្មោះ','el-d':'នាយកដ្ឋាន','el-p':'តំណែង','el-l':'កម្រិត','el-r':'មូលហេតុ','el-dt':'ថ្ងៃ','el-st':'ស្ថានភាព','el-rk':'ចំណាំ','ec':'បោះបង់','es':'រក្សា'}
-};
-let CL='zh';
-function setLang(l){
-  CL=l;
-  document.querySelectorAll('.lbtn').forEach(b=>b.classList.remove('on'));
-  const lb=document.querySelector(`.lbtn[onclick="setLang('${l}')"]`);if(lb)lb.classList.add('on');
-  const D=L[l];if(!D)return;
-  Object.keys(D).forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=D[id];});
+// ━━━━ IndexedDB（離線快取）━━━━
+let _dbReady=null;
+function idbOpen(){
+  if(_dbReady)return _dbReady;
+  _dbReady=new Promise(res=>{
+    const rq=indexedDB.open(IDB_NAME,IDB_VER);
+    rq.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE,{keyPath:'k'});};
+    rq.onsuccess=e=>res(e.target.result);rq.onerror=()=>res(null);});
+  return _dbReady;
 }
+async function idbSaveAll(){const db=await idbOpen();if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put({k:'all',recs:RECS,updatedAt:_nowStr()});
+    tx.oncomplete=()=>r();tx.onerror=()=>r();});}
+async function idbLoad(){const db=await idbOpen();if(!db)return [];
+  return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get('all');
+    rq.onsuccess=()=>r((rq.result&&rq.result.recs)||[]);rq.onerror=()=>r([]);});}
 
-// ══ GAS fetch ══
-async function gas(params){
-  if(!CFG.gasUrl) throw new Error('尚未設定 GAS 網址，請點右上角 ⚙️');
-  const r=await fetch(`${CFG.gasUrl}?${new URLSearchParams(params)}`);
-  const j=await r.json();
-  if(!j.ok) throw new Error(j.error||'GAS Error');
-  return j;
-}
-
-// ══ 即時業務規則檢查 ══
-let chkTm;
-function sched(){clearTimeout(chkTm);chkTm=setTimeout(chkRule,900);}
-async function chkRule(){
-  if(!CFG.gasUrl) return;
-  const nm=document.getElementById('f-en').value.trim();
-  const id=document.getElementById('f-ei').value.trim();
-  const lv=document.getElementById('f-lv').value;
-  const is7=document.getElementById('f-7d').checked;
-  if(!nm&&!id){hideTa();return;}
-  try{
-    const r=await gas({action:'warnCheck',empName:nm,empId:id,level:lv});
-    if(r.terminate||is7) showTa(r.bigFinalCount,is7);
-    else hideTa();
-  }catch(e){}
-}
-function showTa(cnt,is7){
-  document.getElementById('ta').classList.add('on');
-  document.getElementById('ta-t').textContent=L[CL]['ta-t']||'⚠️ 系統警示';
-  const sub=is7
-    ?(CL==='km'?'អវត្ដមាន ≥ ៧ ថ្ងៃ':CL==='en'?'Absent ≥ 7 consecutive days. Termination recommended.':'連續曠工 ≥ 7 天，建議啟動終止合約程序。')
-    :(CL==='km'?`ព្រមានធំ/ចុងក្រោយ ${cnt} លើក`:CL==='en'?`${cnt} valid Big/Final warnings. Termination recommended.`:`有效大過/最後警告累計 ${cnt} 次，建議啟動終止合約程序。`);
-  document.getElementById('ta-b').textContent=sub;
-}
-function hideTa(){document.getElementById('ta').classList.remove('on');}
-
-// ══ 表單提交 ══
-async function doSubmit(){
-  const v=id=>document.getElementById(id).value.trim();
-  const ap=v('f-ap'),ad=v('f-ad'),en=v('f-en'),ei=v('f-ei'),
-        ed=v('f-ed'),ep=v('f-ep'),lv=v('f-lv'),rs=v('f-rs'),
-        dt=v('f-dt'),rk=v('f-rk'),ts=v('f-ts');
-  const is7=document.getElementById('f-7d').checked;
-  if(!ap||!ad||!en||!ed||!lv||!rs||!dt){
-    toast('❌ '+(CL==='km'?'សូមបំពេញចំណុចចាំបាច់':CL==='en'?'Fill in all required * fields':'請填寫所有 * 必填欄位'));return;
-  }
-  if(!CFG.gasUrl){openCfg();return;}
-  const btn=document.getElementById('sub-btn');
-  btn.disabled=true;btn.innerHTML=`<span class="spin"></span>${CL==='en'?'Submitting...':'傳送中...'}`;
-  try{
-    const data={timestamp:ts,applicant:ap,applicantDept:ad,empName:en,empId:ei,
-      empDept:ed,empPos:ep,level:lv,reason:rs,incidentDate:dt,remark:rk,is7Day:is7};
-    const r=await gas({action:'warnSubmit',data:encodeURIComponent(JSON.stringify(data))});
-    document.getElementById('scard').style.display='block';
-    document.getElementById('sub-btn').style.display='none';
-    document.getElementById('ta').classList.remove('on');
-    document.getElementById('s-ts2').textContent=ts;
-    if(r.terminate){
-      document.getElementById('s-ic').textContent='🚨';
-      document.getElementById('s-ti').textContent=CL==='en'?'Submitted + Termination Alert!':'已送出 ＋ 建議終止合約！';
-      document.getElementById('scard').style.borderColor='#dc2626';
-    } else {
-      document.getElementById('s-ic').textContent='✅';
-      document.getElementById('s-ti').textContent=L[CL]['s-ti']||'申請已送出！';
-    }
-    document.getElementById('s-su').textContent=L[CL]['s-su']||'';
-  }catch(err){
-    toast('❌ '+err.message);
-    btn.disabled=false;btn.innerHTML=`📨 <span>${L[CL]['sub-lbl']||'提交'}</span>`;
-  }
-}
-function resetForm(){
-  ['f-ap','f-en','f-ei','f-ep','f-rs','f-rk'].forEach(id=>document.getElementById(id).value='');
-  ['f-ad','f-ed','f-lv'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-7d').checked=false;
-  document.getElementById('f-dt').value=new Date().toISOString().substring(0,10);
-  document.getElementById('scard').style.display='none';
-  const btn=document.getElementById('sub-btn');
-  btn.style.display='block';btn.disabled=false;
-  btn.innerHTML=`📨 <span>${L[CL]['sub-lbl']||'提交'}</span>`;
-  hideTa();
-}
-
-// ══ 紀錄查詢 ══
-const LVMAP={Verbal:'V',Small:'S',Medium:'M',Big:'B',Final:'F',Suspend:'Su'};
-const LVLBL={Verbal:'💬 Verbal',Small:'🟡 Small',Medium:'🟠 Medium',Big:'🔴 Big',Final:'⛔ Final',Suspend:'🚫 Suspend'};
-const STBG={'待審核':'sP','已核可':'sA','已退件':'sR'};
-const STLBL={'待審核':'⏳ Pending','已核可':'✅ Approved','已退件':'❌ Rejected'};
-
-async function qRec(){
-  if(!CFG.gasUrl){openCfg();return;}
-  const btn=document.getElementById('r-qb');
-  btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;
-  document.getElementById('r-body').innerHTML=`<tr><td colspan="10" class="lding">${CL==='en'?'Loading...':'載入中...'}</td></tr>`;
-  const raw=document.getElementById('r-em').value.trim();
-  try{
-    const r=await gas({action:'warnList',
-      year:document.getElementById('r-yr').value,
-      month:document.getElementById('r-mo').value,
-      dept:document.getElementById('r-dp').value,
-      level:document.getElementById('r-lv').value,
-      status:document.getElementById('r-st').value,
-      empName:isNaN(raw)?raw:'',
-      empId:!isNaN(raw)&&raw?raw:'',
-      hideExpired:document.getElementById('r-ex').value});
-    allRecs=r.records;
-    renderRec(r.records);
-    const c={to:r.records.length,ap:0,pe:0,rj:0,ex:0};
-    r.records.forEach(x=>{if(x.status==='已核可')c.ap++;if(x.status==='待審核')c.pe++;if(x.status==='已退件')c.rj++;if(x.expired)c.ex++;});
-    document.getElementById('r-stats').style.display='flex';
-    ['to','ap','pe','rj','ex'].forEach(k=>document.getElementById('sv-'+k).textContent=c[k]);
-    ['r-pb','r-eb'].forEach(id=>document.getElementById(id).style.display=r.records.length?'':'none');
-    document.getElementById('ps').textContent=`查詢：${new Date().toLocaleString()} | 共 ${r.records.length} 筆`;
-  }catch(err){
-    document.getElementById('r-body').innerHTML=`<tr><td colspan="10" class="emp-st"><div class="emp-ic">❌</div>${err.message}</td></tr>`;
-    toast('❌ '+err.message);
-  }
-  btn.disabled=false;btn.innerHTML=`🔍 <span>${L[CL]['r-ql']||'查詢'}</span>`;
-}
-
-function renderRec(recs){
-  document.getElementById('r-cnt').textContent=`${recs.length} ${CL==='en'?'records':CL==='km'?'កំណត់ត្រា':'筆'}`;
-  if(!recs.length){
-    document.getElementById('r-body').innerHTML=`<tr><td colspan="10" class="emp-st"><div class="emp-ic">📭</div>${L[CL]['r-emp']||'無紀錄'}</td></tr>`;return;}
-  document.getElementById('r-body').innerHTML=recs.map(r=>{
-    const lc=LVMAP[r.level]||'V';
-    const et=r.expired?`<span class="etag">${CL==='en'?'Exp':CL==='km'?'ផុត':'失效'}</span>`:'';
-    const ab=isAdm?`<button class="bedt" onclick='openEdt(${JSON.stringify(r).replace(/'/g,"&#39;")})'>✏️</button> <button class="bdng" onclick="delR(${r.row},'${r.empName.replace(/'/g,"&#39;")}')">🗑</button>`:'';
-    return `<tr class="${r.expired?'exp':''}">
-      <td style="font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap">${r.incidentDate}</td>
-      <td><b>${r.empName}</b>${et}</td>
-      <td style="color:var(--dim);font-size:10px">${r.empId||'-'}</td>
-      <td style="font-size:10px">${r.empDept||'-'}</td>
-      <td><span class="bge l${lc}">${LVLBL[r.level]||r.level}</span></td>
-      <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.reason}">${r.reason}</td>
-      <td><span class="bge ${STBG[r.status]||''}">${STLBL[r.status]||r.status}</span></td>
-      <td style="font-size:10px;color:${r.expired?'var(--dim)':'var(--tx2)'};white-space:nowrap">${r.expireDate}</td>
-      <td style="font-size:10px">${r.applicant||'-'}</td>
-      <td class="" style="white-space:nowrap">${ab}</td>
-    </tr>`;
-  }).join('');
-}
-
-async function delR(row,name){
-  if(!confirm(`確定刪除 ${name} 的警告紀錄？`)) return;
-  try{await gas({action:'warnDelete',row,adminCode:CFG.adminId});toast('✅ 已刪除');qRec();}
-  catch(e){toast('❌ '+e.message);}
-}
-
-function expExcel(){
-  if(!allRecs.length) return;
-  const hd=['發生日期','員工姓名','Factory ID','員工部門','職位','警告等級','警告理由','狀態','申請人','申請部門','核可人','核可時間','備註','到期日'];
-  const ws=XLSX.utils.aoa_to_sheet([hd,...allRecs.map(r=>[r.incidentDate,r.empName,r.empId,r.empDept,r.empPos,r.level,r.reason,r.status,r.applicant,r.appDept,r.approver,r.approveTs,r.remark,r.expireDate])]);
-  ws['!cols']=[{wch:12},{wch:20},{wch:8},{wch:16},{wch:14},{wch:10},{wch:35},{wch:12},{wch:14},{wch:14},{wch:14},{wch:18},{wch:20},{wch:12}];
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Warning Records');
-  const fn=`VRT_Warning_${new Date().toISOString().substring(0,10)}.xlsx`;
-  XLSX.writeFile(wb,fn);toast('✅ 已下載：'+fn);
-}
-
-// ══ 編輯 Modal ══
-function openEdt(rec){
-  edtRow=rec.row;
-  document.getElementById('e-nm').value=rec.empName||'';
-  document.getElementById('e-dp').value=rec.empDept||'';
-  document.getElementById('e-ps').value=rec.empPos||'';
-  document.getElementById('e-lv').value=rec.level||'';
-  document.getElementById('e-rs').value=rec.reason||'';
-  document.getElementById('e-dt').value=rec.incidentDate||'';
-  document.getElementById('e-st').value=rec.status||'待審核';
-  document.getElementById('e-rk').value=rec.remark||'';
-  document.getElementById('edt-ov').classList.add('on');
-}
-function closeEdt(){document.getElementById('edt-ov').classList.remove('on');}
-async function saveEdt(){
-  const data={row:edtRow,
-    empName:document.getElementById('e-nm').value,empDept:document.getElementById('e-dp').value,
-    empPos:document.getElementById('e-ps').value,level:document.getElementById('e-lv').value,
-    reason:document.getElementById('e-rs').value,incidentDate:document.getElementById('e-dt').value,
-    status:document.getElementById('e-st').value,remark:document.getElementById('e-rk').value};
-  try{await gas({action:'warnEdit',adminCode:CFG.adminId,data:encodeURIComponent(JSON.stringify(data))});
-    toast('✅ 已儲存');closeEdt();qRec();}
-  catch(e){toast('❌ '+e.message);}
-}
-
-// ══ 統計 ══
-async function loadStat(){
-  if(!CFG.gasUrl){openCfg();return;}
-  const btn=document.getElementById('st-btn');
-  btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;
-  try{
-    const r=await gas({action:'warnStats'});
-    const s=r.stats;
-    document.getElementById('st-kpi').style.display='flex';
-    document.getElementById('stv-t').textContent=s.total;
-    document.getElementById('stv-a').textContent=s.active;
-    document.getElementById('stv-p').textContent=s.pending;
-    document.getElementById('stv-e').textContent=s.expired;
-    const LC={Verbal:'#1d4ed8',Small:'#ca8a04',Medium:'#ea580c',Big:'#dc2626',Final:'#9d174d',Suspend:'#6b21a8'};
-    bars('c-lv',s.byLevel,LC);
-    bars('c-dp',s.byDept,null,'#0e7490');
-    bars('c-mo',Object.fromEntries(Object.entries(s.byMonth).sort()),null,'#059669');
-    bars('c-rs',Object.fromEntries(Object.entries(s.byReason).sort((a,b)=>b[1]-a[1]).slice(0,8)),null,'#b91c1c');
-  }catch(e){toast('❌ '+e.message);}
-  btn.disabled=false;btn.innerHTML=`🔍 <span>${L[CL]['st-l']||'載入'}</span>`;
-}
-function bars(id,data,cm,def='#b91c1c'){
-  const c=document.getElementById(id);
-  if(!data||!Object.keys(data).length){c.innerHTML='<div class="emp-st" style="padding:14px">—</div>';return;}
-  const mx=Math.max(...Object.values(data));
-  c.innerHTML=Object.entries(data).map(([k,v])=>{
-    const p=mx?Math.round(v/mx*100):0;const col=(cm&&cm[k])||def;
-    return `<div class="br2"><div class="blbl" title="${k}">${k}</div><div class="btr"><div class="bfil" style="width:${p}%;background:${col}">${p>18?v:''}</div></div><div class="bcnt">${p<=18?v:''}</div></div>`;
-  }).join('');
-}
-
-// ══ 匯入舊 Excel — 硬編碼欄位 Schema ══
-const SCHEMAS={
-  '2019':{dr:4,ic:1,nc:-1,dc:2,pc:-1,rc:-1,lv:[{l:'Verbal',c:[3]},{l:'Small',c:[4,5,6]},{l:'Big',c:[7,8,9]},{l:'Final',c:[10]},{l:'Suspend',c:[11]}]},
-  '2020':{dr:4,ic:1,nc:-1,dc:2,pc:-1,rc:-1,lv:[{l:'Verbal',c:[3]},{l:'Small',c:[4,5,6]},{l:'Big',c:[7,8,9]},{l:'Final',c:[10]},{l:'Suspend',c:[11]}]},
-  '2021':{dr:4,ic:1,nc:2,dc:3,pc:4,rc:5,lv:[{l:'Verbal',c:[6]},{l:'Small',c:[7,8,9]},{l:'Big',c:[10,11,12]},{l:'Final',c:[13]},{l:'Suspend',c:[14]}]},
-  '2022':{dr:4,ic:1,nc:2,dc:3,pc:4,rc:5,lv:[{l:'Verbal',c:[6]},{l:'Small',c:[7,8,9]},{l:'Big',c:[10,11,12]},{l:'Final',c:[13]},{l:'Suspend',c:[14]}]},
-  '2023':{dr:4,ic:1,nc:2,dc:3,pc:4,rc:5,lv:[{l:'Verbal',c:[6]},{l:'Small',c:[7,8,9]},{l:'Medium',c:[10,11,12]},{l:'Big',c:[13,14,15]},{l:'Final',c:[16]},{l:'Suspend',c:[17]}]}
-};
-
-function pd(v){
-  if(!v) return null;
-  if(v instanceof Date&&!isNaN(v)) return v.toISOString().substring(0,10);
-  const s=String(v).trim();
-  const m=s.match(/^(\d{4}-\d{2}-\d{2})/);if(m) return m[1];
-  const n=parseFloat(s);
-  if(!isNaN(n)&&n>40000){const d=new Date(Math.round((n-25569)*864e5));return d.toISOString().substring(0,10);}
+// ━━━━ 日期 ━━━━
+function toDate(v){
+  if(v instanceof Date)return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'&&v>20000){const p=XLSX.SSF.parse_date_code(v);if(p)return new Date(p.y,p.m-1,p.d);}
+  if(typeof v==='string'){
+    const m=v.trim().match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+    const d=new Date(v.trim());if(!isNaN(d))return new Date(d.getFullYear(),d.getMonth(),d.getDate());}
   return null;
 }
-
-function onDrop(e){e.preventDefault();e.currentTarget.classList.remove('drag');if(e.dataTransfer.files[0])parseXL(e.dataTransfer.files[0]);}
-function onSel(e){if(e.target.files[0])parseXL(e.target.files[0]);}
-
-function parseXL(file){
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true,raw:false});
-    // ── Sheet1 lookup: ID → Name ──
-    const id2n={};
-    const s1=wb.Sheets['Sheet1'];
-    if(s1){
-      const rows=XLSX.utils.sheet_to_json(s1,{header:1,defval:null});
-      for(let i=2;i<rows.length;i++){const r=rows[i];if(r[1]&&r[2])id2n[String(r[1]).trim()]=String(r[2]).trim();}
-    }
-    impRows=[];
-    Object.keys(SCHEMAS).forEach(yr=>{
-      const ws=wb.Sheets[yr];if(!ws) return;
-      const SC=SCHEMAS[yr];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,cellDates:true,raw:false});
-      for(let ri=SC.dr;ri<rows.length;ri++){
-        const row=rows[ri];
-        const sid=row[SC.ic]?String(row[SC.ic]).trim():null;
-        if(!sid) continue;
-        const rawN=SC.nc>=0?row[SC.nc]:null;
-        let name=rawN&&!String(rawN).startsWith('=')?String(rawN).trim():null;
-        if(!name) name=id2n[sid]||`ID-${sid}`;
-        const dept=SC.dc>=0&&row[SC.dc]?String(row[SC.dc]).trim():'';
-        const pos =SC.pc>=0&&row[SC.pc]?String(row[SC.pc]).trim():'';
-        const desc=SC.rc>=0&&row[SC.rc]?String(row[SC.rc]).trim():'';
-        SC.lv.forEach(({l,c})=>{
-          c.forEach(ci=>{
-            if(ci>=row.length) return;
-            const ds=pd(row[ci]);
-            if(!ds||!ds.startsWith(yr)) return;
-            impRows.push({year:yr,empId:sid,empName:name,empDept:dept,empPos:pos,
-              level:l,reason:desc||`Imported ${yr} record`,incidentDate:ds,
-              status:'已核可',applicant:'Import',timestamp:ds+' 00:00:00'});
-          });
-        });
-      }
-    });
-    // 去重
-    const seen=new Set();
-    impRows=impRows.filter(r=>{const k=`${r.empName}_${r.incidentDate}_${r.level}`;if(seen.has(k))return false;seen.add(k);return true;});
-    impRows.sort((a,b)=>a.incidentDate.localeCompare(b.incidentDate));
-    if(!impRows.length){toast('⚠️ 未找到有效警告紀錄');return;}
-    document.getElementById('parea').style.display='block';
-    document.getElementById('pcnt').textContent=`共 ${impRows.length} 筆`;
-    const show=impRows.slice(0,150);
-    document.getElementById('pb').innerHTML=show.map(r=>
-      `<tr><td>${r.year}</td><td>${r.empName}</td><td>${r.empId}</td>
-       <td>${r.empDept||'-'}</td><td>${r.level}</td><td>${r.incidentDate}</td>
-       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.reason}</td></tr>`
-    ).join('')+(impRows.length>150?`<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:8px">...還有 ${impRows.length-150} 筆</td></tr>`:'');
-    toast(`✅ 解析完成：${impRows.length} 筆警告紀錄`);
-  };
-  rd.readAsArrayBuffer(file);
+const dStr=d=>d?`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`:'';
+function expireOf(incidentDate,level){
+  const d=toDate(incidentDate);if(!d)return '';
+  const e=new Date(d.getFullYear(),d.getMonth()+LV(level).mo,d.getDate());
+  return dStr(e);
 }
+const todayStr=()=>dStr(new Date());
+const isExpired=r=>r.expireDate?r.expireDate<todayStr():false;
+function isoWeek(d){const t=new Date(d.valueOf());t.setDate(t.getDate()+3-((d.getDay()+6)%7));
+  const w1=new Date(t.getFullYear(),0,4);
+  return {y:t.getFullYear(),w:1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7)};}
 
-async function doImp(){
-  if(!impRows.length||!CFG.gasUrl) return;
-  const btn=document.getElementById('imp-btn');
-  btn.disabled=true;
-  let done=0,skip=0;const BS=50;
-  for(let i=0;i<impRows.length;i+=BS){
-    btn.innerHTML=`<span class="spin"></span>${Math.min(i+BS,impRows.length)}/${impRows.length}`;
-    try{const r=await gas({action:'warnImport',adminCode:CFG.adminId,data:encodeURIComponent(JSON.stringify(impRows.slice(i,i+BS)))});done+=r.imported;skip+=r.skipped;}
-    catch(e){console.error(e);}
+// ━━━━ 解析：矩陣式警告記錄表 ━━━━
+//  版面：每年一張分頁（表名為 4 位數年份）
+//        表頭列含 ID / Dept. 與等級名稱（Verbal / Small / Medium / Big / Final / Suspend）
+//        次列以 1st / 2nd / 3rd 標示同一等級的第幾次
+//        資料列：每位員工一列，等級欄位填「發生日期」→ 每個有日期的格子攤平成一筆記錄
+//  ⚠ 合併儲存格會使等級標籤位置偏移，故先用 1st/2nd/3rd 界定群組，
+//    再在群組範圍內尋找等級標籤，才不會把 Medium 誤判成 Small。
+function parseWarningSheet(ws,sheetName){
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  if(raw.length<4)return null;
+  const LVKEYS=LEVELS.map(l=>l.k);
+  const isLv=s=>LVKEYS.find(k=>new RegExp('^'+k+'$','i').test(String(s||'').trim()));
+
+  let hr=-1;
+  for(let i=0;i<8&&hr<0;i++){
+    const r=(raw[i]||[]).map(x=>String(x||'').trim());
+    if(r.some(x=>/^id$/i.test(x)) && r.some(x=>isLv(x))) hr=i;
   }
-  toast(`✅ 匯入完成：${done} 筆，略過 ${skip} 筆`);
-  btn.disabled=false;btn.innerHTML=`✅ <span>${L[CL]['imp-l']||'確認匯入'}</span>`;
-  clearImp();
-}
-function clearImp(){impRows=[];document.getElementById('parea').style.display='none';document.getElementById('fi2').value='';}
+  if(hr<0)return null;
+  const hdr=raw[hr], sub=raw[hr+1]||[];
 
-// ══ Toast ══
-let toastTm;
-function toast(m,d=3500){
-  const e=document.getElementById('toast');e.textContent=m;e.classList.add('on');
-  clearTimeout(toastTm);toastTm=setTimeout(()=>e.classList.remove('on'),d);
+  // 一般欄位
+  const col={};
+  for(let c=0;c<hdr.length;c++){
+    const v=String(hdr[c]||'').trim();
+    if(/^id$/i.test(v)&&col.id===undefined)col.id=c;
+    else if(/^name$/i.test(v)&&col.name===undefined)col.name=c;
+    else if(/^dept\.?$/i.test(v)&&col.dept===undefined)col.dept=c;
+    else if(/^position$/i.test(v)&&col.pos===undefined)col.pos=c;
+    else if(/^description$/i.test(v)&&col.desc===undefined)col.desc=c;
+    else if(/^remark$/i.test(v)&&col.remark===undefined)col.remark=c;
+  }
+  if(col.id===undefined)return null;
+
+  // ① 由 1st/2nd/3rd 找出多次數群組
+  //  ⚠ 各等級的 1st/2nd/3rd 欄位是連續排列的（例如 Small 4-6 緊接 Big 7-9），
+  //     若只看「欄位是否相鄰」會把兩個等級併成一組，導致 Big 被誤判成 Small。
+  //     因此改為「遇到 1st 就開新群組」。
+  const ORD=['1st','2nd','3rd','4th','5th'];
+  const ordCols=[];
+  for(let c=0;c<sub.length;c++){
+    const t=String(sub[c]||'').trim().toLowerCase();
+    const oi=ORD.indexOf(t);
+    if(oi>=0)ordCols.push({c,ord:oi+1});
+  }
+  const groups=[];
+  let cur=null;
+  ordCols.forEach(o=>{
+    if(cur&&o.ord>1&&o.c===cur.end+1)cur.end=o.c;
+    else{cur={start:o.c,end:o.c};groups.push(cur);}
+  });
+  // ② 每個群組在其範圍內找等級標籤
+  const map=[];   // {col, level, ord}
+  const used=new Set();
+  groups.forEach(g=>{
+    let lv=null;
+    for(let c=g.start;c<=g.end;c++){const k=isLv(hdr[c]);if(k){lv=k;break;}}
+    if(!lv){for(let c=g.start;c>=0;c--){const k=isLv(hdr[c]);if(k){lv=k;break;}}}
+    if(!lv)return;
+    let n=1;
+    for(let c=g.start;c<=g.end;c++){map.push({col:c,level:lv,ord:n++});used.add(c);}
+  });
+  // ③ 未被群組涵蓋的等級標籤 → 單欄等級
+  for(let c=0;c<hdr.length;c++){
+    const k=isLv(hdr[c]);
+    if(k&&!used.has(c)&&!map.some(m=>m.level===k&&m.col===c)){
+      if(!map.some(m=>m.col===c)){map.push({col:c,level:k,ord:1});used.add(c);}
+    }
+  }
+  if(!map.length)return null;
+
+  const year=(String(sheetName).match(/(20\d{2})/)||[])[1];
+  const out=[];
+  for(let i=hr+2;i<raw.length;i++){
+    const r=raw[i]||[];
+    const id=r[col.id];
+    if(id==null||String(id).trim()==='')continue;
+    if(!/^[A-Za-z0-9\-]+$/.test(String(id).trim()))continue;
+    map.forEach(m=>{
+      const d=toDate(r[m.col]);
+      if(!d)return;
+      if(year&&Math.abs(d.getFullYear()-(+year))>1)return;   // 明顯不屬於該年度者略過
+      const inc=dStr(d);
+      out.push({
+        id:'IMP_'+String(id).trim()+'_'+inc+'_'+m.level,
+        empId:String(id).trim(),
+        empName:col.name!==undefined?String(r[col.name]||'').trim():'',
+        empDept:col.dept!==undefined?String(r[col.dept]||'').trim():'',
+        empPos:col.pos!==undefined?String(r[col.pos]||'').trim():'',
+        level:m.level, ord:m.ord,
+        reason:col.desc!==undefined?String(r[col.desc]||'').trim():'',
+        remark:col.remark!==undefined?String(r[col.remark]||'').trim():'',
+        incidentDate:inc,
+        expireDate:expireOf(inc,m.level),
+        status:'已核可',           // 歷史記錄一律視為已核可
+        applicant:'Excel Import',
+        approver:'Import', approveTs:'',
+        timestamp:inc+' 00:00:00',
+        _src:'import', _sheet:sheetName
+      });
+    });
+  }
+  return out.length?out:null;
 }
+function parseWorkbook(wb,fileName){
+  let all=[];
+  wb.SheetNames.forEach(sn=>{
+    if(!/^\s*20\d{2}\s*$/.test(sn))return;         // 只取年度分頁，略過 Sheet1 / Chart
+    const r=parseWarningSheet(wb.Sheets[sn],sn);
+    if(r){r.forEach(x=>x._file=fileName||'');all=all.concat(r);}
+  });
+  return all.length?all:null;
+}
+
+// ━━━━ 智慧匯入 ━━━━
+async function smartImport(input){
+  const files=[...input.files];input.value='';
+  if(!files.length)return;
+  const st=qs('#smart-status'),rep=qs('#smart-report');
+  st.textContent=T(`⏳ 解析 ${files.length} 個檔案中…`,`⏳ Parsing…`);
+  st.style.color='#b45309';rep.classList.add('hidden');rep.innerHTML='';
+  const log=[];
+  for(const file of files){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
+      const recs=parseWorkbook(wb,file.name);
+      if(!recs){log.push({ok:false,f:file.name,msg:T('找不到年度分頁或等級欄（需有 ID 與 Verbal/Small/Big… 表頭）','No warning sheets found')});continue;}
+      // 以 工號+日期+等級 去重
+      const keys=new Set(recs.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));
+      RECS=RECS.filter(r=>!keys.has(r.empId+'|'+r.incidentDate+'|'+r.level));
+      RECS=RECS.concat(recs);
+      const byLv={};recs.forEach(r=>byLv[r.level]=(byLv[r.level]||0)+1);
+      log.push({ok:true,f:file.name,n:recs.length,
+        sheets:[...new Set(recs.map(r=>r._sheet))].sort(),
+        emps:new Set(recs.map(r=>r.empId)).size,byLv,
+        skipped:wb.SheetNames.length-new Set(recs.map(r=>r._sheet)).size});
+    }catch(e){log.push({ok:false,f:file.name,msg:e.message});}
+  }
+  RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);
+  await idbSaveAll();
+  const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];
+  showApp();renderAll();
+
+  const okN=log.filter(l=>l.ok).length;
+  st.textContent=okN===log.length?T(`✅ ${okN} 個檔案全部匯入成功`,`✅ Imported`):T(`⚠ ${okN}/${log.length} 個成功`,`⚠ partial`);
+  st.style.color=okN===log.length?'#059669':'#b45309';
+  rep.innerHTML=log.map(l=>l.ok
+    ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${l.n} ${T('筆警告記錄','records')} · ${l.emps} ${T('位員工','staff')} · ${T('年度','years')} ${l.sheets.join(', ')}
+      <br><span class="text-slate-400">${Object.entries(l.byLv).map(([k,v])=>lvName(k)+' '+v).join('　')}${l.skipped?T(`　（略過 ${l.skipped} 張非年度分頁）`,''):''}</span></span></div>`
+    : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`).join('')
+   +`<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-sky-700">📌 ${T('匯入資料目前只存在本機。要同步到 Google Sheet 供 Telegram 查詢，請按右上角「☁ 上傳」（需管理權限）。','Imported data is local only — use ☁ Upload to sync to the cloud sheet.')}</div>`;
+  rep.classList.remove('hidden');
+  applyLang();
+}
+
+// ━━━━ 篩選 ━━━━
+function filtered(){
+  const d=qs('#sel-dept')?qs('#sel-dept').value:'';
+  const l=qs('#sel-level')?qs('#sel-level').value:'';
+  const s=qs('#sel-status')?qs('#sel-status').value:'';
+  return RECS.filter(r=>{
+    if(d&&r.empDept!==d)return false;
+    if(l&&r.level!==l)return false;
+    if(s==='__active'){if(isExpired(r)||r.status!=='已核可')return false;}
+    else if(s==='__expired'){if(!isExpired(r))return false;}
+    else if(s&&r.status!==s)return false;
+    return true;
+  });
+}
+const periods=()=>[...new Set(filtered().map(r=>r.incidentDate.slice(0,7)))].sort();
+const allPeriods=()=>[...new Set(RECS.map(r=>r.incidentDate.slice(0,7)))].sort();
+function spanRecs(){
+  const rs=filtered();if(!ACTIVE)return rs;
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return rs.filter(r=>+r.incidentDate.slice(0,4)===ay);
+  if(UNIT==='quarter'){const q=Math.floor((am-1)/3);
+    return rs.filter(r=>+r.incidentDate.slice(0,4)===ay&&Math.floor((+r.incidentDate.slice(5,7)-1)/3)===q);}
+  if(UNIT==='week'||UNIT==='day')return rs.filter(r=>r.incidentDate.slice(0,7)===ACTIVE);
+  return rs.filter(r=>r.incidentDate.slice(0,7)===ACTIVE);
+}
+function spanLabel(){
+  if(!ACTIVE)return '';
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return String(ay);
+  if(UNIT==='quarter')return `${ay} Q${Math.floor((am-1)/3)+1}`;
+  return `${MS[am-1]} ${ay}`;
+}
+function _btn(on,color){return on
+  ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setUnit(u){UNIT=u;['day','week','month','quarter','year'].forEach(k=>qs('#cu-'+k).className=_btn(k===u,'amber'));renderAll();}
+function setDeptView(v){DEPT_VIEW=v;qs('#dv-cur').className=_btn(v==='cur','amber');
+  qs('#dv-hist').className=_btn(v==='hist','amber');renderDept();}
+function jumpPeriod(p){if(p){ACTIVE=p;renderAll();}}
+function stepPeriod(dir){
+  const ps=periods();if(!ps.length)return;
+  const i=ps.indexOf(ACTIVE);
+  const n=Math.min(ps.length-1,Math.max(0,(i<0?ps.length-1:i)+dir));
+  if(n!==i)jumpPeriod(ps[n]);
+}
+const TABS=['dash','time','dept','list','emp','apply'];
+function goTab(name){
+  TABS.forEach(t=>{
+    qs('#pane-'+t).classList.toggle('hidden',t!==name);
+    qs('#tab-'+t).className=(t===name?'tab-active':'tab-inactive')+' text-sm px-4 py-3 whitespace-nowrap transition';});
+  if(name==='apply'){qs('#empty-state').classList.add('hidden');qs('#app').classList.remove('hidden');buildApplyForm();}
+  else{showApp();renderAll();}
+}
+function showApp(){
+  const has=RECS.length>0;
+  qs('#empty-state').classList.toggle('hidden',has);
+  qs('#app').classList.toggle('hidden',!has);
+}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ━━━━ 渲染 ━━━━
+function renderAll(){
+  if(!RECS.length){showApp();return;}
+  showApp();buildFilters();
+  const ps=periods();
+  if(!ACTIVE||!ps.includes(ACTIVE))ACTIVE=ps[ps.length-1];
+  renderNav();renderDash();renderTime();renderDept();renderList();renderEmp();
+}
+function buildFilters(){
+  const fill=(sel,vals,mapLabel)=>{
+    const keep=sel.value,first=sel.querySelector('option');
+    sel.innerHTML='';sel.appendChild(first);
+    vals.forEach(v=>{const o=document.createElement('option');o.value=v;
+      o.textContent=mapLabel?mapLabel(v):v;sel.appendChild(o);});
+    if(keep&&[...sel.options].some(o=>o.value===keep))sel.value=keep;};
+  fill(qs('#sel-dept'),[...new Set(RECS.map(r=>r.empDept).filter(Boolean))].sort());
+  fill(qs('#sel-level'),LEVELS.map(l=>l.k).filter(k=>RECS.some(r=>r.level===k)),lvName);
+}
+function renderNav(){
+  const ps=periods(),sel=qs('#nav-period');
+  sel.innerHTML=ps.slice().reverse().map(p=>{
+    const [y,m]=p.split('-');
+    const n=filtered().filter(r=>r.incidentDate.slice(0,7)===p).length;
+    return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('筆','rec')}</option>`;}).join('');
+  if(ACTIVE)sel.value=ACTIVE;
+  const i=ps.indexOf(ACTIVE);
+  const pend=RECS.filter(r=>r.status==='待審核').length;
+  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span>`
+    +(pend?` <span class="text-rose-600 font-semibold">⏳ ${T(`${pend} 筆待審核`,`${pend} pending`)}</span>`:'');
+}
+
+function renderDash(){
+  const rs=spanRecs(),all=filtered();
+  const pend=rs.filter(r=>r.status==='待審核').length;
+  const act=rs.filter(r=>r.status==='已核可'&&!isExpired(r)).length;
+  const emps=new Set(rs.map(r=>r.empId));
+  const cnt={};rs.forEach(r=>cnt[r.empId]=(cnt[r.empId]||0)+1);
+  const repeat=Object.values(cnt).filter(v=>v>1).length;
+  // 達終止門檻：全期間內有效大過/最後警告 ≥ 3
+  const bf={};
+  all.filter(r=>!isExpired(r)&&r.status==='已核可'&&(r.level==='Big'||r.level==='Final'))
+     .forEach(r=>bf[r.empId]=(bf[r.empId]||0)+1);
+  const risk=Object.values(bf).filter(v=>v>=TERMINATE_AT).length;
+
+  qs('#k-tot').textContent=int(rs.length);
+  qs('#k-tot-s').textContent=spanLabel();
+  qs('#k-pend').textContent=int(pend);
+  qs('#k-pend-s').textContent=pend?T('請儘快核可','awaiting approval'):T('無待辦','none');
+  qs('#k-act').textContent=int(act);
+  qs('#k-act-s').textContent=T('尚未失效','not yet expired');
+  qs('#k-emp').textContent=int(emps.size);
+  qs('#k-emp-s').textContent=rs.length?T(`平均 ${(rs.length/emps.size).toFixed(1)} 次/人`,`avg ${(rs.length/emps.size).toFixed(1)}/staff`):'';
+  qs('#k-rep').textContent=int(repeat);
+  qs('#k-rep-s').textContent=T('本期 2 次以上','2+ this period');
+  qs('#k-risk').textContent=int(risk);
+  qs('#k-risk-s').textContent=T(`有效大過/最後 ≥ ${TERMINATE_AT}`,`Big/Final ≥ ${TERMINATE_AT}`);
+
+  const dv=qs('#sel-dept').value,lv=qs('#sel-level').value;
+  qs('#scope-txt').textContent=[spanLabel(),dv||T('全廠','All'),lv?lvName(lv):'',`${rs.length} ${T('筆','rec')}`].filter(Boolean).join(' · ');
+
+  // 趨勢：各等級堆疊
+  const series=timeSeries();
+  qs('#trend-note').textContent=T(`以「${UNIT_ZH[UNIT]}」彙總 · 共 ${series.length} 組`,`${series.length} groups`);
+  const asc=series.slice().reverse();
+  const lvs=LEVELS.filter(l=>filtered().some(r=>r.level===l.k));
+  destroyChart('trend-chart');
+  charts['trend-chart']=new Chart(qs('#trend-chart'),{
+    type:'bar',
+    data:{labels:asc.map(s=>s.label),
+      datasets:lvs.map(l=>({label:lvName(l.k),data:asc.map(s=>s.byLv[l.k]||0),
+        backgroundColor:l.c+'cc',borderColor:l.c,borderWidth:1,stack:'s'}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
+      scales:{y:{stacked:true,beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10},precision:0}},
+              x:{stacked:true,grid:{display:false},ticks:{font:{size:9},maxRotation:60}}}}
+  });
+  // 部門圖
+  const dm={};rs.forEach(r=>{const d=r.empDept||'—';dm[d]=(dm[d]||0)+1;});
+  const top=Object.entries(dm).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  destroyChart('dept-chart');
+  charts['dept-chart']=new Chart(qs('#dept-chart'),{
+    type:'bar',
+    data:{labels:top.map(([d])=>d.length>18?d.slice(0,18)+'…':d),
+      datasets:[{data:top.map(([,v])=>v),backgroundColor:'#d97706aa',borderColor:'#d97706',borderWidth:1,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{font:{size:10},precision:0}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+}
+
+const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
+const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
+function timeSeries(){
+  const rs=filtered(),g={};
+  rs.forEach(r=>{
+    const d=toDate(r.incidentDate);if(!d)return;
+    const y=d.getFullYear(),m=d.getMonth()+1;
+    let gk,label;
+    if(UNIT==='day'){gk=r.incidentDate;label=r.incidentDate;}
+    else if(UNIT==='week'){const w=isoWeek(d);gk=`${w.y}-W${pad(w.w)}`;label=gk;}
+    else if(UNIT==='quarter'){const q=Math.floor((m-1)/3)+1;gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else if(UNIT==='year'){gk=String(y);label=String(y);}
+    else{gk=`${y}-${pad(m)}`;label=`${MS[m-1]} ${y}`;}
+    const t=g[gk]||(g[gk]={key:gk,label,n:0,byLv:{},emps:new Set(),pend:0,act:0});
+    t.n++;t.byLv[r.level]=(t.byLv[r.level]||0)+1;t.emps.add(r.empId);
+    if(r.status==='待審核')t.pend++;
+    if(r.status==='已核可'&&!isExpired(r))t.act++;
+  });
+  return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
+}
+function renderTime(){
+  const series=timeSeries();
+  qs('#time-title').textContent=T(`📅 ${UNIT_ZH[UNIT]}明細`,`📅 ${UNIT_EN[UNIT]} Detail`);
+  qs('#time-note').textContent=T('每一列為一個區間，欄為各警告等級的件數。點列可切換至該期間。',
+    'Each row is a period; columns are counts per warning level.');
+  const lvs=LEVELS.filter(l=>filtered().some(r=>r.level===l.k));
+  qs('#time-thead').innerHTML=[T('區間','Period'),T('合計','Total'),...lvs.map(l=>lvName(l.k)),
+    T('涉及人數','Staff'),T('待審核','Pending'),T('目前有效','Active')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#time-tbody').innerHTML=series.map((s,i)=>{
+    const mk=s.key.length===7?s.key:null;
+    return `<tr ${mk?`onclick="jumpPeriod('${mk}')"`:''} class="border-b border-slate-50 ${mk?'cursor-pointer':''} ${i===0?'bg-amber-50/40':'hover:bg-slate-50'}">
+      <td class="px-3 py-2 font-semibold ${i===0?'text-amber-700':'text-slate-700'}">${s.label}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold">${s.n}</td>
+      ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono ${s.byLv[l.k]?'':'text-slate-200'}">${s.byLv[l.k]||'—'}</td>`).join('')}
+      <td class="px-3 py-2 text-right jmono">${s.emps.size}</td>
+      <td class="px-3 py-2 text-right jmono ${s.pend?'text-rose-600 font-semibold':'text-slate-300'}">${s.pend||'—'}</td>
+      <td class="px-3 py-2 text-right jmono ${s.act?'text-orange-600':'text-slate-300'}">${s.act||'—'}</td></tr>`;
+  }).join('')||`<tr><td colspan="${lvs.length+5}" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  const TT={n:0,byLv:{},pend:0,act:0};const E=new Set();
+  series.forEach(s=>{TT.n+=s.n;TT.pend+=s.pend;TT.act+=s.act;
+    lvs.forEach(l=>TT.byLv[l.k]=(TT.byLv[l.k]||0)+(s.byLv[l.k]||0));s.emps.forEach(x=>E.add(x));});
+  qs('#time-tfoot').innerHTML=`<td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.n}</td>
+    ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono">${TT.byLv[l.k]||'—'}</td>`).join('')}
+    <td class="px-3 py-2 text-right jmono">${E.size}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.pend||'—'}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.act||'—'}</td>`;
+}
+
+function renderDept(){
+  if(DEPT_VIEW==='hist'){renderDeptHist();return;}
+  const rs=spanRecs();
+  const lvs=LEVELS.filter(l=>filtered().some(r=>r.level===l.k));
+  const dm={};
+  rs.forEach(r=>{const d=r.empDept||'—';
+    if(!dm[d])dm[d]={n:0,byLv:{},emps:new Set(),pend:0,act:0};
+    const g=dm[d];g.n++;g.byLv[r.level]=(g.byLv[r.level]||0)+1;g.emps.add(r.empId);
+    if(r.status==='待審核')g.pend++;
+    if(r.status==='已核可'&&!isExpired(r))g.act++;});
+  const sorted=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n);
+  const tot=rs.length||1;
+  qs('#dept-thead').innerHTML=[T('部門','Department'),T('警告數','Warnings'),T('占比','Share'),
+    ...lvs.map(l=>lvName(l.k)),T('涉及人數','Staff'),T('人均','Per staff'),T('目前有效','Active')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#dept-tbody').innerHTML=sorted.map(([d,v])=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium text-slate-700">${esc(d)}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">${v.n}</td>
+      <td class="px-3 py-2 text-right jmono">${(v.n/tot*100).toFixed(1)}%</td>
+      ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono ${v.byLv[l.k]?'':'text-slate-200'}">${v.byLv[l.k]||'—'}</td>`).join('')}
+      <td class="px-3 py-2 text-right jmono">${v.emps.size}</td>
+      <td class="px-3 py-2 text-right jmono">${(v.n/v.emps.size).toFixed(1)}</td>
+      <td class="px-3 py-2 text-right jmono ${v.act?'text-orange-600':'text-slate-300'}">${v.act||'—'}</td></tr>`).join('')
+    ||`<tr><td colspan="${lvs.length+6}" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  const E=new Set();sorted.forEach(([,v])=>v.emps.forEach(x=>E.add(x)));
+  qs('#dept-tfoot').innerHTML=`<td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2 text-right jmono">${rs.length}</td><td class="px-3 py-2 text-right jmono">100%</td>
+    ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono">${rs.filter(r=>r.level===l.k).length||'—'}</td>`).join('')}
+    <td class="px-3 py-2 text-right jmono">${E.size}</td>
+    <td class="px-3 py-2 text-right jmono">${E.size?(rs.length/E.size).toFixed(1):'—'}</td>
+    <td class="px-3 py-2 text-right jmono">${rs.filter(r=>r.status==='已核可'&&!isExpired(r)).length||'—'}</td>`;
+}
+function renderDeptHist(){
+  const series=timeSeries();
+  const rs=filtered();
+  const depts=[...new Set(rs.map(r=>r.empDept||'—'))];
+  const cnt={};
+  rs.forEach(r=>{
+    const d=toDate(r.incidentDate);if(!d)return;
+    const y=d.getFullYear(),m=d.getMonth()+1;
+    let gk;
+    if(UNIT==='day')gk=r.incidentDate;
+    else if(UNIT==='week'){const w=isoWeek(d);gk=`${w.y}-W${pad(w.w)}`;}
+    else if(UNIT==='quarter')gk=`${y}-Q${Math.floor((m-1)/3)+1}`;
+    else if(UNIT==='year')gk=String(y);
+    else gk=`${y}-${pad(m)}`;
+    const k=(r.empDept||'—')+'|'+gk;cnt[k]=(cnt[k]||0)+1;});
+  const sorted=depts.sort((a,b)=>
+    series.reduce((x,s)=>x+(cnt[b+'|'+s.key]||0),0)-series.reduce((x,s)=>x+(cnt[a+'|'+s.key]||0),0));
+  qs('#dept-thead').innerHTML=`<th class="px-3 py-2 text-left font-semibold sticky left-0 bg-slate-50">${T('部門','Department')}</th>`
+    +series.map(s=>`<th class="px-3 py-2 text-right font-semibold whitespace-nowrap">${s.label}</th>`).join('')
+    +`<th class="px-3 py-2 text-right font-semibold">${T('合計','Total')}</th>`;
+  qs('#dept-tbody').innerHTML=sorted.map(d=>{
+    const vals=series.map(s=>cnt[d+'|'+s.key]||0);
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium text-slate-700 sticky left-0 bg-white">${esc(d)}</td>
+      ${vals.map(v=>`<td class="px-3 py-2 text-right jmono ${v?'':'text-slate-200'}">${v||'—'}</td>`).join('')}
+      <td class="px-3 py-2 text-right jmono font-bold text-amber-700">${vals.reduce((a,b)=>a+b,0)}</td></tr>`;
+  }).join('')||`<tr><td colspan="${series.length+2}" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  qs('#dept-tfoot').innerHTML=`<td class="px-3 py-2 sticky left-0 bg-slate-50">${T('合計','TOTAL')}</td>`
+    +series.map(s=>`<td class="px-3 py-2 text-right jmono">${s.n}</td>`).join('')
+    +`<td class="px-3 py-2 text-right jmono">${series.reduce((a,s)=>a+s.n,0)}</td>`;
+}
+
+function renderList(){
+  const all=qs('#li-scope').value==='all';
+  let list=all?filtered():spanRecs();
+  const q=(qs('#li-q').value||'').trim().toLowerCase();
+  if(q)list=list.filter(r=>(r.empId+' '+r.empName+' '+r.empDept+' '+r.empPos+' '+r.reason).toLowerCase().includes(q));
+  list=list.slice().sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);
+  qs('#li-count').textContent=`${list.length} ${T('筆','rec')}`;
+  qs('#li-thead').innerHTML=[T('發生日','Date'),T('工號','ID'),T('姓名','Name'),T('部門','Dept'),
+    T('等級','Level'),T('事由','Reason'),T('失效日','Expires'),T('狀態','Status'),'']
+    .map((h,i)=>`<th class="px-3 py-2 text-left font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
+  qs('#li-tbody').innerHTML=list.slice(0,500).map(r=>{
+    const exp=isExpired(r);
+    const stColor=r.status==='待審核'?'bg-rose-100 text-rose-700':r.status==='已退件'?'bg-slate-100 text-slate-500':'bg-emerald-100 text-emerald-700';
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${exp?'opacity-60':''}">
+      <td class="px-3 py-2 jmono font-semibold text-slate-700">${esc(r.incidentDate)}</td>
+      <td class="px-3 py-2 jmono text-slate-500">${esc(r.empId)}</td>
+      <td class="px-3 py-2 text-slate-700">${esc(r.empName||'—')}</td>
+      <td class="px-3 py-2 text-slate-500">${esc(r.empDept||'—')}</td>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${LV(r.level).bg}">${lvName(r.level)}</span></td>
+      <td class="px-3 py-2 text-slate-500 max-w-[220px] truncate" title="${esc(r.reason||'')}">${esc(r.reason||'—')}</td>
+      <td class="px-3 py-2 jmono text-[11px] ${exp?'text-slate-400 line-through':'text-slate-500'}">${esc(r.expireDate||'—')}</td>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${stColor}">${esc(r.status)}</span>
+        ${exp?`<span class="ml-1 text-[10px] text-slate-400">${T('已失效','expired')}</span>`:''}</td>
+      <td class="px-3 py-2 whitespace-nowrap">
+        ${r.status==='待審核'&&IS_ADMIN?`
+          <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('核可','Approve')}</button>
+          <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`
+        :r.status==='待審核'?`<span class="text-[11px] text-slate-400">${T('待 Paul 核可','pending')}</span>`:''}
+      </td></tr>`;}).join('')
+    ||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
+  if(list.length>500)qs('#li-tbody').insertAdjacentHTML('beforeend',
+    `<tr><td colspan="9" class="px-3 py-3 text-center text-slate-400 text-[11px]">${T(`僅顯示前 500 筆，共 ${list.length} 筆`,`Showing 500 of ${list.length}`)}</td></tr>`);
+}
+
+function renderEmp(){
+  const rs=filtered();
+  const em={};
+  rs.forEach(r=>{
+    if(!em[r.empId])em[r.empId]={id:r.empId,name:r.empName,dept:r.empDept,pos:r.empPos,
+      n:0,byLv:{},active:0,bigFinal:0,last:'',first:''};
+    const e=em[r.empId];e.n++;e.byLv[r.level]=(e.byLv[r.level]||0)+1;
+    if(r.empName&&!e.name)e.name=r.empName;
+    if(r.empDept&&!e.dept)e.dept=r.empDept;
+    const ok=r.status==='已核可'&&!isExpired(r);
+    if(ok){e.active++;if(r.level==='Big'||r.level==='Final')e.bigFinal++;}
+    if(!e.last||r.incidentDate>e.last)e.last=r.incidentDate;
+    if(!e.first||r.incidentDate<e.first)e.first=r.incidentDate;});
+  const list=Object.values(em).sort((a,b)=>b.bigFinal-a.bigFinal||b.active-a.active||b.n-a.n);
+  const lvs=LEVELS.filter(l=>rs.some(r=>r.level===l.k));
+  const risk=list.filter(e=>e.bigFinal>=TERMINATE_AT);
+
+  qs('#emp-body').innerHTML=`
+  ${risk.length?`<div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+    <p class="text-sm font-bold text-red-800">🚨 ${T(`達終止合約門檻：${risk.length} 人`,`At termination threshold: ${risk.length}`)}</p>
+    <p class="text-[11px] text-red-600 mt-1">${T(`有效「大過 / 最後警告」累計達 ${TERMINATE_AT} 次以上（已排除失效與退件）`,`Active Big/Final ≥ ${TERMINATE_AT}`)}</p>
+    <div class="mt-2 flex flex-wrap gap-2">${risk.map(e=>`<span class="text-xs bg-white border border-red-200 rounded-lg px-2.5 py-1">
+      <b>${esc(e.name||e.id)}</b> <span class="text-slate-400">#${esc(e.id)}</span> · ${e.bigFinal} ${T('次','×')}</span>`).join('')}</div>
+  </div>`:''}
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+      <p class="text-sm font-semibold text-slate-700 flex-1">${T('員工警告累計','Warnings by Employee')}</p>
+      <span class="text-[11px] text-slate-400">${list.length} ${T('位員工','staff')}</span>
+    </div>
+    <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr>
+        ${[T('工號','ID'),T('姓名','Name'),T('部門','Dept'),T('總次數','Total'),...lvs.map(l=>lvName(l.k)),
+           T('目前有效','Active'),T('大過/最後','Big/Final'),T('首次','First'),T('最近','Latest')]
+          .map((h,i)=>`<th class="px-3 py-2 ${i>2?'text-right':'text-left'} font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('')}
+      </tr></thead><tbody>
+      ${list.slice(0,400).map(e=>`<tr class="border-b border-slate-50 hover:bg-slate-50 ${e.bigFinal>=TERMINATE_AT?'bg-red-50/50':''}">
+        <td class="px-3 py-2 jmono text-slate-500">${esc(e.id)}</td>
+        <td class="px-3 py-2 text-slate-700">${esc(e.name||'—')}</td>
+        <td class="px-3 py-2 text-slate-500">${esc(e.dept||'—')}</td>
+        <td class="px-3 py-2 text-right jmono font-semibold">${e.n}</td>
+        ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono ${e.byLv[l.k]?'':'text-slate-200'}">${e.byLv[l.k]||'—'}</td>`).join('')}
+        <td class="px-3 py-2 text-right jmono ${e.active?'text-orange-600 font-semibold':'text-slate-300'}">${e.active||'—'}</td>
+        <td class="px-3 py-2 text-right jmono ${e.bigFinal>=TERMINATE_AT?'text-red-700 font-bold':e.bigFinal?'text-rose-600':'text-slate-300'}">${e.bigFinal||'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-[11px] text-slate-400">${esc(e.first)}</td>
+        <td class="px-3 py-2 text-right jmono text-[11px] text-slate-500">${esc(e.last)}</td></tr>`).join('')
+        ||`<tr><td colspan="${lvs.length+8}" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}
+      </tbody></table></div>
+  </div>`;
+}
+
+// ━━━━ 線上申請 ━━━━
+const AP_FIELDS=()=>[
+  ['applicant',T('申請人 Applicant','Applicant'),'text',true],
+  ['applicantDept',T('申請人部門 Applicant Dept','Applicant Dept'),'text',false],
+  ['empId',T('員工工號 Employee ID','Employee ID'),'text',true],
+  ['empName',T('員工姓名 Employee Name','Employee Name'),'text',true],
+  ['empDept',T('員工部門 Department','Department'),'text',true],
+  ['empPos',T('員工職務 Position','Position'),'text',false],
+  ['level',T('警告等級 Level','Level'),'level',true],
+  ['incidentDate',T('發生日期 Incident Date','Incident Date'),'date',true],
+  ['reason',T('事由 Reason','Reason'),'textarea',true],
+  ['remark',T('備註 Remark','Remark'),'textarea',false],
+];
+function buildApplyForm(){
+  const box=qs('#ap-form');
+  const keep={};box.querySelectorAll('[id^=ap-f-]').forEach(el=>keep[el.id.slice(5)]=el.value);
+  box.innerHTML=AP_FIELDS().map(([k,label,type,req])=>{
+    const v=keep[k]||(k==='incidentDate'?todayStr():'');
+    const lb=`<label class="text-[11px] font-semibold text-slate-500">${label}${req?' <span class="text-rose-500">*</span>':''}</label>`;
+    if(type==='level')return `<div>${lb}
+      <select id="ap-f-${k}" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-200">
+        ${LEVELS.map(l=>`<option value="${l.k}"${v===l.k?' selected':''}>${lvName(l.k)}（${T(`有效 ${l.mo} 個月`,`${l.mo} months`)}）</option>`).join('')}
+      </select></div>`;
+    if(type==='textarea')return `<div class="sm:col-span-2">${lb}
+      <textarea id="ap-f-${k}" rows="2" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-200">${esc(v)}</textarea></div>`;
+    return `<div>${lb}
+      <input id="ap-f-${k}" type="${type}" value="${esc(v)}" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-200"></div>`;
+  }).join('')
+  +`<div class="sm:col-span-2 flex items-center gap-2 pt-1">
+      <input id="ap-f-is7Day" type="checkbox" class="w-4 h-4 accent-rose-600">
+      <label for="ap-f-is7Day" class="text-xs text-slate-600">${T('連續曠工 ≥ 7 天（依廠規可直接終止合約）','Absent ≥ 7 consecutive days')}</label>
+    </div>`;
+}
+function apVal(k){const el=qs('#ap-f-'+k);return el?(el.type==='checkbox'?el.checked:el.value.trim()):'';}
+function resetApply(){qs('#ap-form').querySelectorAll('input,textarea').forEach(el=>{
+  if(el.type==='checkbox')el.checked=false;else if(el.type!=='date')el.value='';});
+  qs('#ap-check').classList.add('hidden');}
+async function gasGet(params){
+  const u=new URL(GAS_URL);
+  Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+  const r=await fetch(u.toString());
+  return await r.json();
+}
+async function checkApply(){
+  const empId=apVal('empId'),empName=apVal('empName'),level=apVal('level');
+  if(!empId&&!empName){toast(T('請先填工號或姓名','Enter ID or name first'),'error');return;}
+  const box=qs('#ap-check');
+  box.classList.remove('hidden');
+  box.className='mx-5 mb-4 rounded-lg p-3 text-xs bg-slate-50 border border-slate-200 text-slate-500';
+  box.textContent=T('查詢中…','Checking…');
+  // 先查本機，再問雲端
+  const local=RECS.filter(r=>String(r.empId)===String(empId)&&!isExpired(r)&&r.status==='已核可');
+  const lbf=local.filter(r=>r.level==='Big'||r.level==='Final').length;
+  let cloud=null;
+  try{ cloud=await gasGet({action:'warnCheck',empId,empName,level}); }catch(e){}
+  const bf=(cloud&&cloud.ok)?cloud.bigFinalCount:lbf;
+  const willBe=bf+((level==='Big'||level==='Final')?1:0);
+  const term=willBe>=TERMINATE_AT;
+  box.className='mx-5 mb-4 rounded-lg p-3 text-xs border '
+    +(term?'bg-red-50 border-red-200 text-red-800':'bg-sky-50 border-sky-200 text-sky-800');
+  box.innerHTML=`${term?'🚨 ':'ℹ️ '}<b>${esc(empName||empId)}</b> ${T('目前有效「大過／最後警告」累計','active Big/Final warnings')}：<b>${bf}</b> ${T('次','×')}
+    ${T(`；本次送出後將達 ${willBe} 次`,`; will become ${willBe}`)}
+    ${term?`<br><b>${T(`已達終止門檻（${TERMINATE_AT} 次），送出時會在群組標示「建議終止合約」`,`Termination threshold reached`)}</b>`:''}
+    ${local.length?`<br><span class="text-slate-500">${T(`本機另有 ${local.length} 筆有效記錄`,`${local.length} active records locally`)}</span>`:''}`;
+}
+async function submitApply(){
+  const need=AP_FIELDS().filter(f=>f[3]).map(f=>f[0]);
+  for(const k of need){
+    if(!apVal(k)){toast(T('請填寫所有必填欄位','Please fill all required fields'),'error');
+      const el=qs('#ap-f-'+k);if(el){el.focus();el.classList.add('ring-2','ring-rose-300');
+        setTimeout(()=>el.classList.remove('ring-2','ring-rose-300'),1800);}return;}
+  }
+  const d={timestamp:_nowStr(),applicant:apVal('applicant'),applicantDept:apVal('applicantDept'),
+    empId:apVal('empId'),empName:apVal('empName'),empDept:apVal('empDept'),empPos:apVal('empPos'),
+    level:apVal('level'),incidentDate:apVal('incidentDate'),reason:apVal('reason'),
+    remark:apVal('remark'),is7Day:apVal('is7Day')};
+  const btn=qs('#ap-submit');btn.disabled=true;btn.textContent=T('送出中…','Submitting…');
+  try{
+    const res=await gasGet({action:'warnSubmit',data:JSON.stringify(d)});
+    if(res&&res.ok){
+      // 本機同步一筆（狀態待審核）
+      RECS.unshift({...d,id:res.id||('W'+Date.now()),status:'待審核',
+        expireDate:expireOf(d.incidentDate,d.level),approver:'',approveTs:'',_src:'apply'});
+      await idbSaveAll();
+      const ps=periods();ACTIVE=d.incidentDate.slice(0,7);
+      resetApply();showApp();renderAll();goTab('list');
+      toast(res.terminate
+        ? T('已送出，並已在群組標示「建議終止合約」','Submitted — termination flagged')
+        : T('已送出，群組可直接核可','Submitted — approve in the group'),'success');
+    }else{
+      toast(T('送出失敗：','Submit failed: ')+((res&&res.error)||'unknown'),'error');
+    }
+  }catch(e){toast(T('送出失敗：','Submit failed: ')+e.message,'error');}
+  btn.disabled=false;btn.textContent=T('送出待核可','Submit for approval');
+}
+async function approveRec(id,approve){
+  const r=RECS.find(x=>x.id===id);if(!r)return;
+  if(!IS_ADMIN){toast(T('需要管理權限','Admin required'),'error');return;}
+  if(!confirm(T(`確定${approve?'核可':'退件'}：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？`,
+    `${approve?'Approve':'Reject'} this warning?`)))return;
+  try{
+    if(r.row){
+      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_ID,
+        data:JSON.stringify({row:r.row,status:approve?'已核可':'已退件'})});
+      if(!res||!res.ok){toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');}
+    }
+    r.status=approve?'已核可':'已退件';r.approver='Paul';r.approveTs=_nowStr();
+    await idbSaveAll();renderAll();
+    toast(approve?T('已核可','Approved'):T('已退件','Rejected'),'success');
+  }catch(e){toast(T('操作失敗：','Failed: ')+e.message,'error');}
+}
+
+// ━━━━ 雲端 ━━━━
+async function cloudDownload(){
+  const b=qs('#btn-cloud-down');b.disabled=true;b.classList.add('opacity-50');
+  try{
+    const res=await gasGet({action:'warnList'});
+    if(res&&res.ok&&Array.isArray(res.records)){
+      const cloud=res.records.map(r=>({...r,
+        id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),
+        expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));
+      // 雲端優先，本機獨有的保留
+      const ck=new Set(cloud.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));
+      RECS=cloud.concat(RECS.filter(r=>!ck.has(r.empId+'|'+r.incidentDate+'|'+r.level)));
+      RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);
+      await idbSaveAll();
+      const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];
+      showApp();renderAll();
+      toast(T(`☁ 已載入 ${cloud.length} 筆雲端記錄`,`☁ Loaded ${cloud.length}`),'success');
+    }else toast(T('雲端尚無資料','No cloud data'),'warning');
+  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
+  b.disabled=false;b.classList.remove('opacity-50');
+}
+async function cloudUpload(){
+  if(!RECS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
+  if(!IS_ADMIN){toast(T('上傳需要管理權限，請先按右上角「管理」','Admin required — click Admin first'),'error');return;}
+  const pending=RECS.filter(r=>r._src==='import'||!r.row);
+  if(!pending.length){toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'warning');return;}
+  const b=qs('#btn-cloud-up');b.disabled=true;b.classList.add('opacity-50');
+  let done=0,skipped=0;
+  try{
+    // GET 的 URL 有長度限制，分批送（每批 40 筆）
+    for(let i=0;i<pending.length;i+=40){
+      const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',
+        empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',
+        level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',
+        status:r.status||'已核可'}));
+      const res=await gasGet({action:'warnImport',adminCode:ADMIN_ID,data:JSON.stringify(chunk)});
+      if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}
+      b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;
+    }
+    toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');
+  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
+  b.disabled=false;b.classList.remove('opacity-50');
+  b.querySelector('span').textContent=T('上傳','Upload');
+}
+
+// ━━━━ TELEGRAM ━━━━
+function tgKeys(unit){
+  const m={};
+  filtered().forEach(r=>{
+    const d=toDate(r.incidentDate);if(!d)return;
+    const y=d.getFullYear(),mo=d.getMonth()+1;
+    let k,label;
+    if(unit==='year'){k=String(y);label=String(y);}
+    else if(unit==='quarter'){const q=Math.floor((mo-1)/3)+1;k=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else{k=`${y}-${pad(mo)}`;label=`${MS[mo-1]} ${y}`;}
+    m[k]=label;});
+  return Object.keys(m).sort().reverse().map(k=>({k,label:m[k]}));
+}
+function inTgKey(r,unit,key){
+  const d=toDate(r.incidentDate);if(!d)return false;
+  const y=d.getFullYear(),mo=d.getMonth()+1;
+  if(unit==='year')return String(y)===key;
+  if(unit==='quarter')return `${y}-Q${Math.floor((mo-1)/3)+1}`===key;
+  return `${y}-${pad(mo)}`===key;
+}
+function buildTgText(unit,key){
+  const list=filtered().filter(r=>inTgKey(r,unit,key));
+  if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
+  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key;
+  const pend=list.filter(r=>r.status==='待審核').length;
+  const act=list.filter(r=>r.status==='已核可'&&!isExpired(r)).length;
+  const byLv={};list.forEach(r=>byLv[r.level]=(byLv[r.level]||0)+1);
+  const dm={};list.forEach(r=>{const d=r.empDept||'—';dm[d]=(dm[d]||0)+1;});
+  const emps=new Set(list.map(r=>r.empId));
+  // 達終止門檻者（全期間計算）
+  const bf={};
+  filtered().filter(r=>!isExpired(r)&&r.status==='已核可'&&(r.level==='Big'||r.level==='Final'))
+    .forEach(r=>{if(!bf[r.empId])bf[r.empId]={n:0,name:r.empName};bf[r.empId].n++;});
+  const risk=Object.entries(bf).filter(([,v])=>v.n>=TERMINATE_AT);
+
+  let t=`⚠️ <b>員工警告摘要 Warning Summary</b>\n`
+   +`📅 期間 Period：${esc(label)}\n`
+   +`📋 警告件數 Records：<b>${list.length}</b>　👤 ${T('涉及','staff')}：${emps.size}\n`
+   +`⏳ ${T('待審核','Pending')}：${pend}　🔶 ${T('目前有效','Active')}：${act}\n`
+   +`— — — — — — — — — —\n<b>${T('各等級 By Level','By Level')}</b>\n`;
+  LEVELS.forEach(l=>{if(byLv[l.k])t+=`${l.zh} ${l.en}：${byLv[l.k]}\n`;});
+  t+=`— — — — — — — — — —\n<b>${T('各部門 By Department','By Department')}</b>\n`;
+  Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,v])=>{t+=`${esc(d)}：${v}\n`;});
+  if(risk.length){
+    t+=`— — — — — — — — — —\n🚨 <b>${T(`達終止門檻（有效大過/最後 ≥ ${TERMINATE_AT}）`,`At termination threshold`)}</b>\n`;
+    risk.forEach(([id,v])=>{t+=`${esc(v.name||id)} #${esc(id)}：${v.n} ${T('次','×')}\n`;});
+  }
+  t+=`— — — — — — — — — —\n合計 TOTAL：${list.length} ${T('件','records')}`;
+  if(pend)t+=`\n\n👉 ${T('尚有 '+pend+' 件待 Paul 核可，可於申請通知訊息上直接按鈕核可','pending approval')}`;
+  return {text:t};
+}
+function openTgModal(){
+  if(!RECS.length){toast(T('尚無資料','No data'),'error');return;}
+  qs('#tg-unit').value=(UNIT==='year'||UNIT==='quarter')?UNIT:'month';
+  fillTgKeys();
+  const sel=qs('#tg-key');
+  if(ACTIVE&&[...sel.options].some(o=>o.value===ACTIVE))sel.value=ACTIVE;
+  previewTg();
+  const m=qs('#tg-modal');m.classList.remove('hidden');m.classList.add('flex');
+  applyLang();
+}
+function fillTgKeys(){
+  const u=qs('#tg-unit').value;
+  qs('#tg-key').innerHTML=tgKeys(u).map(x=>{
+    const n=filtered().filter(r=>inTgKey(r,u,x.k)).length;
+    return `<option value="${x.k}">${x.label} · ${n} ${T('件','rec')}</option>`;}).join('');
+}
+function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function previewTg(){
+  const pv=qs('#tg-preview');
+  if(pv._unit!==qs('#tg-unit').value){pv._unit=qs('#tg-unit').value;fillTgKeys();}
+  const r=buildTgText(qs('#tg-unit').value,qs('#tg-key').value);
+  const b=qs('#tg-send');
+  if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
+    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
+  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition';}
+}
+async function confirmSendTg(){
+  const r=buildTgText(qs('#tg-unit').value,qs('#tg-key').value);
+  if(r.err){toast(r.err,'error');return;}
+  const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'notify',text:r.text})});
+    let d=null;try{d=await res.json();}catch(e){}
+    if(d&&d.sent===false)toast(T('GAS 回報未送出','Not sent'),'error');
+    else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();}
+  }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');}
+  b.disabled=false;b.textContent=T('確認傳送','Send');
+}
+
+// ━━━━ 其他 ━━━━
+function exportCSV(which){
+  const tbl={time:'#pane-time table',dept:'#pane-dept table',list:'#pane-list table'}[which];
+  const rows=[...qs(tbl).querySelectorAll('tr')].map(tr=>
+    [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`warning_${which}_${ACTIVE||'all'}.csv`;a.click();
+  toast(T('CSV 已下載','CSV downloaded'),'success');
+}
+function setupDropZone(sel,handler,ringCls){
+  const el=document.querySelector(sel);if(!el)return;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>el.addEventListener(ev,stop,false));
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,()=>el.classList.add('ring-2','ring-offset-2',ringCls)));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,()=>el.classList.remove('ring-2','ring-offset-2',ringCls)));
+  el.addEventListener('drop',e=>{
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])].filter(f=>/\.(xlsx|xlsm|xls)$/i.test(f.name));
+    if(files.length)handler({files,value:''});
+    else toast(T('請拖入 Excel 檔','Please drop an Excel file'),'warning');},false);
+  ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+    if(!el.contains(e.target))e.preventDefault();},false));
+}
+
+(async function init(){
+  RECS=await idbLoad();
+  const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];
+  syncAdminBtn();showApp();
+  if(RECS.length)renderAll();
+  setupDropZone('#dz-smart',smartImport,'ring-amber-400');
+  applyLang();
+})();
 </script>
 </body>
 </html>
