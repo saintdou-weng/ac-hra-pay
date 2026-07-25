@@ -57,7 +57,8 @@ body{font-family:'DM Sans',sans-serif;}
     </div>
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800">Payroll & Cost Analytics</p>
-      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh</p>
+      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v4.2</span></p>
     </div>
 
     <div class="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
@@ -1582,9 +1583,14 @@ function renderCost(){
 
   const data = pickDept ? all.filter(r=>r.dept===pickDept) : all;
   if(!data.length){qs('#cost-scope').textContent='此部門無資料';return;}
-  const headcount = data.length;
+  // ⚠ 合計模式會把同一人的「正式」與「預付」兩筆併在一起，
+  //    人均必須以不重複工號計算，否則會被除以兩倍而腰斬。
+  const headcount = COST_SRC==='both'
+    ? new Set(data.map(r=>String(r.id))).size
+    : data.length;
   const perCap = COST_MODE==='cap';
-  const srcZh  = COST_SRC==='adv'?'預付薪資':COST_SRC==='both'?'正式＋預付合計':'正式薪資';
+  const srcZh  = COST_SRC==='adv'?'預付薪資'
+               : COST_SRC==='both'?'實際總支出（正式實發＋預支發放）':'正式薪資';
 
   qs('#cost-scope').textContent =
     `${srcZh} · ${pickDept||'全廠'} · ${headcount} 人 · ${perCap?'每人平均':'總額'} · 基準 ${UNIT_ZH[COST_UNIT]}`;
@@ -1609,6 +1615,11 @@ function renderCost(){
 
   const F = UNIT_DIV[COST_UNIT];   // 月 → 選定單位的換算係數
   const dm=buildDeptMap(data);
+  if(COST_SRC==='both'){   // 合計模式：部門人數改為不重複工號
+    const uniq={};
+    data.forEach(r=>{(uniq[r.dept]=uniq[r.dept]||new Set()).add(String(r.id));});
+    Object.keys(dm).forEach(d=>{ if(uniq[d]) dm[d].count=uniq[d].size; });
+  }
   const sorted=Object.entries(dm).sort((a,b)=>b[1].total-a[1].total);
 
   // ── 兩張圖：左＝人均，右＝選定時間單位的部門成本 ──
@@ -1731,42 +1742,69 @@ function renderBreakdown(){
   const perCap = BD_MODE==='cap';
   const thead=qs('#bd-thead'), tbody=qs('#bd-tbody'), tfoot=qs('#bd-tfoot');
 
-  // ── 核對模式：預支 vs 正式 ──
+  // ── 核對模式：預支 vs 正式（逐人比對，非部門加總）──
   if(BD_SRC==='cmp'){
     const adv=ACTIVE.advanceRecords||[], pay=ACTIVE.payrollRecords||[];
     if(!adv.length||!pay.length){
       qs('#bd-note').innerHTML='<span class="text-amber-600">⚠️ 需同時上傳「預付薪資」與「正式薪資」兩個檔案才能核對。</span>';
       thead.innerHTML='';tbody.innerHTML='';tfoot.innerHTML='';return;
     }
-    qs('#bd-note').innerHTML='核對邏輯：預付檔的實發金額（每人首期領取）↔ 正式檔的預支扣回欄（欄18）。差額不為零代表首期發放與月結扣回不一致。';
-    const A=bdAggregate(adv), P=bdAggregate(pay);
-    const depts=[...new Set([...Object.keys(A),...Object.keys(P)])].sort();
-    thead.innerHTML=['部門 Dept','預支人數','正式人數','預支發放 $','正式扣回 $','差額 Diff','狀態']
-      .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold">${h}</th>`).join('');
-    let tA=0,tP=0;
-    tbody.innerHTML=depts.map(d=>{
-      const a=A[d]||{count:0,totalSalary:0}, p=P[d]||{count:0,advDeduction:0};
-      const av=a.totalSalary||0, pv=p.advDeduction||0, df=av-pv;
-      tA+=av;tP+=pv;
-      const ok=Math.abs(df)<1;
-      return `<tr class="border-b border-slate-50 hover:bg-slate-50">
-        <td class="px-3 py-2 font-medium text-slate-700">${d}</td>
-        <td class="px-3 py-2 text-right jmono">${a.count||'—'}</td>
-        <td class="px-3 py-2 text-right jmono">${p.count||'—'}</td>
-        <td class="px-3 py-2 text-right jmono text-amber-700">$${fmt(av)}</td>
-        <td class="px-3 py-2 text-right jmono text-emerald-700">$${fmt(pv)}</td>
-        <td class="px-3 py-2 text-right jmono font-semibold ${ok?'text-slate-400':'text-rose-600'}">${ok?'—':(df>0?'+':'')+fmt(df)}</td>
-        <td class="px-3 py-2 text-right">${ok?'<span class="text-emerald-600">✓</span>':'<span class="text-rose-600">⚠</span>'}</td>
-      </tr>`;}).join('');
-    const dt=tA-tP;
+    const aMap={},pMap={};
+    adv.forEach(r=>aMap[String(r.id)]=r);
+    pay.forEach(r=>pMap[String(r.id)]=r);
+    const ids=[...new Set([...Object.keys(aMap),...Object.keys(pMap)])];
+
+    const G={match:[],diff:[],advOnly:[],payOnly:[]};
+    ids.forEach(id=>{
+      const a=aMap[id], p=pMap[id];
+      if(a&&!p){G.advOnly.push({id,r:a});return;}
+      if(!a&&p){ if(Math.abs(N(p.advDeduction))>0.5) G.payOnly.push({id,r:p}); return;}
+      const av=Math.abs(N(a.totalSalary)), pv=Math.abs(N(p.advDeduction));
+      const d=av-pv;
+      (Math.abs(d)<0.5?G.match:G.diff).push({id,name:p.nameLat||a.nameLat,dept:p.dept||a.dept,av,pv,d});
+    });
+    G.diff.sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+
+    const totA=adv.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+    const totP=pay.reduce((s,r)=>s+Math.abs(N(r.advDeduction)),0);
+
+    qs('#bd-note').innerHTML=
+      `<b>逐人核對</b>：預付檔每人實發金額 ↔ 正式檔同一工號的預支扣回（欄18）。`
+      +`<span class="ml-2">✅ 相符 <b>${G.match.length}</b> 人</span>`
+      +`<span class="ml-2 text-rose-600">⚠ 金額不符 <b>${G.diff.length}</b> 人</span>`
+      +`<span class="ml-2 text-amber-600">僅預支有 <b>${G.advOnly.length}</b> 人</span>`
+      +`<span class="ml-2 text-sky-600">僅正式扣回 <b>${G.payOnly.length}</b> 人</span>`;
+
+    thead.innerHTML=['類別','工號','姓名','部門','預支發放 $','正式扣回 $','差額']
+      .map((h,i)=>`<th class="px-3 py-2 ${i>3?'text-right':'text-left'} font-semibold">${h}</th>`).join('');
+
+    const row=(tag,cls,x)=>`<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2"><span class="${cls} text-[10px] px-2 py-0.5 rounded-full font-semibold">${tag}</span></td>
+      <td class="px-3 py-2 jmono">${x.id}</td>
+      <td class="px-3 py-2 text-slate-700">${x.name||'—'}</td>
+      <td class="px-3 py-2 text-slate-500">${x.dept||'—'}</td>
+      <td class="px-3 py-2 text-right jmono text-amber-700">${x.av?'$'+fmt(x.av):'—'}</td>
+      <td class="px-3 py-2 text-right jmono text-emerald-700">${x.pv?'$'+fmt(x.pv):'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold ${x.d?'text-rose-600':'text-slate-300'}">${x.d?(x.d>0?'+':'')+fmt(x.d):'—'}</td></tr>`;
+
+    let html='';
+    G.diff.forEach(x=>html+=row('金額不符','bg-rose-50 text-rose-700',x));
+    G.advOnly.forEach(x=>html+=row('僅預支有','bg-amber-50 text-amber-700',
+      {id:x.id,name:x.r.nameLat,dept:x.r.dept,av:Math.abs(N(x.r.totalSalary)),pv:0,d:Math.abs(N(x.r.totalSalary))}));
+    G.payOnly.forEach(x=>html+=row('僅正式扣回','bg-sky-50 text-sky-700',
+      {id:x.id,name:x.r.nameLat,dept:x.r.dept,av:0,pv:Math.abs(N(x.r.advDeduction)),d:-Math.abs(N(x.r.advDeduction))}));
+    if(!html) html=`<tr><td colspan="7" class="px-3 py-10 text-center text-emerald-600 font-semibold">✅ 全部 ${G.match.length} 人逐筆相符，無任何差異</td></tr>`;
+    else html+=`<tr><td colspan="7" class="px-3 py-3 text-center text-slate-400 text-[11px]">另有 ${G.match.length} 人完全相符，未列出</td></tr>`;
+    tbody.innerHTML=html;
+
     tfoot.innerHTML=`<tr>
-      <td class="px-3 py-2">合計 TOTAL</td><td class="px-3 py-2 text-right jmono">${adv.length}</td>
-      <td class="px-3 py-2 text-right jmono">${pay.length}</td>
-      <td class="px-3 py-2 text-right jmono">$${fmt(tA)}</td>
-      <td class="px-3 py-2 text-right jmono">$${fmt(tP)}</td>
-      <td class="px-3 py-2 text-right jmono ${Math.abs(dt)<1?'':'text-rose-600'}">${fmt(dt)}</td><td></td></tr>`;
-    qs('#bd-scope').textContent=`${depts.length} 部門 · 預支 ${adv.length} 人 / 正式 ${pay.length} 人`;
-    _bdLast={mode:'cmp',totalAdv:tA,totalPay:tP,diff:dt,depts:depts.length};
+      <td class="px-3 py-2" colspan="4">合計 TOTAL（預支 ${adv.length} 人 / 正式 ${pay.length} 人）</td>
+      <td class="px-3 py-2 text-right jmono">$${fmt(totA)}</td>
+      <td class="px-3 py-2 text-right jmono">$${fmt(totP)}</td>
+      <td class="px-3 py-2 text-right jmono ${Math.abs(totA-totP)<1?'':'text-rose-600'}">${fmt(totA-totP)}</td></tr>`;
+    qs('#bd-scope').textContent=`逐人核對 ${ids.length} 個工號`;
+    _bdLast={mode:'cmp',totalAdv:totA,totalPay:totP,diff:totA-totP,
+             match:G.match.length,bad:G.diff.length,advOnly:G.advOnly.length,payOnly:G.payOnly.length};
     return;
   }
 
@@ -1844,33 +1882,34 @@ async function sendBreakdownTG(){
   await sendTG(t);
 }
 
-// ── 依指定期間組出摘要文字 ──
+// ── 依指定期間組出摘要文字：各部門人數 + 發放金額 + 總額 ──
 function buildSummaryText(which, key){
   const entry = STORE[key];
   if(!entry) return {err:'查無此期間資料'};
   const P   = labelFromKey(key);
   const src = which==='adv' ? (entry.advanceRecords||[]) : (entry.payrollRecords||[]);
   if(!src.length) return {err:which==='adv'?`${P} 尚未上傳預付薪資檔`:`${P} 尚未上傳正式薪資檔`};
-  const sum=k=>src.reduce((s,r)=>s+Math.abs(N(r[k])),0);
-  let t;
-  if(which==='adv'){
-    t=`💰 <b>預付薪資發放通知 Advance Pay</b>\n📅 期間：${esc(P)}\n`
-     +`👥 人數：${src.length}\n\n`
-     +`發放總額：<b>$${fmt(sum('totalSalary'))}</b>\n`
-     +`平均每人：$${fmt(sum('totalSalary')/src.length)}\n`
-     +`基本薪合計：$${fmt(sum('baseTotal'))}`;
-  }else{
-    const an=(entry.mergedRecords||[]).filter(r=>r.isAnom).length;
-    t=`💵 <b>正式薪資月結通知 Payroll</b>\n📅 期間：${esc(P)}\n`
-     +`👥 人數：${src.length}\n\n`
-     +`實發總額：<b>$${fmt(sum('totalSalary'))}</b>\n`
-     +`平均每人：$${fmt(sum('totalSalary')/src.length)}\n`
-     +`預支扣回：$${fmt(sum('advDeduction'))}\n`
-     +`NSSF：$${fmt(sum('nssf'))}　工會：$${fmt(sum('union'))}\n`
-     +`薪資稅：$${fmt(sum('tax'))}\n`
-     +`加班假日：$${fmt(sum('otTotal'))}\n\n`
-     +`🔍 稽核異常：${an===0?'✅ 無異常':'⚠️ '+an+' 筆待查'}`;
-  }
+
+  // 部門彙總
+  const dm={};
+  src.forEach(r=>{
+    const d=r.dept||'Other';
+    if(!dm[d]) dm[d]={n:0,amt:0};
+    dm[d].n++; dm[d].amt+=Math.abs(N(r.totalSalary));
+  });
+  const list=Object.entries(dm).sort((a,b)=>b[1].amt-a[1].amt);
+  const total=list.reduce((s,[,v])=>s+v.amt,0);
+  const head =which==='adv' ? '💰 <b>預付薪資發放 Advance Pay</b>' : '💵 <b>正式薪資發放 Payroll</b>';
+
+  let t=`${head}\n📅 期間：${esc(P)}\n`
+      +`👥 總人數：${src.length} 人　🏭 部門：${list.length}\n`
+      +`💵 <b>發放總額：$${fmt(total)}</b>\n`
+      +`— — — — — — — — — —\n`
+      +`<b>各部門明細</b>\n`;
+  list.forEach(([d,v])=>{
+    t+=`${esc(d)}：${v.n} 人　$${fmt(v.amt)}\n`;
+  });
+  t+=`— — — — — — — — — —\n合計：${src.length} 人　<b>$${fmt(total)}</b>`;
   return {text:t};
 }
 
