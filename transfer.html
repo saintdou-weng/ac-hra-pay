@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC HRA · 職位異動管理 Position Transfer v3.1</title>
+<title>AC HRA · 職位異動管理 Position Transfer v3.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -75,7 +75,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800" data-t="hdr_title">職位異動管理 Position Transfer</p>
       <p class="text-[11px] text-slate-400 mt-0.5">AC HRA Pay · Vantage River Textiles
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.1</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.3</span>
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
@@ -322,7 +322,8 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
     <span class="w-px h-5 bg-slate-200"></span>
     <button onclick="apprSelectAll(true)"  class="btn border-slate-200 bg-white text-slate-600 hover:bg-slate-50">☑ <span data-t="sel_all">全選</span></button>
     <button onclick="apprSelectAll(false)" class="btn border-slate-200 bg-white text-slate-600 hover:bg-slate-50">☐ <span data-t="sel_none">全不選</span></button>
-    <button onclick="apprSend()" class="btn border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️ <span data-t="appr_send">送出核可請求</span></button>
+    <button onclick="apprSend('review')" class="btn border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">👀 <span data-t="appr_rev">送群組審查</span></button>
+    <button onclick="apprSend('direct')" class="btn border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">⚡ <span data-t="appr_dir">直送 Paul 核可</span></button>
     <button onclick="refreshApprovalStatus()" class="btn border-slate-200 bg-white text-slate-600 hover:bg-slate-50">🔄 <span data-t="appr_sync">同步狀態</span></button>
     <span id="appr-count" class="text-[13px] text-slate-400 jmono ml-auto"></span>
   </div>
@@ -477,8 +478,9 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
         <select id="tg-period" onchange="previewTg()" class="ri"></select></div>
       <div><label class="rl" data-t="tg_mode">傳送模式 Mode</label>
         <div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
-          <button id="tm-sum" onclick="setTgMode('summary')" class="navbtn navbtn-on flex-1" data-t="tg_m1">📄 僅傳摘要</button>
-          <button id="tm-app" onclick="setTgMode('approval')" class="navbtn navbtn-off flex-1" data-t="tg_m2">📋 送出核可</button>
+          <button id="tm-sum" onclick="setTgMode('summary')" class="navbtn navbtn-on flex-1" data-t="tg_m1">📄 摘要</button>
+          <button id="tm-rev" onclick="setTgMode('review')" class="navbtn navbtn-off flex-1" data-t="tg_m2">👀 送群組審查</button>
+          <button id="tm-dir" onclick="setTgMode('direct')" class="navbtn navbtn-off flex-1" data-t="tg_m3">⚡ 直送核可</button>
         </div>
         <p id="tg-note" class="text-[11.5px] text-slate-400 mt-2 leading-relaxed"></p></div>
       <div><div class="flex items-center gap-2"><label class="rl" data-t="tg_prev">訊息預覽 Preview</label>
@@ -599,7 +601,7 @@ var I18N={
   c_dimdist:'維度分佈 Distribution',c_dimtbl:'維度明細 Dimension Table',
   c_cross:'期間 × 維度 交叉表 Cross Table',c_cross2:'純數字，行列可捲動',
   t_rec:'異動記錄 Transfer Records',t_appr:'核可清單 Approval List',
-  sel_all:'全選',sel_none:'全不選',appr_send:'送出核可請求',appr_sync:'同步狀態',
+  sel_all:'全選',sel_none:'全不選',appr_rev:'送群組審查',appr_dir:'直送 Paul 核可',appr_sync:'同步狀態',
   new_ind:'個人調職',new_grp:'團體調轉',
   ind_hint:'升遷／降職／調職／調薪 — 需填調整前後六項薪資',
   grp_hint:'生產線跨線調動／支援 — 不填薪資，整批一次核可',
@@ -613,7 +615,7 @@ var I18N={
   btn_del:'刪除',btn_cancel:'取消',btn_save:'儲存',btn_delb:'刪除整批',btn_saveb:'儲存整批',
   btn_close:'關閉',btn_send:'確認傳送',
   tg_title:'傳送至 Telegram 群組',tg_scope:'傳送對象 Scope',tg_s1:'📦 團體批次',tg_s2:'👤 個人調職',tg_s3:'📊 期間彙總',
-  tg_mode:'傳送模式 Mode',tg_m1:'📄 僅傳摘要',tg_m2:'📋 送出核可',tg_prev:'訊息預覽 Preview'},
+  tg_mode:'傳送模式 Mode',tg_m1:'📄 摘要',tg_m2:'👀 送群組審查',tg_m3:'⚡ 直送核可',tg_prev:'訊息預覽 Preview'},
  en:{hdr_title:'Position Transfer Management',up:'Upload',down:'Download',exp:'Export',imp:'Restore',
   tab_ov:'📊 Overview',tab_grp:'📦 Group',tab_ind:'👤 Individual',tab_emp:'👥 Employee',tab_dim:'🏭 Dimension',tab_rec:'📋 Records',tab_appr:'✅ Approval',
   dz1:'Smart Import',
@@ -631,7 +633,7 @@ var I18N={
   dim:'Dimension',dimval:'Value',v_count:'Count',v_diff:'Adj. $',
   c_dimdist:'Distribution',c_dimtbl:'Dimension Table',c_cross:'Period × Dimension Cross Table',c_cross2:'numbers only, scrollable',
   t_rec:'Transfer Records',t_appr:'Approval List',
-  sel_all:'Select all',sel_none:'Clear',appr_send:'Request approval',appr_sync:'Sync status',
+  sel_all:'Select all',sel_none:'Clear',appr_rev:'Send to group',appr_dir:'Direct to Paul',appr_sync:'Sync status',
   new_ind:'Individual',new_grp:'Group',
   ind_hint:'Promotion / demotion / reassignment — six salary components required',
   grp_hint:'Line-to-line movement — no salary, approved as one batch',
@@ -645,7 +647,7 @@ var I18N={
   btn_del:'Delete',btn_cancel:'Cancel',btn_save:'Save',btn_delb:'Delete batch',btn_saveb:'Save batch',
   btn_close:'Close',btn_send:'Send',
   tg_title:'Send to Telegram Group',tg_scope:'Scope',tg_s1:'📦 Batch',tg_s2:'👤 Individual',tg_s3:'📊 Period',
-  tg_mode:'Mode',tg_m1:'📄 Summary only',tg_m2:'📋 Request approval',tg_prev:'Preview'},
+  tg_mode:'Mode',tg_m1:'📄 Summary',tg_m2:'👀 Group review',tg_m3:'⚡ Direct to Paul',tg_prev:'Preview'},
  km:{hdr_title:'ការគ្រប់គ្រងផ្លាស់ប្តូរតំណែង',up:'ផ្ទុកឡើង',down:'ទាញយក',exp:'នាំចេញ',imp:'ស្តារ',
   tab_ov:'📊 ទិដ្ឋភាពរួម',tab_grp:'📦 ផ្លាស់ប្តូរជាក្រុម',tab_ind:'👤 ផ្លាស់ប្តូរបុគ្គល',tab_emp:'👥 វិភាគបុគ្គលិក',
   tab_dim:'🏭 វិភាគតាមវិមាត្រ',tab_rec:'📋 កំណត់ត្រា',tab_appr:'✅ អនុម័ត',
@@ -663,7 +665,7 @@ var I18N={
   dim:'វិមាត្រ',dimval:'តម្លៃ',v_count:'ចំនួន',v_diff:'ប្រាក់កែប្រែ',
   c_dimdist:'ការចែកចាយ',c_dimtbl:'តារាងវិមាត្រ',c_cross:'តារាងឆ្លង រយៈពេល × វិមាត្រ',c_cross2:'លេខតែប៉ុណ្ណោះ',
   t_rec:'កំណត់ត្រាផ្លាស់ប្តូរ',t_appr:'បញ្ជីអនុម័ត',
-  sel_all:'ជ្រើសទាំងអស់',sel_none:'សម្អាត',appr_send:'ស្នើសុំអនុម័ត',appr_sync:'ធ្វើសមកាលកម្ម',
+  sel_all:'ជ្រើសទាំងអស់',sel_none:'សម្អាត',appr_rev:'ផ្ញើទៅក្រុម',appr_dir:'ផ្ញើផ្ទាល់',appr_sync:'ធ្វើសមកាលកម្ម',
   new_ind:'ផ្លាស់ប្តូរបុគ្គល',new_grp:'ផ្លាស់ប្តូរជាក្រុម',
   ind_hint:'តម្លើង / បន្ថយ / ផ្លាស់ប្តូរ — ត្រូវបំពេញប្រាក់ខែ ៦ ធាតុ',
   grp_hint:'ផ្លាស់ប្តូរខ្សែផលិតកម្ម — មិនបំពេញប្រាក់ខែ អនុម័តទាំងក្រុម',
@@ -677,7 +679,7 @@ var I18N={
   btn_del:'លុប',btn_cancel:'បោះបង់',btn_save:'រក្សាទុក',btn_delb:'លុបទាំងក្រុម',btn_saveb:'រក្សាទុកក្រុម',
   btn_close:'បិទ',btn_send:'ផ្ញើ',
   tg_title:'ផ្ញើទៅក្រុម Telegram',tg_scope:'វិសាលភាព',tg_s1:'📦 ក្រុម',tg_s2:'👤 បុគ្គល',tg_s3:'📊 រយៈពេល',
-  tg_mode:'របៀបផ្ញើ',tg_m1:'📄 សង្ខេប',tg_m2:'📋 ស្នើអនុម័ត',tg_prev:'មើលជាមុន'}
+  tg_mode:'របៀបផ្ញើ',tg_m1:'📄 សង្ខេប',tg_m2:'👀 ត្រួតពិនិត្យ',tg_m3:'⚡ ផ្ទាល់',tg_prev:'មើលជាមុន'}
 };
 function TT(k){var d=I18N[LANG]||I18N.zh;return d[k]!==undefined?d[k]:(I18N.zh[k]||k);}
 function L(zh,en,km){return LANG==='km'?(km||en):LANG==='en'?en:zh;}
@@ -1826,9 +1828,15 @@ function renderAppr(){
   if(bdg){ bdg.style.display=pendAll?'':'none'; bdg.textContent=pendAll; }
   setHtml('appr-note',
     '<b>'+L('核可分界線','Approval cut-off','ព្រំដែនអនុម័ត')+'：'+APPROVAL_FROM+'</b>　'
-    +L('此日期之前的期間視為已結案，只能傳摘要，核可鈕會反灰。核可請求會送到 Telegram 群組（module='+MODULE_CODE+'），由 Paul 按 ✅／❌ 決定；本頁的「同步狀態」會把結果讀回來。',
-       'Periods before this are closed — summary only. Approval requests go to the Telegram group (module='+MODULE_CODE+') where Paul taps ✅ / ❌; "Sync status" pulls the result back.',
-       'រយៈពេលមុននេះបានបិទ។ សំណើអនុម័តផ្ញើទៅ Telegram។'));
+    +L('此日期之前的期間視為已結案，只能傳摘要，核可鈕會反灰。<br>'
+       +'　👀 <b>送群組審查</b>：訊息送到 Telegram 群組，群組裡<b>任何人</b>都可以按「審查通過」；通過之後才會出現你的核可按鈕。<br>'
+       +'　⚡ <b>直送核可</b>：略過審查，直接私訊你本人核可。<br>'
+       +'　兩者核可通過後都會自動產生 Excel／PDF／線上檢視三個連結，核可權限僅限你本人。按「同步狀態」把結果讀回來。',
+       'Periods before the cut-off are closed — summary only.<br>'
+       +'　👀 <b>Group review</b>: anyone in the group can tap Verify; your Approve button appears only after that.<br>'
+       +'　⚡ <b>Direct</b>: skips review, sent straight to you.<br>'
+       +'　Either way, approval generates Excel / PDF / online links. Only you can approve. Tap Sync status to pull results back.',
+       'រយៈពេលមុនព្រំដែននេះបានបិទ។<br>👀 ក្រុមត្រួតពិនិត្យ — អ្នកណាក៏បានក្នុងក្រុម<br>⚡ ផ្ញើផ្ទាល់ទៅ Paul'));
   if(!U.length){ setHtml('appr-tbl',emptyBox(L('沒有符合條件的項目','No matching items','គ្មានធាតុ'))); return; }
   var h='<table><thead><tr><th style="width:38px"><input type="checkbox" onchange="apprSelectAll(this.checked)"></th>'
    +'<th>'+L('類型','Type','ប្រភេទ')+'</th><th>'+L('項目','Item','ធាតុ')+'</th>'
@@ -1841,7 +1849,7 @@ function renderAppr(){
       +'<td>'+pillKind(u.kind)+'</td><td class="font-medium">'+esc(u.title)+'</td>'
       +'<td class="text-slate-500">'+esc(u.sub)+'</td><td class="jmono">'+esc(u.eff)+'</td>'
       +'<td class="text-right jmono font-semibold">'+u.head+'</td>'
-      +'<td class="text-right">'+tdDiff(u.amt)+'</td><td>'+pillStatus(u.status)+'</td>'
+      +'<td class="text-right">'+tdDiff(u.amt)+'</td><td>'+pillStatus(u.status)+(APPROVALS['rv|'+(u.kind==='group'?u.key:keyOfMonth(u.eff))]?' <span class="pill bg-sky-50 text-sky-700 border border-sky-100">👀 '+esc(APPROVALS['rv|'+(u.kind==='group'?u.key:keyOfMonth(u.eff))])+'</span>':'')+(DOCS[u.kind==='group'?u.key:keyOfMonth(u.eff)]?' <a class="pill bg-emerald-50 text-emerald-700 border border-emerald-100" target="_blank" href="'+esc(DOCS[u.kind==='group'?u.key:keyOfMonth(u.eff)])+'">📄 文件</a>':'')+'</td>'
       +'<td>'+(ok?'<span class="pill bg-emerald-50 text-emerald-700 border border-emerald-100">'+L('可送核','yes','បាទ')+'</span>'
                  :'<span class="pill bg-slate-100 text-slate-400">'+L('已結案','closed','បានបិទ')+'</span>')+'</td>'
       +'<td class="whitespace-nowrap"><button onclick="openTgFor(\''+(u.kind==='group'?'batch':'ind')+'\',\''
@@ -1855,21 +1863,23 @@ function apprSelectAll(on){
   if(on)U.forEach(function(u){ if(needsApproval(u.kind==='group'?u.key:u.eff))_apprSel[u.id]=1; });
   renderAppr();
 }
-async function apprSend(){
+async function apprSend(route){
+  route=route||'review';
   var U=apprUnits().filter(function(u){return _apprSel[u.id];});
   if(!U.length){toast(L('請先勾選要送核的項目','Select items first','សូមជ្រើសរើសជាមុន'),'warning');return;}
   var okN=0;
   for(var i=0;i<U.length;i++){
-    var u=U[i];
+    var u=U[i], scope=u.kind==='group'?'batch':'ind';
     var key=u.kind==='group'?u.key:keyOfMonth(u.eff);
-    var r=buildTgText(u.kind==='group'?'batch':'ind',key);
+    var r=buildTgText(scope,key);
     if(r.err)continue;
-    var sent=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount);
+    var sent=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount,route,tgItems(scope,key));
     if(sent){ okN++; u.recs.forEach(function(x){ if(x.status!=='approved')x.status='pending'; }); }
   }
   _apprSel={};
   await idbSaveAll(); rebuild(); renderAll();
-  toast(L('已送出 '+okN+' 項核可請求','Sent '+okN+' approval requests','បានផ្ញើ '+okN+' សំណើ'),okN?'success':'error');
+  toast(L('已送出 '+okN+' 項（'+(route==='review'?'經群組審查':'直送核可')+'）',
+          'Sent '+okN+' requests ('+route+')','បានផ្ញើ '+okN),okN?'success':'error');
 }
 
 /* ═══════════ MODALS · 個人調職 ═══════════ */
@@ -2035,10 +2045,12 @@ function setTgScope(s){
   buildTgPeriodSelect(); previewTg();
 }
 function setTgMode(m){
-  var b=el('tm-app'); if(m==='approval'&&b&&b.disabled)return;
+  var dis=(m!=='summary')&&!needsApproval(val('tg-period'));
+  if(dis)return;                       // 已結案的期間不能送核可
   _tgMode=m;
-  el('tm-sum').className='navbtn flex-1 '+(m==='summary'?'navbtn-on':'navbtn-off');
-  b.className='navbtn flex-1 '+(m==='approval'?'navbtn-on':'navbtn-off');
+  ['sum','rev','dir'].forEach(function(x){
+    var id={sum:'summary',rev:'review',dir:'direct'}[x], b=el('tm-'+x);
+    if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
   previewTg();
 }
 function buildTgPeriodSelect(pre){
@@ -2062,17 +2074,32 @@ function buildTgPeriodSelect(pre){
   if(pre){ for(var i=0;i<opts.length;i++)if(opts[i].v===pre){sel.value=pre;break;} }
 }
 function syncTgMode(){
-  var p=val('tg-period'), ok=needsApproval(p), b=el('tm-app');
-  b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';
-  if(!ok&&_tgMode==='approval'){_tgMode='summary';
-    el('tm-sum').className='navbtn flex-1 navbtn-on'; b.className='navbtn flex-1 navbtn-off';}
-  setTxt('tg-note',ok
-    ?L('核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。','Approval mode attaches ✅ / ❌ buttons to the group message.','របៀបអនុម័តភ្ជាប់ប៊ូតុង ✅ / ❌')
-    :APPROVAL_FROM+L(' 之前的期間已結案，只提供摘要傳送。',' and earlier are closed — summary only.',' និងមុននេះបានបិទ។'));
-  var st=el('tg-stat'), s=APPROVALS[MODULE_CODE+'|'+p];
-  if(st){ if(s){var c=(s==='A'||/approve/i.test(s))?'emerald':(s==='R'||/reject/i.test(s))?'rose':'amber';
+  var p=val('tg-period'), ok=needsApproval(p);
+  ['rev','dir'].forEach(function(x){
+    var b=el('tm-'+x); if(!b)return;
+    b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
+  if(!ok&&_tgMode!=='summary'){_tgMode='summary';}
+  ['sum','rev','dir'].forEach(function(x){
+    var id={sum:'summary',rev:'review',dir:'direct'}[x], b=el('tm-'+x);
+    if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
+  setTxt('tg-note', ok
+    ? (_tgMode==='review'
+        ? L('送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。',
+            'Goes to the group; anyone there can verify, then your Approve button appears.',
+            'ផ្ញើទៅក្រុម — អ្នកណាក៏អាចត្រួតពិនិត្យបាន')
+      : _tgMode==='direct'
+        ? L('略過審查，直接私訊你本人核可。核可後群組也會收到結果與文件連結。',
+            'Skips review — sent straight to you. The group still sees the result and document links.',
+            'ផ្ញើផ្ទាល់ទៅអ្នក')
+        : L('只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。',
+            'Notification only — no batch created, repeatable. Dashboard is appended automatically.',
+            'ជូនដំណឹងតែប៉ុណ្ណោះ'))
+    : APPROVAL_FROM+L(' 之前的期間已結案，只提供摘要傳送。',' and earlier are closed — summary only.',' បានបិទ។'));
+  var st=el('tg-stat'), s2=APPROVALS[MODULE_CODE+'|'+p];
+  if(st){ if(s2){var c=/approve/i.test(s2)||s2==='A'?'emerald':/reject/i.test(s2)||s2==='R'?'rose':/verif/i.test(s2)?'sky':'amber';
       st.className='pill bg-'+c+'-50 text-'+c+'-700 border border-'+c+'-100';
-      st.textContent=(s==='A'||/approve/i.test(s))?'✅ Approved':(s==='R'||/reject/i.test(s))?'❌ Rejected':'⏳ Pending';}
+      st.textContent=(/approve/i.test(s2)||s2==='A')?'✅ Approved':(/reject/i.test(s2)||s2==='R')?'❌ Rejected'
+                    :/verif/i.test(s2)?'👀 已審查 Verified':'⏳ Pending';}
     else {st.className='pill'; st.textContent='';} }
 }
 function salLine(s,b,a){
@@ -2168,51 +2195,74 @@ async function sendTG(text){
     toast(L('已傳送至 Telegram 群組','Sent to Telegram group','បានផ្ញើ'),'success');return true;
   }catch(e){toast(L('傳送失敗：','Send failed: ','បរាជ័យ៖ ')+e.message,'error');return false;}
 }
-async function sendApprovalRequest(period,title,text,amount,headcount){
+async function sendApprovalRequest(period,title,text,amount,headcount,route,items){
   try{
     var r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:MODULE_CODE,period:period,title:title,text:text,
-        amount:amount||0,headcount:headcount||0,requestedBy:'Web'})});
+        amount:amount||0,headcount:headcount||0,requestedBy:'Web',
+        route:route||'review', items:(items||[]).map(stripRec)})});
     var d=null; try{d=await r.json();}catch(e){}
-    return !(d&&d.ok===false);
-  }catch(e){ return false; }
+    if(d&&d.ok===false){toast(L('送出失敗：','Send failed: ','បរាជ័យ៖ ')+(d.error||''),'error');return false;}
+    return true;
+  }catch(e){ toast(L('送出失敗：','Send failed: ','បរាជ័យ៖ ')+e.message,'error'); return false; }
+}
+/* 依傳送對象取出要附進核可文件的明細 */
+function tgItems(scope,key){
+  if(scope==='batch')return BATCHES[key]?BATCHES[key].recs:[];
+  if(scope==='ind')return RECS.filter(function(r){return r.kind==='individual'&&keyOfMonth(r.effDate)===key;});
+  return RECS.filter(function(r){return keyOfMonth(r.effDate)===key;});
 }
 async function confirmSendTg(){
   var key=val('tg-period'), r=buildTgText(_tgScope,key);
   if(r.err){toast(r.err,'error');return;}
   var btn=el('tg-send'); btn.disabled=true; btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
   var ok;
-  if(_tgMode==='approval'&&needsApproval(key)){
-    ok=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount);
+  if(_tgMode!=='summary'&&needsApproval(key)){
+    ok=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount,_tgMode,tgItems(_tgScope,key));
     if(ok){
-      var targets=_tgScope==='batch'?(BATCHES[key]?BATCHES[key].recs:[])
-        :RECS.filter(function(x){return keyOfMonth(x.effDate)===key&&(_tgScope!=='ind'||x.kind==='individual');});
-      targets.forEach(function(x){ if(x.status!=='approved')x.status='pending'; });
+      tgItems(_tgScope,key).forEach(function(x){ if(x.status!=='approved')x.status='pending'; });
       await idbSaveAll(); rebuild(); renderAll();
-      toast(L('已送出，請在 Telegram 群組核可','Sent — approve in Telegram','បានផ្ញើ'),'success');
-    }else toast(L('送出失敗','Send failed','បរាជ័យ'),'error');
+      toast(_tgMode==='review'
+        ? L('已送群組，等待審查','Sent to group for review','បានផ្ញើទៅក្រុម')
+        : L('已直送你的 Telegram，請核可','Sent straight to your Telegram','បានផ្ញើផ្ទាល់'),'success');
+    }
   }else{ ok=await sendTG(r.text); }
   btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
   if(ok)closeM('m-tg');
 }
+var DOCS={};
 async function refreshApprovalStatus(silent){
   try{
-    var r=await fetch(GAS_URL+'?action=approvalStatus&module='+MODULE_CODE);
-    var d=await r.json();
-    var arr=(d&&(d.data||d.rows||d.list))||[];
-    APPROVALS={};
+    var arr=[];
+    try{
+      var r2=await fetch(GAS_URL+'?action=v2status&module='+MODULE_CODE);
+      var d2=await r2.json();
+      if(d2&&d2.ok&&Array.isArray(d2.data))arr=d2.data;
+    }catch(e){}
+    if(!arr.length){
+      var r=await fetch(GAS_URL+'?action=approvalStatus&module='+MODULE_CODE);
+      var d=await r.json();
+      arr=(d&&(d.data||d.rows||d.list))||[];
+    }
+    APPROVALS={}; DOCS={};
     (Array.isArray(arr)?arr:[]).forEach(function(x){
-      var p=x.period||x.Period, s=x.status||x.Status;
-      if(p)APPROVALS[MODULE_CODE+'|'+p]=s;
+      var p=x.period||x.Period, st=x.status||x.Status;
+      if(!p)return;
+      APPROVALS[MODULE_CODE+'|'+p]=st;
+      if(x.docUrl)DOCS[p]=x.docUrl;
+      if(x.reviewer)APPROVALS['rv|'+p]=x.reviewer;
     });
     var n=0;
     RECS.forEach(function(rec){
       var k=rec.kind==='group'?rec._bk:keyOfMonth(rec.effDate);
-      var s=APPROVALS[MODULE_CODE+'|'+k]; if(!s)return;
-      var ns=(s==='A'||/approve/i.test(s))?'approved':(s==='R'||/reject/i.test(s))?'rejected':rec.status;
+      var st=APPROVALS[MODULE_CODE+'|'+k]; if(!st)return;
+      var ns=(st==='A'||/approve/i.test(st))?'approved'
+            :(st==='R'||/reject/i.test(st))?'rejected'
+            :(/verif|pending|submitted|return/i.test(st))?'pending':rec.status;
       if(ns!==rec.status){rec.status=ns;n++;}
     });
-    if(n){await idbSaveAll(); rebuild(); renderAll();}
+    if(n){await idbSaveAll(); rebuild();}
+    renderAll();
     if(!silent)toast(L('核可狀態已更新（'+n+' 筆變更）','Approval status refreshed ('+n+' changed)','បានធ្វើបច្ចុប្បន្នភាព ('+n+')'),'success');
     if(el('m-tg').classList.contains('open'))syncTgMode();
   }catch(e){ if(!silent)toast(L('查詢失敗：','Query failed: ','បរាជ័យ៖ ')+e.message,'error'); }
@@ -2377,7 +2427,7 @@ Object.assign(window,{setLang:setLang,setTab:setTab,onFiles:onFiles,
   setGroupRule:setGroupRule,renderGrp:renderGrp,renderInd:renderInd,renderEmp:renderEmp,
   renderDim:renderDim,renderRec:renderRec,renderAppr:renderAppr,renderAll:renderAll,
   setMetric:setMetric,setDimVal:setDimVal,toggleBatch:toggleBatch,openEmpHist:openEmpHist,
-  resetRecFilters:resetRecFilters,apprToggle:apprToggle,apprSelectAll:apprSelectAll,apprSend:apprSend,
+  resetRecFilters:resetRecFilters,apprToggle:apprToggle,apprSelectAll:apprSelectAll,apprSend:apprSend,tgItems:tgItems,
   openInd:openInd,saveInd:saveInd,indCalc:indCalc,delRecord:delRecord,
   openGrp:openGrp,saveGrp:saveGrp,delBatch:delBatch,grpAdd:grpAdd,grpAddN:grpAddN,grpDel:grpDel,
   grpCount:grpCount,grpSync:grpSync,grpTogglePaste:grpTogglePaste,grpParse:grpParse,
