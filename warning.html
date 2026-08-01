@@ -107,9 +107,11 @@
         <option value="" data-en="All levels">全部等級 All</option></select>
       <select id="sel-status" onchange="renderAll()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200">
         <option value="" data-en="All status">全部狀態 All</option>
-        <option value="待審核" data-en="Pending">待審核 Pending</option>
+        <option value="待審核" data-en="Awaiting review">待審查 Awaiting review</option>
+        <option value="待核可" data-en="Awaiting approval">待核可 Awaiting approval</option>
         <option value="已核可" data-en="Approved">已核可 Approved</option>
         <option value="已退件" data-en="Rejected">已退件 Rejected</option>
+        <option value="已退回" data-en="Returned">已退回 Returned</option>
         <option value="__active" data-en="Active only">僅有效（未失效）</option>
         <option value="__expired" data-en="Expired only">僅已失效</option>
       </select>
@@ -135,7 +137,7 @@
         <p id="k-tot" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
         <p id="k-tot-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
-        <p class="text-[11px] text-slate-400 font-medium" data-en="PENDING">待審核 PENDING</p>
+        <p class="text-[11px] text-slate-400 font-medium" data-en="OPEN">待處理 OPEN</p>
         <p id="k-pend" class="text-2xl font-bold jmono mt-1 text-rose-600">—</p>
         <p id="k-pend-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
@@ -606,6 +608,39 @@ function showApp(){
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 
 // ━━━━ 渲染 ━━━━
+/* ── 雙軌核可：待審核（任何人可審查）→ 待核可（僅 Paul）→ 已核可 ── */
+function isOpen(r){return r.status==='待審核'||r.status==='待核可';}
+function stLabel(st){
+  return st==='待審核'?T('待審查','Awaiting review')
+       :st==='待核可'?T('待核可','Awaiting approval')
+       :st==='已退回'?T('已退回','Returned'):st;
+}
+async function verifyRec(id,pass){
+  const r=RECS.find(x=>x.id===id); if(!r)return;
+  if(!confirm(pass
+    ? T(`確定審查通過：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？\n通過後由 Paul 做最終核可。`,
+        'Verify this warning? Paul will make the final decision.')
+    : T('確定退回這筆申請？','Return this record?')))return;
+  const st=pass?'待核可':'已退回', who=REVIEWER_NAME();
+  try{
+    if(r.row){
+      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_ID,
+        data:JSON.stringify({row:r.row,status:st,reviewer:who})});
+      if(!res||!res.ok)toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');
+    }
+    r.status=st; r.reviewer=who; r.reviewedAt=_nowStr();
+    await idbSaveAll(); renderAll();
+    toast(pass?T('已審查通過，等待 Paul 核可','Verified — awaiting Paul'):T('已退回','Returned'),'success');
+  }catch(e){toast(T('操作失敗：','Failed: ')+e.message,'error');}
+}
+function REVIEWER_NAME(){
+  let nm='';
+  try{nm=localStorage.getItem('warn_reviewer')||'';}catch(e){}
+  if(!nm){ nm=prompt(T('請輸入你的名字（只需輸入一次，供審查記錄用）','Your name (once only, for the review log)'))||'';
+    if(nm){try{localStorage.setItem('warn_reviewer',nm);}catch(e){}} }
+  return nm||T('（未署名）','(unnamed)');
+}
+window.verifyRec=verifyRec;window.isOpen=isOpen;window.stLabel=stLabel;
 function renderAll(){
   if(!RECS.length){showApp();return;}
   showApp();buildFilters();
@@ -631,14 +666,14 @@ function renderNav(){
     return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('筆','rec')}</option>`;}).join('');
   if(ACTIVE)sel.value=ACTIVE;
   const i=ps.indexOf(ACTIVE);
-  const pend=RECS.filter(r=>r.status==='待審核').length;
+  const pend=RECS.filter(r=>isOpen(r)).length;
   qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span>`
     +(pend?` <span class="text-rose-600 font-semibold">⏳ ${T(`${pend} 筆待審核`,`${pend} pending`)}</span>`:'');
 }
 
 function renderDash(){
   const rs=spanRecs(),all=filtered();
-  const pend=rs.filter(r=>r.status==='待審核').length;
+  const pend=rs.filter(r=>isOpen(r)).length;
   const act=rs.filter(r=>r.status==='已核可'&&!isExpired(r)).length;
   const emps=new Set(rs.map(r=>r.empId));
   const cnt={};rs.forEach(r=>cnt[r.empId]=(cnt[r.empId]||0)+1);
@@ -710,7 +745,7 @@ function timeSeries(){
     else{gk=`${y}-${pad(m)}`;label=`${MS[m-1]} ${y}`;}
     const t=g[gk]||(g[gk]={key:gk,label,n:0,byLv:{},emps:new Set(),pend:0,act:0});
     t.n++;t.byLv[r.level]=(t.byLv[r.level]||0)+1;t.emps.add(r.empId);
-    if(r.status==='待審核')t.pend++;
+    if(isOpen(r))t.pend++;
     if(r.status==='已核可'&&!isExpired(r))t.act++;
   });
   return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
@@ -722,7 +757,7 @@ function renderTime(){
     'Each row is a period; columns are counts per warning level.');
   const lvs=LEVELS.filter(l=>filtered().some(r=>r.level===l.k));
   qs('#time-thead').innerHTML=[T('區間','Period'),T('合計','Total'),...lvs.map(l=>lvName(l.k)),
-    T('涉及人數','Staff'),T('待審核','Pending'),T('目前有效','Active')]
+    T('涉及人數','Staff'),T('待處理','Open'),T('目前有效','Active')]
     .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
   qs('#time-tbody').innerHTML=series.map((s,i)=>{
     const mk=s.key.length===7?s.key:null;
@@ -753,7 +788,7 @@ function renderDept(){
   rs.forEach(r=>{const d=r.empDept||'—';
     if(!dm[d])dm[d]={n:0,byLv:{},emps:new Set(),pend:0,act:0};
     const g=dm[d];g.n++;g.byLv[r.level]=(g.byLv[r.level]||0)+1;g.emps.add(r.empId);
-    if(r.status==='待審核')g.pend++;
+    if(isOpen(r))g.pend++;
     if(r.status==='已核可'&&!isExpired(r))g.act++;});
   const sorted=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n);
   const tot=rs.length||1;
@@ -822,7 +857,7 @@ function renderList(){
     .map((h,i)=>`<th class="px-3 py-2 text-left font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
   qs('#li-tbody').innerHTML=list.slice(0,500).map(r=>{
     const exp=isExpired(r);
-    const stColor=r.status==='待審核'?'bg-rose-100 text-rose-700':r.status==='已退件'?'bg-slate-100 text-slate-500':'bg-emerald-100 text-emerald-700';
+    const stColor=r.status==='待審核'?'bg-rose-100 text-rose-700':r.status==='待核可'?'bg-amber-100 text-amber-700':(r.status==='已退件'||r.status==='已退回')?'bg-slate-100 text-slate-500':'bg-emerald-100 text-emerald-700';
     return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${exp?'opacity-60':''}">
       <td class="px-3 py-2 jmono font-semibold text-slate-700">${esc(r.incidentDate)}</td>
       <td class="px-3 py-2 jmono text-slate-500">${esc(r.empId)}</td>
@@ -831,11 +866,15 @@ function renderList(){
       <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${LV(r.level).bg}">${lvName(r.level)}</span></td>
       <td class="px-3 py-2 text-slate-500 max-w-[220px] truncate" title="${esc(r.reason||'')}">${esc(r.reason||'—')}</td>
       <td class="px-3 py-2 jmono text-[11px] ${exp?'text-slate-400 line-through':'text-slate-500'}">${esc(r.expireDate||'—')}</td>
-      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${stColor}">${esc(r.status)}</span>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${stColor}">${esc(stLabel(r.status))}</span>
+        ${r.reviewer?`<span class="ml-1 text-[10px] text-sky-600">👀 ${esc(r.reviewer)}</span>`:''}
         ${exp?`<span class="ml-1 text-[10px] text-slate-400">${T('已失效','expired')}</span>`:''}</td>
       <td class="px-3 py-2 whitespace-nowrap">
         ${r.status==='待審核'?`
-          <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('核可','Approve')}</button>
+          <button onclick="verifyRec('${esc(r.id)}',true)" class="text-[11px] text-sky-600 hover:underline">${T('👀 審查通過','Verify')}</button>
+          <button onclick="verifyRec('${esc(r.id)}',false)" class="text-[11px] text-slate-500 hover:underline ml-2">${T('退回','Return')}</button>`
+        :r.status==='待核可'?`
+          <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('✅ 核可','Approve')}</button>
           <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`:''}
       </td></tr>`;}).join('')
     ||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
@@ -1086,7 +1125,7 @@ function buildTgText(unit,key){
   let t=`⚠️ <b>員工警告摘要 Warning Summary</b>\n`
    +`📅 期間 Period：${esc(label)}\n`
    +`📋 警告件數 Records：<b>${list.length}</b>　👤 ${T('涉及','staff')}：${emps.size}\n`
-   +`⏳ ${T('待審核','Pending')}：${pend}　🔶 ${T('目前有效','Active')}：${act}\n`
+   +`⏳ ${T('待處理','Open')}：${pend}　🔶 ${T('目前有效','Active')}：${act}\n`
    +`— — — — — — — — — —\n<b>${T('各等級 By Level','By Level')}</b>\n`;
   LEVELS.forEach(l=>{if(byLv[l.k])t+=`${l.zh} ${l.en}：${byLv[l.k]}\n`;});
   t+=`— — — — — — — — — —\n<b>${T('各部門 By Department','By Department')}</b>\n`;

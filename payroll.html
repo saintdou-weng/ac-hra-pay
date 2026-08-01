@@ -761,10 +761,12 @@ body{font-family:'DM Sans',sans-serif;}
       <div>
         <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Mode">傳送模式 Mode</label>
         <div class="mt-1.5 flex bg-slate-100 rounded-lg p-0.5">
-          <button id="tgm-sum" onclick="setTgMode('summary')" data-en="📄 Summary only"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">📄 僅傳摘要</button>
-          <button id="tgm-app" onclick="setTgMode('approval')" data-en="📋 Request approval"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">📋 送出核可</button>
+          <button id="tgm-sum" onclick="setTgMode('summary')" data-en="📄 Summary"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">📄 摘要</button>
+          <button id="tgm-rev" onclick="setTgMode('review')" data-en="👀 Group review"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">👀 送群組審查</button>
+          <button id="tgm-dir" onclick="setTgMode('direct')" data-en="⚡ Direct to Paul"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">⚡ 直送核可</button>
         </div>
         <p id="tgm-note" class="text-[10px] text-slate-400 mt-1.5 leading-relaxed"></p>
       </div>
@@ -2299,37 +2301,55 @@ const APPROVAL_FROM='2026-07';
 const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||''):'';}
+const TGM_IDS={summary:'tgm-sum',review:'tgm-rev',direct:'tgm-dir'};
 function setTgMode(m){
-  const b=qs('#tgm-app');
-  if(m==='approval'&&b&&b.disabled)return;
+  if(m!=='summary'&&!needsApproval(_tgPeriodVal()))return;   // 已結案期間不可送核可
   TG_MODE=m;
-  const a=qs('#tgm-sum');
-  if(a)a.className='flex-1 '+_cbtn(m==='summary','sky');
-  if(b)b.className='flex-1 '+_cbtn(m==='approval','sky');
+  Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
+    if(b)b.className='flex-1 '+_cbtn(TG_MODE===k,'sky');});
   previewTg();
 }
 function syncTgMode(){
-  const p=_tgPeriodVal(), ok=needsApproval(p);
-  const b=qs('#tgm-app'), note=qs('#tgm-note');
-  if(!b)return;
-  b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';
-  if(!ok&&TG_MODE==='approval'){TG_MODE='summary';
-    const a=qs('#tgm-sum');if(a)a.className='flex-1 '+_cbtn(true,'sky');
-    b.className='flex-1 '+_cbtn(false,'sky');}
-  if(note)note.textContent=ok
-    ? '核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。'
-    : (APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。');
+  const ok=needsApproval(_tgPeriodVal()), note=qs('#tgm-note');
+  ['tgm-rev','tgm-dir'].forEach(id=>{const b=qs('#'+id); if(!b)return;
+    b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
+  if(!ok&&TG_MODE!=='summary')TG_MODE='summary';
+  Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
+    if(b)b.className='flex-1 '+_cbtn(TG_MODE===k,'sky');});
+  if(note)note.textContent = !ok
+    ? (APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。')
+    : TG_MODE==='review'
+      ? '送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。'
+      : TG_MODE==='direct'
+        ? '略過審查，直接私訊你本人核可。核可後群組也會收到結果與文件連結。'
+        : '只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。';
 }
-async function sendApprovalRequest(period,title,text,amount,headcount){
+async function sendApprovalRequest(period,title,text,amount,headcount,route,items){
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:_tgWhich==='adv'?'advance':'payroll',
-        period,title,text,amount:amount||0,headcount:headcount||0,requestedBy:'Web'})});
+        period,title,text,amount:amount||0,headcount:headcount||0,requestedBy:'Web',
+        route:route||'review', items:items||[]})});
     let d=null;try{d=await r.json();}catch(e){}
-    if(d&&d.ok!==false){toast('已送出，請在 Telegram 群組核可','success');return true;}
+    if(d&&d.ok!==false){
+      toast(route==='direct'?'已直送你的 Telegram，請核可':'已送群組，等待審查','success');return true;}
     toast('送出失敗','error');return false;
   }catch(e){toast('送出失敗：'+e.message,'error');return false;}
+}
+/* 核可文件用的明細（欄位名稱對齊 GAS 的 DOC_FIELD_ORDER） */
+function approvalItems(period,which){
+  const e=STORE[period]; if(!e)return [];
+  const src=which==='adv'?(e.advanceRecords||[]):(e.payrollRecords||[]);
+  return src.map(r=>which==='adv'
+    ? {empId:r.id,name:r.nameLat||r.nameKh||'',dept:r.dept||'',
+       amount:_round2(Math.abs(N(r.totalSalary)))}
+    : {empId:r.id,name:r.nameLat||r.nameKh||'',dept:r.dept||'',
+       basic:_round2(N(r.baseTotal)),
+       ot:_round2(N(r.otTotal)),
+       bonus:_round2(N(r.bonus)+N(r.incentive)),
+       deduction:_round2(N(r.advDeduction)+N(r.nssf)+N(r.union)+N(r.tax)),
+       netPay:_round2(Math.abs(N(r.totalSalary)))});
 }
 async function confirmSendTg(){
   const period=qs('#tg-period').value;
@@ -2337,13 +2357,13 @@ async function confirmSendTg(){
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent='傳送中…';
   let ok;
-  if(TG_MODE==='approval'&&needsApproval(period)){
-    const e=STORE[period];
+  if(TG_MODE!=='summary'&&needsApproval(period)){
+    const e=STORE[period]||{};
     const src=_tgWhich==='adv'?(e.advanceRecords||[]):(e.payrollRecords||[]);
     const amt=src.reduce((s2,x)=>s2+Math.abs(N(x.totalSalary)),0);
     ok=await sendApprovalRequest(period,
       (_tgWhich==='adv'?'預付薪資 Advance':'正式薪資 Payroll')+' — '+labelFromKey(period),
-      r.text, amt, src.length);
+      r.text, amt, src.length, TG_MODE, approvalItems(period,_tgWhich));
   }else{
     ok=await sendTG(r.text);
   }

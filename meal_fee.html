@@ -317,10 +317,12 @@
             <div>
         <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Mode">傳送模式 Mode</label>
         <div class="mt-1.5 flex bg-slate-100 rounded-lg p-0.5">
-          <button id="tgm-sum" onclick="setTgMode('summary')" data-en="📄 Summary only"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-orange-700 transition">📄 僅傳摘要</button>
-          <button id="tgm-app" onclick="setTgMode('approval')" data-en="📋 Request approval"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">📋 送出核可</button>
+          <button id="tgm-sum" onclick="setTgMode('summary')" data-en="📄 Summary"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-orange-700 transition">📄 摘要</button>
+          <button id="tgm-rev" onclick="setTgMode('review')" data-en="👀 Group review"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">👀 送群組審查</button>
+          <button id="tgm-dir" onclick="setTgMode('direct')" data-en="⚡ Direct to Paul"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">⚡ 直送核可</button>
         </div>
         <p id="tgm-note" class="text-[10px] text-slate-400 mt-1.5 leading-relaxed"></p>
       </div>
@@ -1306,39 +1308,55 @@ const APPROVAL_FROM='2026-07';
 const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||'').split(':')[0]:'';}
+const TGM_IDS={summary:'tgm-sum',review:'tgm-rev',direct:'tgm-dir'};
 function setTgMode(m){
-  const b=qs('#tgm-app');
-  if(m==='approval'&&b&&b.disabled)return;
+  if(m!=='summary'&&!needsApproval(_tgPeriodVal()))return;
   TG_MODE=m;
-  const a=qs('#tgm-sum');
-  if(a)a.className='flex-1 '+_btn(m==='summary','orange');
-  if(b)b.className='flex-1 '+_btn(m==='approval','orange');
+  Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
+    if(b)b.className='flex-1 '+_btn(TG_MODE===k,'orange');});
   previewTg();
 }
 function syncTgMode(){
-  const p=_tgPeriodVal(), ok=needsApproval(p);
-  const b=qs('#tgm-app'), note=qs('#tgm-note');
-  if(!b)return;
-  b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';
-  if(!ok&&TG_MODE==='approval'){TG_MODE='summary';
-    const a=qs('#tgm-sum');if(a)a.className='flex-1 '+_btn(true,'orange');
-    b.className='flex-1 '+_btn(false,'orange');}
-  if(note)note.textContent=ok
-    ? T('核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。',
-        'Approval mode adds Approve / Reject buttons to the group message.')
-    : T(APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。',
-        'Periods before '+APPROVAL_FROM+' are closed — summary only.');
+  const ok=needsApproval(_tgPeriodVal()), note=qs('#tgm-note');
+  ['tgm-rev','tgm-dir'].forEach(id=>{const b=qs('#'+id); if(!b)return;
+    b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
+  if(!ok&&TG_MODE!=='summary')TG_MODE='summary';
+  Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
+    if(b)b.className='flex-1 '+_btn(TG_MODE===k,'orange');});
+  if(note)note.textContent = !ok
+    ? T(APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。',
+        'Periods before '+APPROVAL_FROM+' are closed — summary only.')
+    : TG_MODE==='review'
+      ? T('送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。',
+          'Goes to the group; anyone there can tap Verify, then your Approve button appears.')
+      : TG_MODE==='direct'
+        ? T('略過審查，直接私訊你本人核可。核可後群組也會收到結果與文件連結。',
+            'Skips review — sent straight to you. The group still sees the result and document links.')
+        : T('只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。',
+            'Notification only — no batch created, repeatable.');
 }
-async function sendApprovalRequest(period,title,text,amount,headcount){
+async function sendApprovalRequest(period,title,text,amount,headcount,route,items){
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:'meal',period,title,text,
-        amount:amount||0,headcount:headcount||0,requestedBy:'Web'})});
+        amount:amount||0,headcount:headcount||0,requestedBy:'Web',
+        route:route||'review', items:items||[]})});
     let d=null;try{d=await r.json();}catch(e){}
-    if(d&&d.ok!==false){toast(T('已送出，請在 Telegram 群組核可','Sent — approve in the group'),'success');return true;}
+    if(d&&d.ok!==false){
+      toast(route==='direct'
+        ? T('已直送你的 Telegram，請核可','Sent straight to you')
+        : T('已送群組，等待審查','Sent to group for review'),'success');return true;}
     toast(T('送出失敗','Send failed'),'error');return false;
   }catch(e){toast(T('送出失敗：','Send failed: ')+e.message,'error');return false;}
+}
+/* 核可文件用的明細（欄位名稱對齊 GAS 的 DOC_FIELD_ORDER） */
+function approvalItems(key){
+  const e=STORE[key]; if(!e)return [];
+  const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]);
+  return (rows||[]).map(r=>({empId:r.id,name:r.name||'',dept:r.dept||'',
+    days:N(r.mdays!==undefined?r.mdays:(r.days&&r.days.length)||0),
+    amount:Math.round(N(r.usd)*100)/100}));
 }
 async function confirmSendTg(){
   const key=qs('#tg-period').value;
@@ -1347,11 +1365,12 @@ async function confirmSendTg(){
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   const period=key.split(':')[0];
   let ok;
-  if(TG_MODE==='approval'&&needsApproval(period)){
-    const e=STORE[key];
+  if(TG_MODE!=='summary'&&needsApproval(period)){
+    const e=STORE[key]||{};
     const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]);
-    const usd=rows.reduce((s2,x)=>s2+N(x.usd),0);
-    ok=await sendApprovalRequest(key,T('餐費 Meal Fee','Meal Fee')+' — '+bLabel(key),r.text,usd,rows.length);
+    const usd=(rows||[]).reduce((s2,x)=>s2+N(x.usd),0);
+    ok=await sendApprovalRequest(key,T('餐費 Meal Fee','Meal Fee')+' — '+bLabel(key),
+      r.text,usd,(rows||[]).length,TG_MODE,approvalItems(key));
   }else ok=await sendTG(r.text);
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok) closeTgModal();
