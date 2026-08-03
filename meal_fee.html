@@ -341,7 +341,7 @@
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════
-//  AC-HRA-PAY · Meal Fee Analytics v2.0
+//  AC-HRA-PAY · Meal Fee Analytics v2.2
 // ═══════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
   'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
@@ -1338,9 +1338,19 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
         amount:amount||0,headcount:headcount||0,requestedBy:'Web',
         route:'review', items:items||[]})});
     let d=null;try{d=await r.json();}catch(e){}
-    if(d&&d.ok!==false){
-      toast(T('已送群組，等待審查','Sent to group for review'),'success');return true;}
-    toast(T('送出失敗','Send failed'),'error');return false;
+    if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No response from GAS deployment'),'error');return false;}
+    if(d.ok===false){toast(T('送出失敗：','Send failed: ')+(d.error||'GAS error'),'error');return false;}
+    const info=d.data||d;
+    if(info.alreadySettled){
+      toast(T('此期間已完成核可，不會重複發送','This period is already settled; not resent'),'error');return false;
+    }
+    if(info.sentToGroup===true && info.messageId){
+      toast(info.migratedToGroup
+        ? T('已把舊私訊核可轉移到群組，等待審查','Old private approval migrated to group')
+        : T('已送群組，等待審查','Sent to group for review'),'success');
+      return true;
+    }
+    toast(T('GAS 已回應，但 Telegram 群組沒有取得 messageId','GAS responded but no Telegram group messageId'),'error');return false;
   }catch(e){toast(T('送出失敗：','Send failed: ')+e.message,'error');return false;}
 }
 /* 核可文件用的明細（欄位名稱對齊 GAS 的 DOC_FIELD_ORDER） */
@@ -1376,7 +1386,10 @@ async function sendTG(text){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'notify',text})});
     let d=null; try{d=await r.json();}catch(e){}
-    if(d&&d.sent===false){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
+    if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No response from GAS deployment'),'error');return false;}
+    if(d.ok===false){toast(T('Telegram 發送失敗：','Telegram send failed: ')+(d.error||'GAS error'),'error');return false;}
+    const info=d.data||d;
+    if(info.sent!==true || !info.messageId){toast(T('GAS 未取得 Telegram messageId，請檢查 Bot/群組設定','No Telegram messageId; check bot/group settings'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }
