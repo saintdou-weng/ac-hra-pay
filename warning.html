@@ -235,8 +235,8 @@
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white">
           <p class="text-sm font-bold text-amber-800" data-en="📝 Submit a Warning">📝 提出員工警告</p>
-          <p class="text-[11px] text-slate-500 mt-1" data-en="After submitting, the record is sent to the Telegram group where Paul can approve or reject it directly with the buttons.">
-            送出後會發到 Telegram 群組，Paul 可以直接在訊息上按「✅ 核可」或「❌ 退件」，不必開系統。</p>
+          <p class="text-[11px] text-slate-500 mt-1" data-en="After submitting, the record is sent to the Telegram group for review first. After review, Paul makes the final approval in the same group message.">
+            送出後會先發到 Telegram 群組審查；審查通過後，同一則群組訊息才會換成 Paul 的「✅ 核可／❌ 退件」。</p>
         </div>
         <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4" id="ap-form"></div>
         <div id="ap-check" class="mx-5 mb-4 hidden rounded-lg p-3 text-xs"></div>
@@ -263,6 +263,13 @@
       <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
     <div class="px-5 py-4 space-y-3">
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Mode">模式 Mode</label>
+        <div class="mt-1.5 grid grid-cols-2 gap-2">
+          <button id="tg-mode-summary" type="button" onclick="setTgMode('summary')" class="text-xs font-bold px-3 py-2.5 rounded-lg border border-amber-500 bg-amber-50 text-amber-700">📄 摘要 Summary</button>
+          <button id="tg-mode-review" type="button" onclick="setTgMode('review')" class="text-xs font-bold px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">👀 群組審查 Review</button>
+        </div>
+        <p id="tg-mode-hint" class="mt-1.5 text-[10px] text-slate-400">摘要只發統計；群組審查會把此期間尚未完成的警告逐筆送到群組，先審查再由 Paul 核可。</p>
+      </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Scope">範圍 Scope</label>
         <select id="tg-unit" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
           <option value="month" data-en="Monthly">月 Month</option>
@@ -285,9 +292,9 @@
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════
-//  AC-HRA-PAY · Warning Management v2.0
+//  AC-HRA-PAY · Warning Management v2.3
 //  後端：AC_HRA_PAY_BOT.gs 的 warn* 系列（全部走 GET）
-//  流程：主管線上申請 → Telegram 群組通知（含核可/退件按鈕）→ Paul 核可
+//  流程：主管線上申請 → Telegram 群組審查 → 同一則訊息由 Paul 最終核可
 // ═══════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
   'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
@@ -1020,7 +1027,7 @@ async function submitApply(){
       resetApply();showApp();renderAll();goTab('list');
       toast(res.terminate
         ? T('已送出，並已在群組標示「建議終止合約」','Submitted — termination flagged')
-        : T('已送出，群組可直接核可','Submitted — approve in the group'),'success');
+        : T('已送出，等待群組審查','Submitted — awaiting group review'),'success');
     }else{
       toast(T('送出失敗：','Submit failed: ')+((res&&res.error)||'unknown'),'error');
     }
@@ -1088,6 +1095,17 @@ async function cloudUpload(){
 }
 
 // ━━━━ TELEGRAM ━━━━
+let TG_MODE='summary';
+function setTgMode(mode){
+  TG_MODE=(mode==='review')?'review':'summary';
+  const s=qs('#tg-mode-summary'), r=qs('#tg-mode-review'), hint=qs('#tg-mode-hint');
+  if(s) s.className='text-xs font-bold px-3 py-2.5 rounded-lg border '+(TG_MODE==='summary'?'border-amber-500 bg-amber-50 text-amber-700':'border-slate-200 bg-white text-slate-600');
+  if(r) r.className='text-xs font-bold px-3 py-2.5 rounded-lg border '+(TG_MODE==='review'?'border-sky-500 bg-sky-50 text-sky-700':'border-slate-200 bg-white text-slate-600');
+  if(hint) hint.textContent=TG_MODE==='review'
+    ?T('會把此期間「待審查／待核可」的警告逐筆送到群組；先 👀 審查，通過後同一則訊息換成 Paul 的 ✅ 核可／❌ 退件。','Open warnings will be sent individually for review, then Paul approval in the same group message.')
+    :T('只發本期間統計摘要，不進入核可流程。','Summary only; no approval workflow.');
+  previewTg();
+}
 function tgKeys(unit){
   const m={};
   filtered().forEach(r=>{
@@ -1138,8 +1156,27 @@ function buildTgText(unit,key){
   if(pend)t+=`\n\n👉 ${T('尚有 '+pend+' 件待 Paul 核可，可於申請通知訊息上直接按鈕核可','pending approval')}`;
   return {text:t};
 }
+function buildTgReview(unit,key){
+  const list=filtered().filter(r=>inTgKey(r,unit,key));
+  if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
+  const open=list.filter(r=>r.status==='待審核'||r.status==='待核可');
+  if(!open.length)return{err:T('此期間沒有待審查或待核可的警告','No open warnings in this period')};
+  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key;
+  const pending=open.filter(r=>r.status==='待審核').length;
+  const verified=open.filter(r=>r.status==='待核可').length;
+  const cloud=open.filter(r=>r.row);
+  const localOnly=open.length-cloud.length;
+  let t=`👀 警告核可流程 Warning Review\n📅 期間 Period：${label}\n`
+    +`📋 待處理 Open：${open.length}　① 待審查：${pending}　② 待 Paul 核可：${verified}\n`
+    +`☁️ 可送 Telegram：${cloud.length}`+(localOnly?`　⚠️ 本機未同步：${localOnly}`:'')
+    +`\n━━━━━━━━━━━━━━━━\n`
+    +T('確認後會逐筆發到群組。待審查項目顯示「👀 審查通過／↩ 退回」；審查通過後，同一則訊息改為「✅ Paul 核可／❌ 退件」。',
+       'Each open warning will be sent to the group. Review first, then Paul approves in the same message.');
+  return {text:t,rows:cloud.map(r=>r.row),open:open.length,localOnly};
+}
 function openTgModal(){
   if(!RECS.length){toast(T('尚無資料','No data'),'error');return;}
+  setTgMode('summary');
   qs('#tg-unit').value=(UNIT==='year'||UNIT==='quarter')?UNIT:'month';
   fillTgKeys();
   const sel=qs('#tg-key');
@@ -1158,26 +1195,45 @@ function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.clas
 function previewTg(){
   const pv=qs('#tg-preview');
   if(pv._unit!==qs('#tg-unit').value){pv._unit=qs('#tg-unit').value;fillTgKeys();}
-  const r=buildTgText(qs('#tg-unit').value,qs('#tg-key').value);
+  const r=TG_MODE==='review'
+    ?buildTgReview(qs('#tg-unit').value,qs('#tg-key').value)
+    :buildTgText(qs('#tg-unit').value,qs('#tg-key').value);
   const b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
   else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
-    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition';}
+    b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg '+(TG_MODE==='review'?'bg-sky-600 hover:bg-sky-700':'bg-amber-600 hover:bg-amber-700')+' text-white transition';}
+  b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }
 async function confirmSendTg(){
-  const r=buildTgText(qs('#tg-unit').value,qs('#tg-key').value);
+  const unit=qs('#tg-unit').value,key=qs('#tg-key').value;
+  const r=TG_MODE==='review'?buildTgReview(unit,key):buildTgText(unit,key);
   if(r.err){toast(r.err,'error');return;}
   const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
   try{
-    const res=await fetch(GAS_URL,{method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text:r.text})});
-    let d=null;try{d=await res.json();}catch(e){}
-    if(d&&d.sent===false)toast(T('GAS 回報未送出','Not sent'),'error');
-    else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();}
+    if(TG_MODE==='review'){
+      let sent=0,failed=0;
+      for(const row of r.rows||[]){
+        const d=await gasGet({action:'warnSendTelegram',row:String(row)});
+        if(d&&d.ok&&d.sent)sent++;else failed++;
+      }
+      if(!sent){toast(T('沒有成功送出的警告；請先確認資料已上傳雲端','No warning was sent; sync records to cloud first'),'error');}
+      else{
+        const extra=(r.localOnly?T(`；另有 ${r.localOnly} 筆本機資料未同步而略過`,`; ${r.localOnly} local-only record(s) skipped`):'')
+          +(failed?T(`；${failed} 筆發送失敗`,`; ${failed} failed`):'');
+        toast(T(`已送 ${sent} 筆到 Telegram 群組進行審查`,`Sent ${sent} warning(s) for review`)+extra,failed?'warning':'success');
+        closeTgModal();
+      }
+    }else{
+      const res=await fetch(GAS_URL,{method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({type:'notify',text:r.text})});
+      let d=null;try{d=await res.json();}catch(e){}
+      if(d&&d.sent===false)toast(T('GAS 回報未送出','Not sent'),'error');
+      else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();}
+    }
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');}
-  b.disabled=false;b.textContent=T('確認傳送','Send');
+  b.disabled=false;b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }
 
 // ━━━━ 其他 ━━━━
