@@ -47,6 +47,8 @@
         ✈️ <span data-en="Telegram">傳送</span></button>
       <button onclick="goTab('apply')" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition">
         📝 <span data-en="New Warning">提出警告</span></button>
+      <button id="btn-admin" onclick="toggleAdmin()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+        🔒 <span data-en="Manage">管理</span></button>
       <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">中/EN</button>
     </div>
   </div>
@@ -298,7 +300,7 @@
 // ═══════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
   'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
-const ADMIN_ID='5026942575';                 // Paul 的 Telegram ID（GAS 用來驗證管理權限）
+const ADMIN_CODE='1111';                     // Warning 管理碼
 const IDB_NAME='ac_hra_warn', IDB_VER=1, IDB_STORE='records';
 const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 // 等級：代碼 → 中英名稱、失效月數（須與 GAS 的 WARN_MONTHS_* 一致）、顏色
@@ -342,20 +344,18 @@ function applyLang(){
 }
 function toggleAdmin(){
   if(IS_ADMIN){IS_ADMIN=false;syncAdminBtn();toast(T('已登出管理模式','Admin mode off'),'warning');return;}
-  const code=prompt(T('請輸入管理碼（Paul 的 Telegram ID）','Enter admin code (Paul\'s Telegram ID)'));
+  const code=prompt(T('請輸入管理碼','Enter admin code'));
   if(code===null)return;
-  if(String(code).trim()===ADMIN_ID){IS_ADMIN=true;syncAdminBtn();
+  if(String(code).trim()===ADMIN_CODE){IS_ADMIN=true;syncAdminBtn();
     toast(T('已進入管理模式，可編輯／刪除記錄','Admin mode on'),'success');renderAll();}
   else toast(T('管理碼錯誤','Wrong admin code'),'error');
 }
-function syncAdminBtn(){ return; /* 管理按鈕已移除 */
-  /*
-  const b=qs('#btn-admin');
+function syncAdminBtn(){
+  const b=qs('#btn-admin'); if(!b)return;
   b.className='no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border transition '
     +(IS_ADMIN?'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
               :'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100');
-  b.querySelector('span').textContent=IS_ADMIN?T('管理中','Admin ✓'):T('管理','Admin');
-  b.firstChild.textContent=IS_ADMIN?'🔓 ':'🔒 ';*/
+  b.innerHTML=(IS_ADMIN?'🔓 ':'🔒 ')+`<span data-en="Manage">${IS_ADMIN?T('管理中','Admin ✓'):T('管理','Manage')}</span>`;
 }
 
 // ━━━━ IndexedDB（離線快取）━━━━
@@ -631,7 +631,7 @@ async function verifyRec(id,pass){
   const st=pass?'待核可':'已退回', who=REVIEWER_NAME();
   try{
     if(r.row){
-      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_ID,
+      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_CODE,
         data:JSON.stringify({row:r.row,status:st,reviewer:who})});
       if(!res||!res.ok)toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');
     }
@@ -647,7 +647,7 @@ function REVIEWER_NAME(){
     if(nm){try{localStorage.setItem('warn_reviewer',nm);}catch(e){}} }
   return nm||T('（未署名）','(unnamed)');
 }
-window.verifyRec=verifyRec;window.isOpen=isOpen;window.stLabel=stLabel;
+window.verifyRec=verifyRec;window.isOpen=isOpen;window.stLabel=stLabel;window.toggleAdmin=toggleAdmin;
 function renderAll(){
   if(!RECS.length){showApp();return;}
   showApp();buildFilters();
@@ -883,6 +883,7 @@ function renderList(){
         :r.status==='待核可'?`
           <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('✅ 核可','Approve')}</button>
           <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`:''}
+        ${IS_ADMIN?`<button onclick="deleteRec('${esc(r.id)}')" class="text-[11px] text-red-600 hover:underline ml-2">${T('🗑 刪除','Delete')}</button>`:''}
       </td></tr>`;}).join('')
     ||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
   if(list.length>500)qs('#li-tbody').insertAdjacentHTML('beforeend',
@@ -1034,13 +1035,34 @@ async function submitApply(){
   }catch(e){toast(T('送出失敗：','Submit failed: ')+e.message,'error');}
   btn.disabled=false;btn.textContent=T('送出待核可','Submit for approval');
 }
+async function deleteRec(id){
+  const r=RECS.find(x=>x.id===id); if(!r)return;
+  if(!IS_ADMIN){
+    toast(T('請先按右上角「管理」登入後才能刪除','Enter Manage mode first'),'warning');
+    return;
+  }
+  const who=(r.empName||r.empId||'—');
+  if(!confirm(T(`確定刪除這筆警告？\n${who} · ${lvName(r.level)} · ${r.incidentDate}\n\n刪除後不列入統計；若已送 Telegram，原訊息也會標示「已刪除」。`,
+    `Delete this warning?\n${who} · ${lvName(r.level)} · ${r.incidentDate}`)))return;
+  try{
+    if(r.row){
+      const res=await gasGet({action:'warnDelete',adminCode:ADMIN_CODE,row:r.row});
+      if(!res||!res.ok){toast(T('雲端刪除失敗：','Delete failed: ')+((res&&res.error)||'unknown'),'error');return;}
+    }
+    RECS=RECS.filter(x=>x.id!==id);
+    await idbSaveAll(); renderAll();
+    toast(T('🗑 已刪除；不再列入統計','🗑 Deleted'),'success');
+  }catch(e){toast(T('刪除失敗：','Delete failed: ')+e.message,'error');}
+}
+window.deleteRec=deleteRec;
+
 async function approveRec(id,approve){
   const r=RECS.find(x=>x.id===id);if(!r)return;
   if(!confirm(T(`確定${approve?'核可':'退件'}：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？`,
     `${approve?'Approve':'Reject'} this warning?`)))return;
   try{
     if(r.row){
-      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_ID,
+      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_CODE,
         data:JSON.stringify({row:r.row,status:approve?'已核可':'已退件'})});
       if(!res||!res.ok){toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');}
     }
@@ -1084,7 +1106,7 @@ async function cloudUpload(){
         empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',
         level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',
         status:r.status||'已核可'}));
-      const res=await gasGet({action:'warnImport',adminCode:ADMIN_ID,data:JSON.stringify(chunk)});
+      const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,data:JSON.stringify(chunk)});
       if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}
       b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;
     }

@@ -815,8 +815,6 @@ body{font-family:'DM Sans',sans-serif;}
             class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">📄 摘要</button>
           <button id="tgm-rev" onclick="setTgMode('review')" data-en="👀 Group review"
             class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">👀 送群組審查</button>
-          <button id="tgm-dir" onclick="setTgMode('direct')" data-en="⚡ Direct to Paul"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">⚡ 直送核可</button>
         </div>
         <p id="tgm-note" class="text-[10px] text-slate-400 mt-1.5 leading-relaxed"></p>
       </div>
@@ -2523,8 +2521,9 @@ const APPROVAL_FROM='2026-07';
 const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||''):'';}
-const TGM_IDS={summary:'tgm-sum',review:'tgm-rev',direct:'tgm-dir'};
+const TGM_IDS={summary:'tgm-sum',review:'tgm-rev'};
 function setTgMode(m){
+  if(m!=='summary'&&m!=='review')m='review';
   if(m!=='summary'&&!needsApproval(_tgPeriodVal()))return;   // 已結案期間不可送核可
   TG_MODE=m;
   Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
@@ -2533,7 +2532,7 @@ function setTgMode(m){
 }
 function syncTgMode(){
   const ok=needsApproval(_tgPeriodVal()), note=qs('#tgm-note');
-  ['tgm-rev','tgm-dir'].forEach(id=>{const b=qs('#'+id); if(!b)return;
+  ['tgm-rev'].forEach(id=>{const b=qs('#'+id); if(!b)return;
     b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
   if(!ok&&TG_MODE!=='summary')TG_MODE='summary';
   Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
@@ -2542,9 +2541,7 @@ function syncTgMode(){
     ? (APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。')
     : TG_MODE==='review'
       ? '送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。'
-      : TG_MODE==='direct'
-        ? '略過審查，直接私訊你本人核可。核可後群組也會收到結果與文件連結。'
-        : '只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。';
+      : '只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。';
 }
 async function sendApprovalRequest(period,title,text,amount,headcount,route,items){
   try{
@@ -2555,7 +2552,7 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
         route:route||'review', items:items||[]})});
     let d=null;try{d=await r.json();}catch(e){}
     if(d&&d.ok!==false){
-      toast(route==='direct'?'已直送你的 Telegram，請核可':'已送群組，等待審查','success');return true;}
+      toast('已送群組，等待審查','success');return true;}
     toast('送出失敗','error');return false;
   }catch(e){toast('送出失敗：'+e.message,'error');return false;}
 }
