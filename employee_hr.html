@@ -191,6 +191,8 @@
         <button id="dm-prov"   onclick="setDim('prov')"   data-en="Province"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">籍貫</button>
         <button id="dm-nat"    onclick="setDim('nat')"    data-en="Nationality" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">國籍</button>
         <button id="dm-mar"    onclick="setDim('mar')"    data-en="Marital"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">婚姻</button>
+        <button id="dm-pos"    onclick="setDim('pos')"    data-en="Position"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">職位</button>
+        <button id="dm-work"   onclick="setDim('work')"   data-en="Work Status" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">工作狀態</button>
       </div>
       <div class="flex bg-slate-100 rounded-lg p-0.5">
         <button id="pv-n" onclick="setPVal('n')" data-en="Count"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">人數</button>
@@ -759,7 +761,7 @@ function renderDash(){
 
 let DIM='age', PVAL='n';
 function setDim(d){DIM=d;
-  ['age','tenure','gender','edu','prov','nat','mar'].forEach(k=>
+  ['age','tenure','gender','edu','prov','nat','mar','pos','work'].forEach(k=>
     qs('#dm-'+k).className=_btn(k===d,'violet'));
   renderProfile();}
 function setPVal(v){PVAL=v;
@@ -785,9 +787,10 @@ function dimDef(rows,sd){
   }
   if(DIM==='gender')return {cats:[T('女 F','Female'),T('男 M','Male')],
     of:r=>r.gender==='F'?T('女 F','Female'):r.gender==='M'?T('男 M','Male'):null};
-  const key={edu:'education',prov:'province',nat:'nationality',mar:'marital'}[DIM];
-  //  柬文欄位先翻譯＋正規化，把同一省的多種寫法合併成一項
-  const tbl={prov:KM_PROV,nat:KM_NAT,mar:KM_MISC,edu:KM_MISC}[DIM];
+  const key={edu:'education',prov:'province',nat:'nationality',mar:'marital',pos:'position',work:'workStatus'}[DIM];
+  // 這些欄位都直接來自 Employee HR 原始資料；沒有來源值就不分類、不猜測。
+  // 柬文欄位先翻譯＋正規化，把同一省/同義文字合併成一項。
+  const tbl={prov:KM_PROV,nat:KM_NAT,mar:KM_MISC,edu:KM_MISC,pos:KM_MISC,work:KM_MISC}[DIM];
   const disp=r=>{const v=(r[key]||'').trim(); return v?trKm(v,tbl):'';};
   const cnt={};
   rows.forEach(r=>{const v=disp(r); if(v)cnt[v]=(cnt[v]||0)+1;});

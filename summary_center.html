@@ -44,10 +44,15 @@ tr:hover td{background:#f8fafc;}
 .empty{color:var(--sub);text-align:center;padding:24px;font-size:.85rem;}
 select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;background:#fff;}
 .note{font-size:.75rem;color:var(--sub);padding:10px 17px;background:#f8fafc;border-top:1px solid var(--line);}
+.cost-opts{display:flex;gap:8px 14px;flex-wrap:wrap;margin-bottom:14px}.cost-opt{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer;background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:7px 10px}.cost-opt input{accent-color:var(--navy)}
+.cost-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}.cost-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff}.cost-box.main{background:#f8fafc}.cost-box .ct{font-size:.72rem;color:var(--sub)}.cost-box .cv{font-size:1.35rem;font-weight:800;margin-top:3px}.cost-box .cs{font-size:.7rem;color:var(--sub);margin-top:4px;line-height:1.5}
+@media(max-width:700px){.cost-grid{grid-template-columns:1fr 1fr}.cost-box.main{grid-column:1/-1}}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;
 padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:none;transition:.3s;z-index:99;}
 #toast.on{opacity:1;}
 @media(max-width:560px){.kpis{grid-template-columns:1fr 1fr;}}
+
+.comp-table{width:100%;border-collapse:collapse;font-size:12px}.comp-table th,.comp-table td{padding:8px 9px;border-bottom:1px solid var(--line);text-align:right}.comp-table th:first-child,.comp-table td:first-child{text-align:left}.comp-table th{color:var(--mut);background:#f8fafc;font-weight:700}.comp-table .neg{color:#dc2626}.comp-table .strong{font-weight:800;color:var(--navy)}
 </style>
 </head>
 <body>
@@ -63,6 +68,26 @@ padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:n
 
 <main>
   <div class="kpis" id="kpis"></div>
+
+  <div class="panel" id="cost-total-panel">
+    <div class="ph"><h2>💰 費用加總 Cost Total</h2><span class="pill ok" id="cost-period">—</span></div>
+    <div class="pb">
+      <div class="cost-opts" id="cost-options">
+        <label class="cost-opt"><input type="checkbox" data-cost="payroll" checked> Payroll 實領</label>
+        <label class="cost-opt"><input type="checkbox" data-cost="advance" checked> Advance 首期</label>
+        <label class="cost-opt"><input type="checkbox" data-cost="meal1" checked> Meal B1</label>
+        <label class="cost-opt"><input type="checkbox" data-cost="meal2" checked> Meal B2</label>
+      </div>
+      <div class="cost-grid" id="cost-grid"></div>
+    </div>
+    <div class="note">可自行勾選要加總的項目。Payroll「實領」為 Payroll 檔最終實發；Advance 為首期預支／首期發放，因此勾選 Payroll + Advance 可看當月兩階段現金發放，再加 Meal B1/B2 可看含餐費的總現金支出。</div>
+  </div>
+
+  <div class="panel" id="pay-component-panel">
+    <div class="ph"><h2>🧾 Payroll 分項成本 Payroll Components</h2><select id="sum-pay-group" onchange="render()"><option value="all">全部 All</option><option value="base">固定薪 Base</option><option value="attendance">出勤假勤 Attendance/Leave</option><option value="incentive">獎勵津貼 Incentive</option><option value="ot">加班 OT</option><option value="deduction">扣項 Deductions</option></select></div>
+    <div class="pb" id="pay-component-body"></div>
+    <div class="note">這裡直接加總 Payroll Projection 的逐人欄位，不用總額反推。若舊 Projection 沒有分項欄位，會明示要求重新開啟 Payroll 產生新版 Projection，不把缺欄位當作 0。</div>
+  </div>
 
   <div class="panel">
     <div class="ph"><h2>核對期間 Period</h2>
@@ -90,6 +115,35 @@ function fmt(n){return (Math.round((n||0)*100)/100).toLocaleString('en-US',{mini
 
 /* ── 資料容器：MOD[module] = { items:{key:{period,payPhase,mealBatch,rows,totals,updatedAt,sourceFile}}, src } ── */
 const MOD={payroll:null,advance:null,meal:null};
+function num(v){const n=Number(String(v??'').replace(/[$,\s]/g,''));return Number.isFinite(n)?n:0;}
+function mealRawToItem(e){
+  if(!e)return null;
+  // 已是 Projection 格式
+  if(e.period && e.rows && e.totals && e.mealBatch!==undefined) return e;
+  const period=e.period || (e.year&&e.month ? `${e.year}-${String(e.month).padStart(2,'0')}` : '');
+  const batch=e.mealBatch ?? e.batch ?? '';
+  const srcRows=(e.meal&&e.meal.rows)||(e.att&&e.att.rows)||e.rows||[];
+  const rows=srcRows.map(r=>({
+    employeeId:String(r.employeeId??r.id??''), name:r.name||r.nameLat||r.nameKh||'', dept:r.dept||r.department||'',
+    period, mealBatch:batch, mealFee:num(r.mealFee??r.usd), mealRiel:num(r.mealRiel??r.riel),
+    mealDays:Array.isArray(r.days)?r.days.filter(d=>num(d.present)>0).length:num(r.mealDays)
+  }));
+  return {period,payPhase:'',mealBatch:batch,rows,
+    totals:{mealFee:Math.round(rows.reduce((a,r)=>a+r.mealFee,0)*100)/100,
+            mealRiel:rows.reduce((a,r)=>a+r.mealRiel,0),headcount:rows.length},
+    updatedAt:e.updatedAt||'',sourceFile:(e.meal&&e.meal.source)||e.sourceFile||((e.att&&e.att.sources)||[]).join(', ')};
+}
+function mealItemsFromBatches(arr){
+  const items={};
+  (arr||[]).forEach(b=>{const it=mealRawToItem(b);if(!it||!it.period)return;items[it.period+':B'+(it.mealBatch||'?')]=it;});
+  return items;
+}
+function unwrapProjectionResponse(d){
+  const a=d&&d.data;
+  if(a&&a.items)return a;
+  if(a&&a.data&&a.data.items)return a.data;
+  return null;
+}
 
 function loadLocal(){
   // payroll / advance：單筆最新 → 轉 items
@@ -102,15 +156,12 @@ function loadLocal(){
         rows:d.rows||[],totals:d.totals||{},updatedAt:d.updatedAt||'',sourceFile:d.sourceFile||''}}};
     }catch(e){console.warn(m,e);}
   });
-  // meal：batches 陣列
+  // meal：Projection batches；相容舊版格式
   try{
     const raw=localStorage.getItem('hrpay:result:meal');
     if(raw){
-      const d=JSON.parse(raw);const items={};
-      (d.batches||[]).forEach(b=>{
-        items[(b.period||'NA')+':B'+(b.mealBatch||'?')]={period:b.period,payPhase:'',mealBatch:b.mealBatch,
-          rows:b.rows||[],totals:b.totals||{},updatedAt:b.updatedAt||'',sourceFile:b.sourceFile||''};
-      });
+      const d=JSON.parse(raw);
+      const items=d.items||mealItemsFromBatches(d.batches||[]);
       if(Object.keys(items).length)MOD.meal={src:'local',items};
     }
   }catch(e){console.warn('meal',e);}
@@ -118,19 +169,33 @@ function loadLocal(){
 
 async function pullCloud(){
   const btn=$('#btn-pull');btn.disabled=true;btn.textContent='☁ 拉取中…';
-  let got=0;
+  let got=0, mealCloudProjection=false;
   for(const m of ['payroll','advance','meal']){
     try{
       const r=await fetch(GAS_URL+'?action=pullProjection&module='+m);
       const d=await r.json();
-      const store=d&&d.data;
+      const store=unwrapProjectionResponse(d);
       if(store&&store.items&&Object.keys(store.items).length){
         MOD[m]={src:'cloud',items:store.items};got++;
+        if(m==='meal') mealCloudProjection=true;
       }
-    }catch(e){console.warn('pull',m,e);}
+    }catch(e){console.warn('pull projection',m,e);}
+  }
+  // 舊版 Meal Fee 可能只有 hrpay_meal.json，沒有 hrpay_result_meal.json；直接從原始雲端資料重建 Projection
+  if(!mealCloudProjection){
+    try{
+      const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_meal');
+      const d=await r.json();
+      const rawStore=d&&d.data;
+      const items=mealItemsFromBatches((rawStore&&rawStore.batches)||[]);
+      if(Object.keys(items).length){
+        MOD.meal={src:'cloud',items};got++;
+        localStorage.setItem('hrpay:result:meal',JSON.stringify({module:'meal',updatedAt:new Date().toISOString(),batches:Object.values(items)}));
+      }
+    }catch(e){console.warn('pull raw meal',e);}
   }
   btn.disabled=false;btn.textContent='☁ 從雲端拉取';
-  toast(got?('已從雲端取得 '+got+' 個模組的 Projection'):'雲端尚無 Projection 資料');
+  toast(got?('已取得 '+got+' 個模組資料（Meal 舊資料也會自動轉換）'):'雲端尚無可用資料');
   render();
 }
 
@@ -152,7 +217,55 @@ function pick(module,period,phase,batch){
   return best;
 }
 
-/* ── KPI ── */
+/* ── KPI / 費用加總 ── */
+function selectedCosts(){
+  const saved=JSON.parse(localStorage.getItem('summary_cost_opts')||'null');
+  const def={payroll:true,advance:true,meal1:true,meal2:true};
+  return saved&&typeof saved==='object'?Object.assign(def,saved):def;
+}
+function applyCostChecks(){
+  const o=selectedCosts();
+  document.querySelectorAll('[data-cost]').forEach(x=>{x.checked=o[x.dataset.cost]!==false;});
+}
+function renderCostTotal(P,pay,adv,m1,m2){
+  const vals={payroll:num(pay?.totals?.netPay),advance:num(adv?.totals?.advanceAmount),meal1:num(m1?.totals?.mealFee),meal2:num(m2?.totals?.mealFee)};
+  const avail={payroll:!!pay,advance:!!adv,meal1:!!m1,meal2:!!m2};
+  const labels={payroll:'Payroll',advance:'Advance',meal1:'Meal B1',meal2:'Meal B2'};
+  const opts={};document.querySelectorAll('[data-cost]').forEach(x=>opts[x.dataset.cost]=x.checked);
+  const total=Object.keys(vals).reduce((s,k)=>s+(opts[k]&&avail[k]?vals[k]:0),0);
+  const salaryCash=vals.payroll+vals.advance, mealTotal=vals.meal1+vals.meal2;
+  const chosen=Object.keys(opts).filter(k=>opts[k]);
+  const missing=chosen.filter(k=>!avail[k]);
+  $('#cost-period').textContent=P||'—';
+  $('#cost-grid').innerHTML=`
+    <div class="cost-box main"><div class="ct">已勾選項目合計 Selected Total</div><div class="cv">$${fmt(total)}</div>
+      <div class="cs">${chosen.map(k=>labels[k]).join(' + ')||'未選任何項目'}${missing.length?`<br><span style="color:var(--warn);font-weight:700">⚠ 缺 ${missing.map(k=>labels[k]).join('、')}；缺資料不等於 $0</span>`:''}</div></div>
+    <div class="cost-box"><div class="ct">薪資現金發放 Salary Cash</div><div class="cv">$${fmt(salaryCash)}</div><div class="cs">Payroll $${fmt(vals.payroll)} + Advance $${fmt(vals.advance)}${(!pay||!adv)?'<br>⚠ 資料未齊':''}</div></div>
+    <div class="cost-box"><div class="ct">餐費合計 Meal Total</div><div class="cv">$${fmt(mealTotal)}</div><div class="cs">B1 $${fmt(vals.meal1)} + B2 $${fmt(vals.meal2)}${(!m1||!m2)?'<br>⚠ 資料未齊':''}</div></div>`;
+}
+const SUM_PAY_COMPS=[
+  {k:'basic',n:'Basic 基本薪',g:'base'},{k:'seniority',n:'Seniority 年資',g:'base'},{k:'skill',n:'Skill 技術',g:'base'},{k:'position',n:'Position 職務',g:'base'},{k:'language',n:'Language 語言',g:'base'},{k:'baseTotal',n:'Base Total 固定薪合計',g:'base',strong:1},
+  {k:'achieve',n:'Achievement 達標',g:'attendance'},{k:'cut5',n:'5% Work Deduction',g:'attendance',neg:1},{k:'annualLeavePay',n:'Annual Leave 年假',g:'attendance'},{k:'shutdown50',n:'Shutdown 50% 停工',g:'attendance',neg:1},{k:'hourlyLeave',n:'Hourly Leave 時假',g:'attendance',neg:1},{k:'personalLeave',n:'Personal Leave 事假',g:'attendance',neg:1},{k:'daySwap',n:'Day Swap 換休',g:'attendance',neg:1},
+  {k:'incentive',n:'Incentive 獎勵',g:'incentive'},{k:'bonus',n:'Bonus 獎金',g:'incentive'},{k:'travel',n:'Travel/Housing 交通住宿',g:'incentive'},
+  {k:'nightWork',n:'Night Work 夜班',g:'ot'},{k:'holidayPay',n:'Holiday 假日',g:'ot'},{k:'regularOT',n:'Regular OT 平日加班',g:'ot'},{k:'nightOT',n:'Night OT 夜間加班',g:'ot'},{k:'sundayPay',n:'Sunday 週日',g:'ot'},{k:'otPay',n:'OT Total 加班合計',g:'ot',strong:1},
+  {k:'debt',n:'Debt 欠款',g:'deduction',neg:1},{k:'advance',n:'Advance 預支扣回',g:'deduction',neg:1},{k:'nssf',n:'NSSF',g:'deduction',neg:1},{k:'unionFee',n:'Union Fee 工會費',g:'deduction',neg:1},{k:'salaryTax',n:'Salary Tax 薪資稅',g:'deduction',neg:1},
+  {k:'netPay',n:'Net Pay 實領',g:'net',strong:1}
+];
+function renderPayComponents(pay){
+  const box=$('#pay-component-body'); if(!box)return;
+  if(!pay){box.innerHTML='<div style="color:var(--mut)">尚無 Payroll Projection</div>';return;}
+  const rows=pay.rows||[]; if(!rows.length){box.innerHTML='<div style="color:var(--mut)">Payroll Projection 沒有逐人 rows</div>';return;}
+  const probe=rows[0]||{};
+  const required=['basic','skill','nssf','otPay','netPay'];
+  const missing=required.filter(k=>!(k in probe));
+  if(missing.length){box.innerHTML=`<div style="color:var(--warn);font-weight:800">⚠ 舊版 Projection 缺 ${missing.join(', ')}。請開啟新版 Payroll 一次，讓它重建詳細 Projection；此處不把缺欄位當 $0。</div>`;return;}
+  const g=$('#sum-pay-group')?.value||'all';
+  let comps=SUM_PAY_COMPS.filter(c=>g==='all'||c.g===g);
+  const net=rows.reduce((a,r)=>a+Math.abs(num(r.netPay)),0), n=rows.length||1;
+  const data=comps.map(c=>{const amt=rows.reduce((a,r)=>a+(c.neg?Math.abs(num(r[c.k])):num(r[c.k])),0);return {...c,amt,cap:amt/n,share:net?Math.abs(amt)/net*100:0};});
+  box.innerHTML=`<div style="overflow-x:auto"><table class="comp-table"><thead><tr><th>Component</th><th>Total</th><th>Per Person</th><th>% of Net</th></tr></thead><tbody>${data.map(x=>`<tr><td class="${x.strong?'strong':''}">${x.n}</td><td class="${x.neg?'neg':''}">${x.neg?'−':''}$${fmt(Math.abs(x.amt))}</td><td>$${fmt(Math.abs(x.cap))}</td><td>${x.share.toFixed(1)}%</td></tr>`).join('')}</tbody></table></div>`;
+}
+
 function render(){
   const ps=periods();
   const sel=$('#sel-period');const cur=sel.value;
@@ -173,6 +286,9 @@ function render(){
       <div class="v">$${fmt(m1?.totals?.mealFee)}</div><div class="s">${m1?(m1.rows.length+' 人'):'尚無資料'}</div></div>
     <div class="kpi"><div class="t">🍱 Meal B2（16–月底）</div>
       <div class="v">$${fmt(m2?.totals?.mealFee)}</div><div class="s">${m2?(m2.rows.length+' 人'):'尚無資料'}</div></div>`;
+
+  renderCostTotal(P,pay,adv,m1,m2);
+  renderPayComponents(pay);
 
   $('#src-list').innerHTML=['payroll','advance','meal'].map(m=>{
     const d=MOD[m];
@@ -251,7 +367,11 @@ function runAudit(){
 $('#btn-pull').onclick=pullCloud;
 $('#btn-run').onclick=runAudit;
 $('#sel-period').onchange=render;
-loadLocal();render();
+document.querySelectorAll('[data-cost]').forEach(x=>x.addEventListener('change',()=>{
+  const o={};document.querySelectorAll('[data-cost]').forEach(c=>o[c.dataset.cost]=c.checked);
+  localStorage.setItem('summary_cost_opts',JSON.stringify(o));render();
+}));
+loadLocal();applyCostChecks();render();
 </script>
 </body>
 </html>

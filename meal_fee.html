@@ -122,8 +122,12 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
       </button>
       <span id="nav-hint" class="text-[11px] ml-1"></span>
+      <select id="sel-division" onchange="renderAll()"
+        class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-orange-200 outline-none min-w-[145px]">
+        <option value="">全部大類 All Divisions</option>
+      </select>
       <select id="sel-dept" onchange="renderAll()"
-        class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-orange-200 outline-none min-w-[180px]">
+        class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-orange-200 outline-none min-w-[180px]">
         <option value="" data-en="All Departments">全廠 All Departments</option>
       </select>
     </div>
@@ -692,7 +696,7 @@ function mergeAttendance(att,d){
   const idx={}; att.rows.forEach(r=>idx[r.id]=r);
   d.rows.forEach(nr=>{
     let r=idx[nr.id];
-    if(!r){ r={id:nr.id,name:nr.name,dept:nr.dept,group:nr.group,days:[],riel:0,usd:0};
+    if(!r){ r={id:nr.id,name:nr.name,dept:nr.dept,division:nr.division||'',group:nr.group,days:[],riel:0,usd:0};
             att.rows.push(r); idx[nr.id]=r; }
     const dmap={}; r.days.forEach(x=>dmap[x.d]=x);
     nr.days.forEach(x=>{ dmap[x.d] ? (dmap[x.d].present=x.present,dmap[x.d].ot=x.ot) : r.days.push({...x}); });
@@ -713,16 +717,30 @@ function sortedKeys(){
   });
 }
 // 目前期間的資料列（優先餐費表，無則用考勤表）
+function rowsForEntry(e){
+  if(!e)return [];
+  if(e.meal){
+    // Meal 表本身只有細部 Dept；若同一期有 Attendance，就用工號補上大類 Division / Group。
+    // 找不到對應工號時保持空白，不推測部門。
+    const amap={}; (e.att?.rows||[]).forEach(a=>amap[String(a.id)] = a);
+    return e.meal.rows.map(r=>{const a=amap[String(r.id)];return Object.assign({},r,{
+      division:(a&&a.division)||r.division||'', group:(a&&a.group)||r.group||r.dept||''
+    });});
+  }
+  return e.att?.rows||[];
+}
 function activeRows(){
   if(!ACTIVE)return {rows:[],src:'none',dayList:[]};
-  if(ACTIVE.meal) return {rows:ACTIVE.meal.rows,src:'meal',dayList:ACTIVE.meal.dayList};
-  if(ACTIVE.att)  return {rows:ACTIVE.att.rows, src:'att', dayList:ACTIVE.att.dayList};
+  if(ACTIVE.meal)return {rows:rowsForEntry(ACTIVE),src:'meal',dayList:ACTIVE.meal.dayList};
+  if(ACTIVE.att) return {rows:rowsForEntry(ACTIVE),src:'att',dayList:ACTIVE.att.dayList};
   return {rows:[],src:'none',dayList:[]};
 }
 function filtered(){
   const {rows,src,dayList}=activeRows();
-  const d=qs('#sel-dept')?qs('#sel-dept').value:'';
-  return {rows: d?rows.filter(r=>r.dept===d):rows, src, dayList};
+  const dv=qs('#sel-division')?qs('#sel-division').value:'';
+  const d =qs('#sel-dept')?qs('#sel-dept').value:'';
+  const out=rows.filter(r=>(!dv||r.division===dv)&&(!d||r.dept===d));
+  return {rows:out,src,dayList};
 }
 // 匯率：由資料反推（riel / usd 的中位數），無法反推則預設 4000
 function rateOf(rows){
@@ -819,12 +837,21 @@ function renderAll(){
   renderReport();
 }
 function buildDeptSelect(){
-  const sel=qs('#sel-dept'), keep=sel.value;
+  const dsel=qs('#sel-division'), sel=qs('#sel-dept');
+  const keepDv=dsel?.value||'', keep=sel?.value||'';
   const {rows}=activeRows();
-  const ds=[...new Set(rows.map(r=>r.dept))].sort();
-  sel.innerHTML=`<option value="">${T('全廠 All Departments','All Departments')}</option>`
-    +ds.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
-  if(keep&&ds.includes(keep))sel.value=keep;
+  const dvs=[...new Set(rows.map(r=>r.division).filter(Boolean))].sort();
+  if(dsel){
+    dsel.innerHTML=`<option value="">${T('全部大類 All Divisions','All Divisions')}</option>`+dvs.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+    if(keepDv&&dvs.includes(keepDv))dsel.value=keepDv;
+    dsel.disabled=!dvs.length;
+  }
+  const dv=dsel?.value||'';
+  const ds=[...new Set(rows.filter(r=>!dv||r.division===dv).map(r=>r.dept).filter(Boolean))].sort();
+  if(sel){
+    sel.innerHTML=`<option value="">${T('全廠 All Departments','All Departments')}</option>`+ds.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+    if(keep&&ds.includes(keep))sel.value=keep;
+  }
 }
 function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
 
@@ -856,7 +883,7 @@ function renderDash(){
   qs('#kpi-mdays-sub').textContent=T(`平均 ${(mealDays/head).toFixed(1)} 天/人`,`avg ${(mealDays/head).toFixed(1)} days/person`);
 
   qs('#scope-txt').textContent=
-    `${qs('#sel-dept').value||T('全廠','All')} · ${rows.length} ${T('人','staff')} · ${MODE==='cap'?T('每人平均','per capita'):T('總額','total')} · ${uZh}`;
+    `${(qs('#sel-division')?.value?qs('#sel-division').value+' / ':'')+(qs('#sel-dept').value||T('全廠','All'))} · ${rows.length} ${T('人','staff')} · ${MODE==='cap'?T('每人平均','per capita'):T('總額','total')} · ${uZh}`;
 
   // 每日趨勢
   const byDay={};
@@ -910,11 +937,12 @@ function renderDash(){
 // 跨期間的「日索引」：把所有已匯入資料攤平成每一天
 function dayIndex(){
   const idx={}, pad=n=>String(n).padStart(2,'0');
+  const dv=qs('#sel-division')?qs('#sel-division').value:'';
   const dept=qs('#sel-dept')?qs('#sel-dept').value:'';
   sortedKeys().forEach(k=>{
     const e=STORE[k];
-    const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]);
-    const rs=dept?rows.filter(r=>r.dept===dept):rows;
+    const rows=rowsForEntry(e);
+    const rs=rows.filter(r=>(!dv||r.division===dv)&&(!dept||r.dept===dept));
     rs.forEach(r=>r.days.forEach(x=>{
       const key=`${e.year}-${pad(e.month)}-${pad(x.d)}`;
       const b=idx[key]||(idx[key]={y:e.year,m:e.month,d:x.d,riel:0,ot:0,served:0,otServed:0,ids:new Set(),src:e.att?'att':'meal'});
@@ -1181,10 +1209,11 @@ function setReportMode(m){
   renderReport();
 }
 function statsOf(e){
-  const rows = e.meal?e.meal.rows : (e.att?e.att.rows:[]);
+  const rows = rowsForEntry(e);
   const dl   = e.meal?e.meal.dayList : (e.att?e.att.dayList:[]);
+  const dv   = qs('#sel-division')?qs('#sel-division').value:'';
   const dept = qs('#sel-dept')?qs('#sel-dept').value:'';
-  const rs   = dept?rows.filter(r=>r.dept===dept):rows;
+  const rs   = rows.filter(r=>(!dv||r.division===dv)&&(!dept||r.dept===dept));
   let md=0; rs.forEach(r=>r.days.forEach(d=>{if(d.present>0)md++;}));
   return {n:rs.length, usd:rs.reduce((s,r)=>s+r.usd,0), riel:rs.reduce((s,r)=>s+r.riel,0),
           days:dl.length||15, mdays:md, hasMeal:!!e.meal, hasAtt:!!e.att};
@@ -1409,16 +1438,22 @@ function projectionOf(e){
             mealRiel:rows.reduce((s,r)=>s+r.riel,0), headcount:rows.length}
   };
 }
-async function pushProjection(e){
+function cacheMealProjectionLocal(){
   try{
-    const p=projectionOf(e);
-    // 本機：合併所有期間為 batches 陣列
     const all=sortedKeys().map(k=>projectionOf(STORE[k]));
     localStorage.setItem('hrpay:result:meal',JSON.stringify({
       module:'meal', updatedAt:_nowISO(),
       batches: all.map(x=>({period:x.period,mealBatch:x.mealBatch,rows:x.rows,
                             totals:x.totals,updatedAt:x.updatedAt,sourceFile:x.sourceFile}))
     }));
+    return all.length;
+  }catch(err){console.warn('meal projection cache',err);return 0;}
+}
+async function pushProjection(e){
+  try{
+    const p=projectionOf(e);
+    // 本機：永遠重建所有期間 Projection，讓 Summary Center 可直接讀取
+    cacheMealProjectionLocal();
     if(GAS_URL) await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'projection',...p})});
@@ -1446,8 +1481,9 @@ async function cloudDownload(){
     else{
       for(const e of arr){ STORE[e.key]=e; await idbSave(e); }
       ACTIVE=STORE[sortedKeys().slice(-1)[0]];
+      cacheMealProjectionLocal();
       renderAll();
-      toast(T(`☁ 已載入 ${arr.length} 期資料`,`☁ Loaded ${arr.length} period(s)`),'success');
+      toast(T(`☁ 已載入 ${arr.length} 期資料，Summary Projection 已同步`,`☁ Loaded ${arr.length} period(s); Summary Projection synced`),'success');
     }
   }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
   b.disabled=false; b.classList.remove('opacity-50');
@@ -1482,6 +1518,8 @@ async function clearAllData(){
   const all=await idbAll();
   all.forEach(e=>{STORE[e.key]=e;});
   if(all.length){ ACTIVE=STORE[sortedKeys().slice(-1)[0]]; }
+  // 舊版資料可能只有 IndexedDB、沒有 hrpay:result:meal；啟動時自動補 Projection
+  if(all.length) cacheMealProjectionLocal();
   showApp();
   if(ACTIVE) renderAll();
   applyLang();
