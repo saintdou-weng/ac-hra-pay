@@ -279,6 +279,12 @@
           <option value="year" data-en="Yearly">年 Year</option></select></div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Period">選擇期間 Period</label>
         <select id="tg-key" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"></select></div>
+      <div id="tg-person-wrap">
+        <label id="tg-person-label" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">檢查人 Checked by</label>
+        <input id="tg-person" type="text" oninput="hrpPersonChanged()" autocomplete="off"
+          class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"
+          placeholder="請輸入檢查人 / Enter checked by">
+      </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Preview">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
     </div>
@@ -1117,9 +1123,36 @@ async function cloudUpload(){
 }
 
 // ━━━━ TELEGRAM ━━━━
+
+// ━━━━━━━━━ AC-HRA-PAY v2.9 人員欄位：摘要=檢查人；警告核可使用申請單 Applicant ━━━━━━━━━
+const HRP_CHECKER_KEY='ac_hra_pay_checker_name';
+const HRP_APPLICANT_KEY='ac_hra_pay_applicant_name';
+function hrpPersonStoreKey(kind){return kind==='applicant'?HRP_APPLICANT_KEY:HRP_CHECKER_KEY;}
+function hrpCurrentPersonKind(){return 'checker';}
+function hrpPersonLabel(kind){return kind==='applicant'?'申請人 Applicant':'檢查人 Checked by';}
+function hrpSyncPersonField(kind){
+  const input=document.getElementById('tg-person'); if(!input)return; kind=kind||'checker';
+  input.dataset.kind=kind;
+  const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
+  input.placeholder='請輸入檢查人 / Enter checked by';
+  if(!input.value.trim())input.value=localStorage.getItem(hrpPersonStoreKey(kind))||'';
+}
+function hrpPersonChanged(){const input=document.getElementById('tg-person');if(!input)return;localStorage.setItem(HRP_CHECKER_KEY,input.value.trim());if(typeof previewTg==='function')previewTg();}
+function hrpPersonValue(kind,ask){
+  kind=kind||'checker'; const input=document.getElementById('tg-person');
+  let v=(input&&input.dataset.kind===kind)?input.value.trim():(localStorage.getItem(hrpPersonStoreKey(kind))||'').trim();
+  if(!v&&ask)v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
+  if(v){localStorage.setItem(hrpPersonStoreKey(kind),v);if(input&&input.dataset.kind===kind)input.value=v;} return v;
+}
+function hrpEscActor(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hrpActorLine(kind,name){return kind==='applicant'?'📝 <b>申請人 Applicant：</b>'+hrpEscActor(name):'🔎 <b>檢查人 Checked by：</b>'+hrpEscActor(name);}
+function hrpPreviewText(text,kind){const v=hrpPersonValue(kind,false);return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):'⚠️ 請填檢查人 Checked by');}
+
 let TG_MODE='summary';
 function setTgMode(mode){
   TG_MODE=(mode==='review')?'review':'summary';
+  const pw=qs('#tg-person-wrap'); if(pw)pw.style.display=TG_MODE==='summary'?'':'none';
+  if(TG_MODE==='summary')hrpSyncPersonField('checker');
   const s=qs('#tg-mode-summary'), r=qs('#tg-mode-review'), hint=qs('#tg-mode-hint');
   if(s) s.className='text-xs font-bold px-3 py-2.5 rounded-lg border '+(TG_MODE==='summary'?'border-amber-500 bg-amber-50 text-amber-700':'border-slate-200 bg-white text-slate-600');
   if(r) r.className='text-xs font-bold px-3 py-2.5 rounded-lg border '+(TG_MODE==='review'?'border-sky-500 bg-sky-50 text-sky-700':'border-slate-200 bg-white text-slate-600');
@@ -1199,6 +1232,7 @@ function buildTgReview(unit,key){
 function openTgModal(){
   if(!RECS.length){toast(T('尚無資料','No data'),'error');return;}
   setTgMode('summary');
+  hrpSyncPersonField('checker');
   qs('#tg-unit').value=(UNIT==='year'||UNIT==='quarter')?UNIT:'month';
   fillTgKeys();
   const sel=qs('#tg-key');
@@ -1223,7 +1257,7 @@ function previewTg(){
   const b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+  else{const shown=TG_MODE==='summary'?hrpPreviewText(r.text,'checker'):r.text;pv.textContent=shown.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg '+(TG_MODE==='review'?'bg-sky-600 hover:bg-sky-700':'bg-amber-600 hover:bg-amber-700')+' text-white transition';}
   b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }
@@ -1247,11 +1281,13 @@ async function confirmSendTg(){
         closeTgModal();
       }
     }else{
+      const checker=hrpPersonValue('checker',true);
+      if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');b.disabled=false;b.textContent=T('確認傳送','Send');return;}
       const res=await fetch(GAS_URL,{method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({type:'notify',text:r.text})});
+        body:JSON.stringify({type:'notify',text:r.text,checker})});
       let d=null;try{d=await res.json();}catch(e){}
-      if(d&&d.sent===false)toast(T('GAS 回報未送出','Not sent'),'error');
+      if(d&&(d.ok===false||d.sent===false))toast(T('GAS 回報未送出','Not sent'),'error');
       else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();}
     }
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');}

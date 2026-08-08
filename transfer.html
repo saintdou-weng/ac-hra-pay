@@ -483,6 +483,9 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
           <button id="tm-dir" onclick="setTgMode('direct')" class="navbtn navbtn-off flex-1" data-t="tg_m3">⚡ 直送核可</button>
         </div>
         <p id="tg-note" class="text-[11.5px] text-slate-400 mt-2 leading-relaxed"></p></div>
+      <div id="tg-person-wrap"><label id="tg-person-label" class="rl">檢查人 Checked by</label>
+        <input id="tg-person" type="text" oninput="hrpPersonChanged()" class="ri" autocomplete="off" placeholder="請輸入檢查人 / Enter checked by">
+        <p class="text-[10px] text-slate-400 mt-1">摘要 Summary＝檢查人 Checked by；核可 Approval＝申請人 Applicant</p></div>
       <div><div class="flex items-center gap-2"><label class="rl" data-t="tg_prev">訊息預覽 Preview</label>
           <span id="tg-stat" class="ml-auto pill"></span></div>
         <pre id="tg-preview" class="text-[12px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-64 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
@@ -2035,6 +2038,55 @@ function delBatch(key){
 }
 
 /* ═══════════ TELEGRAM ═══════════ */
+
+// ━━━━━━━━━ AC-HRA-PAY v2.9 人員欄位：摘要=檢查人；核可=申請人 ━━━━━━━━━
+const HRP_CHECKER_KEY='ac_hra_pay_checker_name';
+const HRP_APPLICANT_KEY='ac_hra_pay_applicant_name';
+function hrpPersonStoreKey(kind){return kind==='applicant'?HRP_APPLICANT_KEY:HRP_CHECKER_KEY;}
+function hrpCurrentPersonKind(){
+  if(typeof TG_MODE!=='undefined')return TG_MODE==='summary'?'checker':'applicant';
+  if(typeof _tgMode!=='undefined')return _tgMode==='summary'?'checker':'applicant';
+  return 'checker';
+}
+function hrpPersonLabel(kind){return kind==='applicant'?'申請人 Applicant':'檢查人 Checked by';}
+function hrpSyncPersonField(kind){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  kind=kind||hrpCurrentPersonKind();
+  const old=input.dataset.kind;
+  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  input.dataset.kind=kind;
+  const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
+  input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
+  if(old!==kind || !input.value.trim())input.value=localStorage.getItem(hrpPersonStoreKey(kind))||'';
+}
+function hrpPersonChanged(){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  const kind=input.dataset.kind||hrpCurrentPersonKind();
+  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  if(typeof previewTg==='function')previewTg();
+}
+function hrpPersonValue(kind,ask){
+  kind=kind||'checker';
+  const input=document.getElementById('tg-person');
+  let v=(input&&input.dataset.kind===kind)?input.value.trim():(localStorage.getItem(hrpPersonStoreKey(kind))||'').trim();
+  if(!v&&ask){
+    v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
+  }
+  if(v){
+    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    if(input&&input.dataset.kind===kind)input.value=v;
+  }
+  return v;
+}
+function hrpEscActor(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hrpActorLine(kind,name){
+  return kind==='applicant'?'📝 <b>申請人 Applicant：</b>'+hrpEscActor(name):'🔎 <b>檢查人 Checked by：</b>'+hrpEscActor(name);
+}
+function hrpPreviewText(text,kind){
+  const v=hrpPersonValue(kind,false);
+  return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):('⚠️ '+(kind==='applicant'?'請填申請人 Applicant':'請填檢查人 Checked by')));
+}
+
 var TG_LIMIT=3600;
 function keyMonth(k){var m=String(k||'').match(/(\d{4})-(\d{2})/);return m?m[1]+'-'+m[2]:'';}
 function needsApproval(k){ return keyMonth(k)>=APPROVAL_FROM; }
@@ -2048,6 +2100,7 @@ function setTgMode(m){
   var dis=(m!=='summary')&&!needsApproval(val('tg-period'));
   if(dis)return;                       // 已結案的期間不能送核可
   _tgMode=m;
+  hrpSyncPersonField();
   ['sum','rev','dir'].forEach(function(x){
     var id={sum:'summary',rev:'review',dir:'direct'}[x], b=el('tm-'+x);
     if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
@@ -2079,6 +2132,7 @@ function syncTgMode(){
     var b=el('tm-'+x); if(!b)return;
     b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
   if(!ok&&_tgMode!=='summary'){_tgMode='summary';}
+  hrpSyncPersonField();
   ['sum','rev','dir'].forEach(function(x){
     var id={sum:'summary',rev:'review',dir:'direct'}[x], b=el('tm-'+x);
     if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
@@ -2172,34 +2226,38 @@ function buildTgText(scope,key){
    +'\n\n🕐 '+nowStr();
   return {text:t3,headcount:D2.length,amount:tot2,title:'人事異動月報 Transfer Report — '+key};
 }
-function openTg(){ buildTgPeriodSelect(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
+function openTg(){ buildTgPeriodSelect(); hrpSyncPersonField(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
 function openTgFor(scope,key){
   _tgScope=scope;
   ['batch','ind','sum'].forEach(function(x){var b=el('ts-'+x);
     if(b)b.className='navbtn flex-1 '+(x===scope?'navbtn-on':'navbtn-off');});
-  buildTgPeriodSelect(key); previewTg(); el('m-tg').classList.add('open');
+  buildTgPeriodSelect(key); hrpSyncPersonField(); previewTg(); el('m-tg').classList.add('open');
 }
 function previewTg(){
   syncTgMode();
   var r=buildTgText(_tgScope,val('tg-period')), pv=el('tg-preview'), btn=el('tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='btn flex-1 bg-slate-200 text-slate-400'; }
-  else{ pv.textContent=r.text.replace(/<\/?(b|code)>/g,''); btn.disabled=false;
+  else{ pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|code)>/g,''); btn.disabled=false;
     btn.className='btn flex-1 bg-violet-600 text-white hover:bg-violet-700'; }
 }
 async function sendTG(text){
+  var checker=hrpPersonValue('checker',true);
+  if(!checker){toast(L('請填檢查人 Checked by','Enter checked by','សូមបញ្ចូលអ្នកពិនិត្យ'),'error');return false;}
   try{
     var r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text:text})});
+      body:JSON.stringify({type:'notify',text:text,checker:checker})});
     var d=null; try{d=await r.json();}catch(e){}
-    if(d&&d.sent===false){toast(L('GAS 回報未送出','GAS reported not sent','GAS មិនបានផ្ញើ'),'error');return false;}
+    if(d&&(d.ok===false||d.sent===false)){toast(L('GAS 回報未送出','GAS reported not sent','GAS មិនបានផ្ញើ'),'error');return false;}
     toast(L('已傳送至 Telegram 群組','Sent to Telegram group','បានផ្ញើ'),'success');return true;
   }catch(e){toast(L('傳送失敗：','Send failed: ','បរាជ័យ៖ ')+e.message,'error');return false;}
 }
 async function sendApprovalRequest(period,title,text,amount,headcount,route,items){
+  var applicant=hrpPersonValue('applicant',true);
+  if(!applicant){toast(L('請填申請人 Applicant','Enter applicant','សូមបញ្ចូលអ្នកស្នើសុំ'),'error');return false;}
   try{
     var r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:MODULE_CODE,period:period,title:title,text:text,
-        amount:amount||0,headcount:headcount||0,requestedBy:'Web',
+        amount:amount||0,headcount:headcount||0,applicant:applicant,requestedBy:applicant,
         route:route||'review', items:(items||[]).map(stripRec)})});
     var d=null; try{d=await r.json();}catch(e){}
     if(d&&d.ok===false){toast(L('送出失敗：','Send failed: ','បរាជ័យ៖ ')+(d.error||''),'error');return false;}

@@ -33,7 +33,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Employee HR Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.3</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.2</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -129,7 +129,7 @@
       </div>
       <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider ml-2" data-en="Trend by">趨勢</span>
       <div class="flex bg-slate-100 rounded-lg p-0.5">
-        <button id="tu-month"   onclick="setTUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">每月</button>
+        <button id="tu-month"   onclick="setTUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每月</button>
         <button id="tu-quarter" onclick="setTUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
         <button id="tu-year"    onclick="setTUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">每年</button>
       </div>
@@ -164,24 +164,6 @@
         <p class="text-[11px] text-slate-400 font-medium" data-en="NEW THIS YEAR">本年到職 NEW</p>
         <p id="k-new" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
         <p id="k-new-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
-    </div>
-    <div class="bg-white border border-violet-100 shadow-sm rounded-xl overflow-hidden mb-4">
-      <div class="px-4 py-3 border-b border-violet-100 bg-gradient-to-r from-violet-50 to-white flex flex-wrap items-center gap-2">
-        <p class="text-sm font-semibold text-violet-800 flex-1" data-en="Monthly Workforce Summary">📋 月度人力摘要 Monthly Summary</p>
-        <span id="monthly-summary-period" class="text-[11px] text-slate-400"></span>
-        <button onclick="openTgModal()" class="text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">✈️ <span data-en="Send this month">傳送本月</span></button>
-      </div>
-      <div id="monthly-summary-kpis" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 p-3"></div>
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 px-3 pb-3">
-        <div class="border border-slate-100 rounded-lg overflow-hidden">
-          <div class="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600" data-en="By Department">各部門明細 By Department</div>
-          <div class="overflow-x-auto"><table class="w-full text-[11px]"><thead class="bg-white text-slate-400"><tr id="monthly-dept-thead"></tr></thead><tbody id="monthly-dept-body"></tbody></table></div>
-        </div>
-        <div class="border border-slate-100 rounded-lg overflow-hidden">
-          <div class="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600" data-en="Monthly Fields">每月欄位分布 Monthly Fields</div>
-          <div id="monthly-profile-body" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3"></div>
-        </div>
-      </div>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
@@ -302,6 +284,12 @@
         <select id="tg-snap" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Department">部門 Department</label>
         <select id="tg-dept" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
+      <div id="tg-person-wrap">
+        <label id="tg-person-label" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">檢查人 Checked by</label>
+        <input id="tg-person" type="text" oninput="hrpPersonChanged()" autocomplete="off"
+          class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"
+          placeholder="請輸入檢查人 / Enter checked by">
+      </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
     </div>
@@ -317,7 +305,7 @@
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════
-//  AC-HRA-PAY · Employee HR Analytics v2.3
+//  AC-HRA-PAY · Employee HR Analytics v2.0
 //  支援兩種名冊格式（新版 2026 起 / 舊版 2019 以前），
 //  每個檔案存成一份「時點快照」，可跨快照比對人力變化。
 // ═══════════════════════════════════════════════════════
@@ -327,7 +315,7 @@ const IDB_NAME='ac_hra_emp', IDB_VER=1, IDB_STORE='snapshots';
 const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PALETTE=['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#f43f5e','#84cc16','#8b5cf6'];
 
-let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='month', charts={};
+let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='year', charts={};
 
 const qs=s=>document.querySelector(s);
 const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
@@ -649,58 +637,8 @@ function snapDate(){
   const [y,m]=ACTIVE.split('-').map(Number);
   return new Date(y,(m||12)-1,28);
 }
-function dateForKey(key){
-  const [y,m]=String(key||'').split('-').map(Number);
-  return y?new Date(y,(m||12)-1,28):new Date();
-}
-function tenureAt(r,d){const j=toDate(r.join);return j?yearsBetween(j,d):0;}
-function ageAt(r,d){if(r.age)return r.age;const b=toDate(r.birth);return b?yearsBetween(b,d):0;}
-const tenureOf=r=>tenureAt(r,snapDate());
-const ageOf=r=>ageAt(r,snapDate());
-const avgOf=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length):0;
-
-function rowsForScope(key,deptOverride){
-  const s=SNAPS[key]; if(!s)return [];
-  const dept=deptOverride!==undefined?deptOverride:(qs('#sel-dept')?qs('#sel-dept').value:'');
-  const sec=deptOverride===undefined&&qs('#sel-sec')?qs('#sel-sec').value:'';
-  const gender=deptOverride===undefined&&qs('#sel-gender')?qs('#sel-gender').value:'';
-  return s.rows.filter(r=>(!dept||r.dept===dept)&&(!sec||r.section===sec)&&(!gender||r.gender===gender));
-}
-function previousSnapKey(key){
-  const ks=snapKeys(),i=ks.indexOf(key); return i>0?ks[i-1]:null;
-}
-function snapshotChange(key,rows,deptOverride){
-  const prevKey=previousSnapKey(key);
-  if(!prevKey)return {key:null,joined:null,left:null,change:null};
-  const oldRows=rowsForScope(prevKey,deptOverride), old=new Set(oldRows.map(r=>r.id));
-  const now=new Set(rows.map(r=>r.id));
-  return {key:prevKey,
-    joined:rows.filter(r=>!old.has(r.id)).length,
-    left:oldRows.filter(r=>!now.has(r.id)).length,
-    change:rows.length-oldRows.length};
-}
-
-function profileBreakdowns(rows,d){
-  const out=[];
-  const push=(zh,en,values,limit=6)=>{
-    const m={}; values.forEach(v=>{if(v)m[v]=(m[v]||0)+1;});
-    const list=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,limit);
-    out.push({zh,en,list,other:Math.max(0,Object.values(m).reduce((a,b)=>a+b,0)-list.reduce((a,b)=>a+b[1],0))});
-  };
-  const age=[]; rows.forEach(r=>{const a=ageAt(r,d);if(a>5&&a<80)age.push(a);});
-  push('年齡層','Age band',age.map(a=>a<20?'<20':a<25?'20–24':a<30?'25–29':a<35?'30–34':a<40?'35–39':a<50?'40–49':'50+'),8);
-  const ten=[]; rows.forEach(r=>{const t=tenureAt(r,d);if(t>=0)ten.push(t);});
-  push('年資','Tenure',ten.map(t=>t<1?'<1 yr':t<3?'1–2 yr':t<6?'3–5 yr':t<10?'6–9 yr':'10+ yr'),5);
-  push('性別','Gender',rows.map(r=>r.gender==='F'?T('女 F','Female'):r.gender==='M'?T('男 M','Male'):T('未填','N/A')),3);
-  const value=(r,key,table)=>{const v=String(r[key]||'').trim();return v?trKm(v,table):'';};
-  push('學歷','Education',rows.map(r=>value(r,'education',KM_MISC)));
-  push('籍貫','Province',rows.map(r=>value(r,'province',KM_PROV)));
-  push('國籍','Nationality',rows.map(r=>value(r,'nationality',KM_NAT)));
-  push('婚姻','Marital',rows.map(r=>value(r,'marital',KM_MISC)));
-  push('職位','Position',rows.map(r=>String(r.position||'').trim()));
-  push('工作狀態','Work status',rows.map(r=>value(r,r.workStatus?'workStatus':'status',KM_MISC)));
-  return out;
-}
+const tenureOf=r=>{const j=toDate(r.join);return j?yearsBetween(j,snapDate()):0;};
+const ageOf=r=>{ if(r.age)return r.age; const b=toDate(r.birth); return b?yearsBetween(b,snapDate()):0; };
 const groupVal=r=>{
   if(GROUP==='province')return r.province?trKm(r.province):'—';
   return ({dept:r.dept,section:r.section,position:r.position}[GROUP])||'—';
@@ -744,7 +682,7 @@ function renderAll(){
   showApp();
   const ks=snapKeys();
   if(!ACTIVE||!SNAPS[ACTIVE])ACTIVE=ks[ks.length-1];
-  renderNav(); buildFilters(); renderDash(); renderMonthlySummary(); renderProfile();
+  renderNav(); buildFilters(); renderDash(); renderProfile();
   renderDept(); renderRoster(); renderDiff(); renderTrend();
 }
 function renderNav(){
@@ -827,47 +765,6 @@ function renderDash(){
   });
 }
 
-function renderMonthlySummary(){
-  const box=qs('#monthly-summary-kpis'), deptHead=qs('#monthly-dept-thead'), deptBody=qs('#monthly-dept-body'), profile=qs('#monthly-profile-body');
-  if(!box||!ACTIVE||!SNAPS[ACTIVE])return;
-  const rows=filtered(), s=SNAPS[ACTIVE], d=dateForKey(ACTIVE), [y,m]=ACTIVE.split('-').map(Number);
-  const f=rows.filter(r=>r.gender==='F').length, male=rows.filter(r=>r.gender==='M').length;
-  const ages=rows.map(r=>ageAt(r,d)).filter(a=>a>5&&a<80), ten=rows.map(r=>tenureAt(r,d)).filter(t=>t>0);
-  const monthJoin=rows.filter(r=>r.join&&r.join.slice(0,7)===ACTIVE).length;
-  const yearJoin=rows.filter(r=>r.join&&r.join.slice(0,4)===String(y)).length;
-  const ch=snapshotChange(ACTIVE,rows);
-  const pct=n=>rows.length?(n/rows.length*100).toFixed(1)+'%':'—';
-  const val=n=>n===null||n===undefined?'—':int(n);
-  const colorCls={violet:'border-violet-100 bg-violet-50/50 text-violet-700',pink:'border-pink-100 bg-pink-50/50 text-pink-700',sky:'border-sky-100 bg-sky-50/50 text-sky-700',emerald:'border-emerald-100 bg-emerald-50/50 text-emerald-700',amber:'border-amber-100 bg-amber-50/50 text-amber-700',rose:'border-rose-100 bg-rose-50/50 text-rose-700'};
-  qs('#monthly-summary-period').textContent=`${s.label} · ${rows.length} ${T('人','staff')}`;
-  const cards=[
-    ['👤',T('總人數','Headcount'),int(rows.length),'violet'],
-    ['♀',T('女性 Female', 'Female'),int(f)+' · '+pct(f),'pink'],
-    ['♂',T('男性 Male', 'Male'),int(male)+' · '+pct(male),'sky'],
-    ['⚧',T('女性比例','Female %'),pct(f),'pink'],
-    ['🎂',T('平均年齡','Avg age'),ages.length?avgOf(ages).toFixed(1):'—','sky'],
-    ['📆',T('平均年資','Avg tenure'),ten.length?avgOf(ten).toFixed(1)+' '+T('年','yr'):'—','emerald'],
-    ['🆕',T('本月到職','Monthly joiners'),int(monthJoin), 'amber'],
-    ['↔',T('離職／淨增','Left / net'),ch.key===null?'—':`${val(ch.left)} / ${ch.change>0?'+':''}${ch.change}`, 'rose']
-  ];
-  box.innerHTML=cards.map(([icon,label,value,color])=>`
-    <div class="rounded-lg border px-2.5 py-2 ${colorCls[color]}">
-      <p class="text-[10px] text-slate-500 truncate">${icon} ${label}</p>
-      <p class="text-sm font-bold jmono mt-0.5">${value}</p>
-    </div>`).join('');
-
-  const dm={}; rows.forEach(r=>{const k=r.dept||'—';if(!dm[k])dm[k]={n:0,f:0,age:[],ten:[],join:0};const g=dm[k];g.n++;if(r.gender==='F')g.f++;const a=ageAt(r,d);if(a>5&&a<80)g.age.push(a);const t=tenureAt(r,d);if(t>0)g.ten.push(t);if(r.join&&r.join.slice(0,7)===ACTIVE)g.join++;});
-  const departments=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n), avg=a=>a.length?avgOf(a).toFixed(1):'—';
-  deptHead.innerHTML=[T('部門','Dept'),T('人數','Staff'),T('女%','F%'),T('平均年齡','Avg age'),T('平均年資','Avg tenure'),T('本月到職','Joiners')].map((h,i)=>`<th class="px-2 py-1.5 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
-  deptBody.innerHTML=departments.map(([name,g])=>`<tr class="border-t border-slate-50"><td class="px-2 py-1.5 font-medium text-slate-700">${esc(name)}</td><td class="px-2 py-1.5 text-right jmono font-semibold">${g.n}</td><td class="px-2 py-1.5 text-right jmono text-pink-600">${(g.f/g.n*100).toFixed(0)}%</td><td class="px-2 py-1.5 text-right jmono">${avg(g.age)}</td><td class="px-2 py-1.5 text-right jmono">${avg(g.ten)}</td><td class="px-2 py-1.5 text-right jmono text-amber-600">${g.join||'—'}</td></tr>`).join('')||`<tr><td colspan="6" class="px-2 py-4 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
-
-  profile.innerHTML=profileBreakdowns(rows,d).map(p=>{
-    const total=p.list.reduce((a,x)=>a+x[1],0)+p.other;
-    const items=p.list.map(([label,n])=>`${esc(label)} ${n}（${total?(n/total*100).toFixed(0):0}%）`).join(' · ');
-    return `<div class="text-[11px] leading-relaxed"><span class="font-semibold text-slate-600">${T(p.zh,p.en)}：</span><span class="text-slate-500">${items||'—'}${p.other?` · ${T('其他','Other')} ${p.other}`:''}</span></div>`;
-  }).join('');
-}
-
 let DIM='age', PVAL='n';
 function setDim(d){DIM=d;
   ['age','tenure','gender','edu','prov','nat','mar','pos','work'].forEach(k=>
@@ -931,8 +828,7 @@ function snapFiltered(k){
 function renderProfile(){
   const groups=periodGroups();
   const dimName={age:T('年齡層','Age band'),tenure:T('年資','Tenure'),gender:T('性別','Gender'),
-    edu:T('學歷','Education'),prov:T('籍貫','Province'),nat:T('國籍','Nationality'),mar:T('婚姻狀況','Marital'),
-    pos:T('職位','Position'),work:T('工作狀態','Work status')}[DIM]||T('人力結構','Workforce profile');
+    edu:T('學歷','Education'),prov:T('籍貫','Province'),nat:T('國籍','Nationality'),mar:T('婚姻狀況','Marital')}[DIM];
   // 分類清單取自全部快照（欄位才會一致）
   const allRows=[]; snapKeys().forEach(k=>allRows.push(...snapFiltered(k)));
   const def=dimDef(allRows,snapDate());
@@ -1201,12 +1097,10 @@ function renderTrend(){
     const d=qs('#sel-dept').value, sv=qs('#sel-sec').value, gv=qs('#sel-gender').value;
     const rows=s.rows.filter(r=>(!d||r.dept===d)&&(!sv||r.section===sv)&&(!gv||r.gender===gv));
     const f=rows.filter(r=>r.gender==='F').length;
-    const ages=rows.map(r=>ageAt(r,dateForKey(k))).filter(a=>a>5&&a<80);
-    const ten=rows.map(r=>tenureAt(r,dateForKey(k))).filter(a=>a>0);
-    const change=snapshotChange(k,rows);
+    const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
     g[gk]={key:gk,label,n:rows.length,f,
-      age:avgOf(ages),tenure:avgOf(ten),join:rows.filter(r=>r.join&&r.join.slice(0,7)===k).length,
-      left:change.left,depts:new Set(rows.map(r=>r.dept)).size, snaps:(g[gk]?g[gk].snaps:0)+1};
+      age:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,
+      depts:new Set(rows.map(r=>r.dept)).size, snaps:(g[gk]?g[gk].snaps:0)+1};
   });
   const list=Object.values(g).sort((a,b)=>a.key<b.key?-1:1);
   box.innerHTML=`
@@ -1219,7 +1113,7 @@ function renderTrend(){
     <div class="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">${T('歷年人力概況','Workforce by Period')}</div>
     <div class="overflow-x-auto"><table class="w-full text-xs">
       <thead class="bg-slate-50 text-slate-500"><tr>
-        ${[T('區間','Period'),T('總人數','Headcount'),T('增減','Change'),T('女','F'),T('男','M'),T('女性比','Female %'),T('平均年齡','Avg age'),T('平均年資','Avg tenure'),T('本月到職','Joiners'),T('離職','Left'),T('部門數','Depts')]
+        ${[T('區間','Period'),T('總人數','Headcount'),T('增減','Change'),T('女','F'),T('男','M'),T('女性比','Female %'),T('平均年齡','Avg age'),T('部門數','Depts')]
           .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
       </tr></thead><tbody>
       ${list.slice().reverse().map((x,i,arr)=>{
@@ -1233,11 +1127,8 @@ function renderTrend(){
           <td class="px-3 py-2 text-right jmono text-sky-600">${x.n-x.f}</td>
           <td class="px-3 py-2 text-right jmono">${x.n?(x.f/x.n*100).toFixed(0):0}%</td>
           <td class="px-3 py-2 text-right jmono">${x.age?x.age.toFixed(1):'—'}</td>
-          <td class="px-3 py-2 text-right jmono">${x.tenure?x.tenure.toFixed(1):'—'}</td>
-          <td class="px-3 py-2 text-right jmono text-amber-600">${x.join||'—'}</td>
-          <td class="px-3 py-2 text-right jmono text-rose-600">${x.left===null?'—':(x.left||'—')}</td>
           <td class="px-3 py-2 text-right jmono">${x.depts}</td></tr>`;}).join('')
-        ||`<tr><td colspan="11" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}
+        ||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}
       </tbody></table></div>
   </div>`;
   destroyChart('trend-chart');
@@ -1306,50 +1197,81 @@ async function saveEdit(){
   toast(i>=0?T('已更新','Updated'):T('已新增','Added'),'success');
 }
 
+
+// ━━━━━━━━━ AC-HRA-PAY v2.9 人員欄位：摘要=檢查人；核可=申請人 ━━━━━━━━━
+const HRP_CHECKER_KEY='ac_hra_pay_checker_name';
+const HRP_APPLICANT_KEY='ac_hra_pay_applicant_name';
+function hrpPersonStoreKey(kind){return kind==='applicant'?HRP_APPLICANT_KEY:HRP_CHECKER_KEY;}
+function hrpCurrentPersonKind(){
+  if(typeof TG_MODE!=='undefined')return TG_MODE==='summary'?'checker':'applicant';
+  if(typeof _tgMode!=='undefined')return _tgMode==='summary'?'checker':'applicant';
+  return 'checker';
+}
+function hrpPersonLabel(kind){return kind==='applicant'?'申請人 Applicant':'檢查人 Checked by';}
+function hrpSyncPersonField(kind){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  kind=kind||hrpCurrentPersonKind();
+  const old=input.dataset.kind;
+  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  input.dataset.kind=kind;
+  const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
+  input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
+  if(old!==kind || !input.value.trim())input.value=localStorage.getItem(hrpPersonStoreKey(kind))||'';
+}
+function hrpPersonChanged(){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  const kind=input.dataset.kind||hrpCurrentPersonKind();
+  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  if(typeof previewTg==='function')previewTg();
+}
+function hrpPersonValue(kind,ask){
+  kind=kind||'checker';
+  const input=document.getElementById('tg-person');
+  let v=(input&&input.dataset.kind===kind)?input.value.trim():(localStorage.getItem(hrpPersonStoreKey(kind))||'').trim();
+  if(!v&&ask){
+    v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
+  }
+  if(v){
+    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    if(input&&input.dataset.kind===kind)input.value=v;
+  }
+  return v;
+}
+function hrpEscActor(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hrpActorLine(kind,name){
+  return kind==='applicant'?'📝 <b>申請人 Applicant：</b>'+hrpEscActor(name):'🔎 <b>檢查人 Checked by：</b>'+hrpEscActor(name);
+}
+function hrpPreviewText(text,kind){
+  const v=hrpPersonValue(kind,false);
+  return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):('⚠️ '+(kind==='applicant'?'請填申請人 Applicant':'請填檢查人 Checked by')));
+}
+
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept){
   const s=SNAPS[key]; if(!s)return{err:T('查無此快照','Snapshot not found')};
   const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;
   if(!rows.length)return{err:T('此範圍無人員資料','No staff in this scope')};
   const fem=rows.filter(r=>r.gender==='F').length;
-  const sd=dateForKey(key), [y,m]=key.split('-').map(Number);
-  const ten=rows.map(r=>tenureAt(r,sd)).filter(t=>t>0);
-  const ages=rows.map(r=>ageAt(r,sd)).filter(a=>a>5&&a<80);
+  const sd=(()=>{const [y,m]=key.split('-').map(Number);return new Date(y,(m||12)-1,28);})();
+  const ten=rows.map(r=>{const j=toDate(r.join);return j?yearsBetween(j,sd):0;}).filter(t=>t>0);
+  const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
   const dm={};
-  rows.forEach(r=>{
-    const k2=r.dept||'—';
-    (dm[k2]=dm[k2]||{n:0,f:0,age:[],ten:[],join:0});
-    dm[k2].n++; if(r.gender==='F')dm[k2].f++;
-    const a=ageAt(r,sd);if(a>5&&a<80)dm[k2].age.push(a);
-    const tt=tenureAt(r,sd);if(tt>0)dm[k2].ten.push(tt);
-    if(r.join&&r.join.slice(0,7)===key)dm[k2].join++;
-  });
+  rows.forEach(r=>{(dm[r.dept]=dm[r.dept]||{n:0,f:0});dm[r.dept].n++;if(r.gender==='F')dm[r.dept].f++;});
   const list=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n);
-  const monthJoin=rows.filter(r=>r.join&&r.join.slice(0,7)===key).length;
-  const yearJoin=rows.filter(r=>r.join&&r.join.slice(0,4)===String(y)).length;
-  const change=snapshotChange(key,rows,dept);
-  const fmtAvg=a=>a.length?avgOf(a).toFixed(1):'—';
-  const breakdowns=profileBreakdowns(rows,sd);
+  const y=+key.slice(0,4);
+  const newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===y).length;
 
   let t=`👥 <b>員工人力概況 Workforce Summary</b>\n`
    +`📅 時點 Snapshot：${esc(s.label)}\n`
    +(dept?`🏭 部門 Dept：${esc(dept)}\n`:'')
    +`👤 總人數 Headcount：<b>${int(rows.length)}</b>\n`
-   +`⚧ 女 Female ${fem}（${(fem/rows.length*100).toFixed(1)}%）　男 Male ${rows.length-fem}（${((rows.length-fem)/rows.length*100).toFixed(1)}%）\n`
-   +(ages.length?`🎂 平均年齡 Avg age：${fmtAvg(ages)}\n`:`🎂 平均年齡 Avg age：—\n`)
-   +(ten.length?`📆 平均年資 Avg tenure：${fmtAvg(ten)} ${T('年','yr')}\n`:`📆 平均年資 Avg tenure：—\n`)
-   +`🆕 ${T('本月到職 Monthly joiners','Monthly joiners')}：${monthJoin}\n`
-   +`📅 ${y} ${T('年到職','year joiners')}：${yearJoin}\n`
-   +(change.key===null?`↔ ${T('離職／淨增','Left / net')}: —\n`:`↔ ${T('離職','Left')}: ${change.left} · ${T('淨增','Net')}: ${change.change>0?'+':''}${change.change}\n`)
+   +`⚧ 女 Female ${fem}（${(fem/rows.length*100).toFixed(1)}%）　男 Male ${rows.length-fem}\n`
+   +(ages.length?`🎂 平均年齡 Avg age：${(ages.reduce((a,b)=>a+b,0)/ages.length).toFixed(1)}\n`:'')
+   +(ten.length?`📆 平均年資 Avg tenure：${(ten.reduce((a,b)=>a+b,0)/ten.length).toFixed(1)} ${T('年','yr')}\n`:'')
+   +`🆕 ${y} ${T('年到職','joiners')}：${newN}\n`
    +`— — — — — — — — — —\n<b>各部門人數 By Department</b>\n`
-   +`<i>部門 Dept ｜ 人數 Staff ｜ 女性比 F% ｜ 平均年齡 ｜ 平均年資 ｜ 本月到職</i>\n`;
-  list.forEach(([d,v])=>{t+=`${esc(d)}：${v.n} 人 · ${(v.f/v.n*100).toFixed(0)}% · ${fmtAvg(v.age)} · ${fmtAvg(v.ten)} · ${v.join||0}\n`;});
-  t+=`— — — — — — — — — —\n<b>${T('欄位分布','Field breakdown')}</b>\n`;
-  breakdowns.forEach(p=>{
-    const total=p.list.reduce((a,x)=>a+x[1],0)+p.other;
-    const vals=p.list.map(([label,n])=>`${esc(label)} ${n}（${total?(n/total*100).toFixed(0):0}%）`).join(' · ');
-    t+=`${T(p.zh,p.en)}：${vals||'—'}${p.other?` · ${T('其他','Other')} ${p.other}`:''}\n`;
-  });
+   +`<i>部門 Dept ｜ 人數 Staff ｜ 女性比 F%</i>\n`;
+  list.forEach(([d,v])=>{t+=`${esc(d)}：${v.n} 人 · ${(v.f/v.n*100).toFixed(0)}%\n`;});
   t+=`— — — — — — — — — —\n合計 TOTAL：${int(rows.length)} 人 Staff · ${list.length} ${T('部門','depts')}`;
   return {text:t};
 }
@@ -1360,6 +1282,7 @@ function openTgModal(){
   sel.innerHTML=ks.map(k=>`<option value="${k}">${SNAPS[k].label} · ${SNAPS[k].rows.length} ${T('人','staff')}</option>`).join('');
   if(ACTIVE&&ks.includes(ACTIVE))sel.value=ACTIVE;
   fillTgDept();
+  hrpSyncPersonField('checker');
   previewTg();
   const m=qs('#tg-modal');m.classList.remove('hidden');m.classList.add('flex');
   applyLang();
@@ -1378,7 +1301,7 @@ function previewTg(){
   const pv=qs('#tg-preview'), b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
 }
 async function confirmSendTg(){
@@ -1390,13 +1313,15 @@ async function confirmSendTg(){
   if(ok)closeTgModal();
 }
 async function sendTG(text){
+  const checker=hrpPersonValue('checker',true);
+  if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!text||!text.trim()){toast(T('訊息內容是空的','Message empty'),'error');return false;}
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text})});
+      body:JSON.stringify({type:'notify',text,checker})});
     let d=null; try{d=await r.json();}catch(e){}
-    if(d&&d.sent===false){toast(T('GAS 回報未送出','Not sent'),'error');return false;}
+    if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出','Not sent'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }

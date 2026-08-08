@@ -261,6 +261,13 @@
         </div>
         <p id="tgm-note" class="text-[10px] text-slate-400 mt-1.5 leading-relaxed"></p>
       </div>
+      <div id="tg-person-wrap">
+        <label id="tg-person-label" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">檢查人 Checked by</label>
+        <input id="tg-person" type="text" oninput="hrpPersonChanged()" autocomplete="off"
+          class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"
+          placeholder="請輸入檢查人 / Enter checked by">
+        <p class="text-[10px] text-slate-400 mt-1">摘要 Summary＝檢查人 Checked by；核可 Approval＝申請人 Applicant</p>
+      </div>
       <div>
         <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre>
@@ -878,6 +885,55 @@ function renderReport(){
   }).join('')||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
 }
 
+
+// ━━━━━━━━━ AC-HRA-PAY v2.9 人員欄位：摘要=檢查人；核可=申請人 ━━━━━━━━━
+const HRP_CHECKER_KEY='ac_hra_pay_checker_name';
+const HRP_APPLICANT_KEY='ac_hra_pay_applicant_name';
+function hrpPersonStoreKey(kind){return kind==='applicant'?HRP_APPLICANT_KEY:HRP_CHECKER_KEY;}
+function hrpCurrentPersonKind(){
+  if(typeof TG_MODE!=='undefined')return TG_MODE==='summary'?'checker':'applicant';
+  if(typeof _tgMode!=='undefined')return _tgMode==='summary'?'checker':'applicant';
+  return 'checker';
+}
+function hrpPersonLabel(kind){return kind==='applicant'?'申請人 Applicant':'檢查人 Checked by';}
+function hrpSyncPersonField(kind){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  kind=kind||hrpCurrentPersonKind();
+  const old=input.dataset.kind;
+  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  input.dataset.kind=kind;
+  const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
+  input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
+  if(old!==kind || !input.value.trim())input.value=localStorage.getItem(hrpPersonStoreKey(kind))||'';
+}
+function hrpPersonChanged(){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  const kind=input.dataset.kind||hrpCurrentPersonKind();
+  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  if(typeof previewTg==='function')previewTg();
+}
+function hrpPersonValue(kind,ask){
+  kind=kind||'checker';
+  const input=document.getElementById('tg-person');
+  let v=(input&&input.dataset.kind===kind)?input.value.trim():(localStorage.getItem(hrpPersonStoreKey(kind))||'').trim();
+  if(!v&&ask){
+    v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
+  }
+  if(v){
+    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    if(input&&input.dataset.kind===kind)input.value=v;
+  }
+  return v;
+}
+function hrpEscActor(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hrpActorLine(kind,name){
+  return kind==='applicant'?'📝 <b>申請人 Applicant：</b>'+hrpEscActor(name):'🔎 <b>檢查人 Checked by：</b>'+hrpEscActor(name);
+}
+function hrpPreviewText(text,kind){
+  const v=hrpPersonValue(kind,false);
+  return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):('⚠️ '+(kind==='applicant'?'請填申請人 Applicant':'請填檢查人 Checked by')));
+}
+
 // ━━━━━━━━━ TELEGRAM ━━━━━━━━━
 function buildTgText(type,period){
   const dept=qs('#sel-dept')?qs('#sel-dept').value:'';
@@ -913,6 +969,7 @@ function openTgModal(){
   const sel=qs('#tg-period');
   sel.innerHTML=ps.map(p=>{const [y,m]=p.split('-');return `<option value="${p}">${MS[+m-1]} ${y}</option>`;}).join('');
   sel.value=(ACTIVE&&ps.includes(ACTIVE))?ACTIVE:ps[0];
+  hrpSyncPersonField();
   previewTg();
   const md=qs('#tg-modal'); md.classList.remove('hidden'); md.classList.add('flex');
   applyLang();
@@ -924,7 +981,7 @@ function previewTg(){
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition';}
 }
 
@@ -938,6 +995,7 @@ function setTgMode(m){
   const b=qs('#tgm-app');
   if(m==='approval'&&b&&b.disabled)return;
   TG_MODE=m;
+  hrpSyncPersonField();
   const a=qs('#tgm-sum');
   if(a)a.className='flex-1 '+_btn(m==='summary','teal');
   if(b)b.className='flex-1 '+_btn(m==='approval','teal');
@@ -951,6 +1009,7 @@ function syncTgMode(){
   if(!ok&&TG_MODE==='approval'){TG_MODE='summary';
     const a=qs('#tgm-sum');if(a)a.className='flex-1 '+_btn(true,'teal');
     b.className='flex-1 '+_btn(false,'teal');}
+  hrpSyncPersonField();
   if(note)note.textContent=ok
     ? T('核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。',
         'Approval mode adds Approve / Reject buttons to the group message.')
@@ -958,11 +1017,13 @@ function syncTgMode(){
         'Periods before '+APPROVAL_FROM+' are closed — summary only.');
 }
 async function sendApprovalRequest(period,title,text,amount,headcount){
+  const applicant=hrpPersonValue('applicant',true);
+  if(!applicant){toast(T('請填申請人 Applicant','Enter applicant'),'error');return false;}
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:'ot_bonus',period,title,text,
-        amount:amount||0,headcount:headcount||0,requestedBy:'Web'})});
+        amount:amount||0,headcount:headcount||0,applicant,requestedBy:applicant})});
     let d=null;try{d=await r.json();}catch(e){}
     if(d&&d.ok!==false){toast(T('已送出，請在 Telegram 群組核可','Sent — approve in the group'),'success');return true;}
     toast(T('送出失敗','Send failed'),'error');return false;
@@ -986,14 +1047,16 @@ async function confirmSendTg(){
   if(ok)closeTgModal();
 }
 async function sendTG(text){
+  const checker=hrpPersonValue('checker',true);
+  if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
   if(!text||!text.trim()){toast(T('訊息內容是空的，未送出','Message empty'),'error');return false;}
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text})});
+      body:JSON.stringify({type:'notify',text,checker})});
     let d=null; try{d=await r.json();}catch(e){}
-    if(d&&d.sent===false){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
+    if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }
