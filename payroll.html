@@ -1037,9 +1037,9 @@ function detectHourColumns(raw){
     const row=raw[i]||[];
     row.forEach((v,c)=>{
       const h=String(v==null?'':v).toLowerCase().replace(/[\s_\-\/().:]+/g,'');
-      if(out.total<0&&(/totalhours|hoursworked|attendancehours|總工時|总工时|總時數|总时数/.test(h)))out.total=c;
-      else if(out.ot<0&&(/overtimehours|othours|加班工時|加班時數/.test(h)))out.ot=c;
-      else if(out.normal<0&&(/normalhours|regularhours|ordinaryhours|workhours|平日工時|正常工時|工作時數/.test(h)))out.normal=c;
+      if(out.total<0&&(/totalhours|totalhrs?|hoursworked|attendancehours|workhours(total)?|工時合計|總工時|总工时|總時數|总时数/.test(h)))out.total=c;
+      else if(out.ot<0&&(/overtimehours?|overtimehrs?|othours?|加班工時|加班時數/.test(h)))out.ot=c;
+      else if(out.normal<0&&(/normalhours?|normalhrs?|regularhours?|regularhrs?|ordinaryhours?|workhours?|平日工時|正常工時|工作時數/.test(h)))out.normal=c;
     });
   }
   return out;
