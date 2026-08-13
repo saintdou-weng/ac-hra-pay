@@ -1028,10 +1028,32 @@ function pickNonZero(...vals){
   for(const v of vals){const n=N(v);if(n!==0)return n;}return 0;
 }
 
+// Optional monthly work-hour columns.  Older Payroll workbooks do not have
+// them, so null is kept when the header is absent; the Attendance bridge will
+// display an em dash instead of inventing hours.
+function detectHourColumns(raw){
+  const out={normal:-1,ot:-1,total:-1};
+  for(let i=0;i<Math.min(raw.length,30);i++){
+    const row=raw[i]||[];
+    row.forEach((v,c)=>{
+      const h=String(v==null?'':v).toLowerCase().replace(/[\s_\-\/().:]+/g,'');
+      if(out.total<0&&(/totalhours|hoursworked|attendancehours|總工時|总工时|總時數|总时数/.test(h)))out.total=c;
+      else if(out.ot<0&&(/overtimehours|othours|加班工時|加班時數/.test(h)))out.ot=c;
+      else if(out.normal<0&&(/normalhours|regularhours|ordinaryhours|workhours|平日工時|正常工時|工作時數/.test(h)))out.normal=c;
+    });
+  }
+  return out;
+}
+function optionalNum(row,col){
+  if(col==null||col<0)return null;
+  const v=row[col];return v===null||v===undefined||v===''?null:N(v);
+}
+
 function parseSheet(ws){
   const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
   const recs=[];
   let dept='Other', rowA=null;
+  const hourCols=detectHourColumns(raw);
 
   // A valid dept name MUST contain at least one ASCII letter.
   // Also explicitly exclude patterns that are Khmer headers decoded as ASCII:
@@ -1149,6 +1171,9 @@ function parseSheet(ws){
         otTotal:     N(row[30]),         // col30 加班/假日合計（= col25..29）
         debt:        N(row[31]),         // col31 欠款（帶號）
         subtotal:    N(row[32]),         // col32 小計
+        normalHours: optionalNum(row,hourCols.normal),
+        otHours:     optionalNum(row,hourCols.ot),
+        totalHours:  optionalNum(row,hourCols.total),
         // 扣項：原表為負值，此處保留為正數以利呈現
         advDeduction,
         advGiven,
@@ -1169,11 +1194,19 @@ function parseSheet(ws){
 function _nowISO(){const d=new Date(),p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
 function _round2(v){return Math.round((v||0)*100)/100;}
+function _sumMaybe(rows,key){let ok=false,total=0;(rows||[]).forEach(r=>{if(r[key]!==null&&r[key]!==undefined&&r[key]!==''){ok=true;total+=Number(r[key])||0;}});return ok?_round2(total):null;}
 
 function buildPayrollProjection(entry){
   const rows=(entry.mergedRecords&&entry.stage==='full'?entry.mergedRecords:entry.payrollRecords||[]).map(r=>({
     employeeId:String(r.id), name:r.nameLat||r.nameKh||'', dept:r.dept||'Other',
     period:entry.periodKey, workDays:r.workDays||0,
+    // Optional work-hour fields are carried through only when the workbook
+    // actually supplied them. This powers the monthly Attendance bridge.
+    normalHours:r.normalHours==null?null:_round2(r.normalHours),
+    otHours:r.otHours==null?null:_round2(r.otHours),
+    totalHours:r.totalHours==null
+      ? (r.normalHours!=null&&r.otHours!=null?_round2(Number(r.normalHours)+Number(r.otHours)):null)
+      : _round2(r.totalHours),
     basic:_round2(r.basicPay), seniority:_round2(r.seniority), skill:_round2(r.skill),
     position:_round2(r.position), language:_round2(r.language), baseTotal:_round2(r.baseTotal),
     achieve:_round2(r.achieve), cut5:_round2(r.cut5), annualLeavePay:_round2(r.annualLeavePaid),
@@ -1188,6 +1221,8 @@ function buildPayrollProjection(entry){
   return {module:'payroll', period:entry.periodKey, payPhase:'final',
     updatedAt:_nowISO(), sourceFile:entry.payrollFile||'',
     rows, totals:{count:rows.length,
+      normalHours:_sumMaybe(rows,'normalHours'), otHours:_sumMaybe(rows,'otHours'), totalHours:_sumMaybe(rows,'totalHours'),
+      hoursAvailable:rows.some(r=>r.totalHours!=null),
       netPay:_round2(rows.reduce((s,r)=>s+r.netPay,0)),
       basic:_round2(rows.reduce((s,r)=>s+r.basic,0)), seniority:_round2(rows.reduce((s,r)=>s+r.seniority,0)),
       skill:_round2(rows.reduce((s,r)=>s+r.skill,0)), position:_round2(rows.reduce((s,r)=>s+r.position,0)),
@@ -1222,16 +1257,24 @@ async function _postProjection(payload){
   }catch(e){console.warn('projection push failed',e);}
 }
 
+function cachePayrollProjection(entry){
+  try{
+    if(entry&&entry.payrollRecords&&entry.payrollRecords.length)
+      localStorage.setItem('hrpay:result:payroll',JSON.stringify(buildPayrollProjection(entry)));
+    if(entry&&entry.advanceRecords&&entry.advanceRecords.length)
+      localStorage.setItem('hrpay:result:advance',JSON.stringify(buildAdvanceProjection(entry)));
+  }catch(e){console.warn('projection cache failed',e);}
+}
+
 async function pushProjection(entry){
   try{
+    cachePayrollProjection(entry);
     if(entry.payrollRecords&&entry.payrollRecords.length){
       const p=buildPayrollProjection(entry);
-      localStorage.setItem('hrpay:result:payroll',JSON.stringify(p));
       _postProjection(p);
     }
     if(entry.advanceRecords&&entry.advanceRecords.length){
       const a=buildAdvanceProjection(entry);
-      localStorage.setItem('hrpay:result:advance',JSON.stringify(a));
       _postProjection(a);
     }
     toast('📤 Projection 已輸出（本機+雲端）','success');
@@ -2682,6 +2725,7 @@ async function cloudDownload(){
       entry.mergedRecords = (entry.payrollRecords.length)
         ? runAudit(entry.advanceRecords, entry.payrollRecords)
         : runAudit([], entry.advanceRecords);
+      cachePayrollProjection(entry);
       STORE[entry.periodKey]=entry; await idbSave(entry);
       ACTIVE=entry; buildPeriodSelect(); renderAll();
       toast(`☁ 已載入雲端資料（${labelFromKey(entry.periodKey)}）`,'success');
