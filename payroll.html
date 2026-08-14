@@ -63,6 +63,7 @@ body{font-family:'DM Sans',sans-serif;}
 }
 @media print{header,.upload-row,.tab-bar,.no-print{display:none!important}.tab-pane{display:block!important;margin-top:0!important}}
 </style>
+<script src="shared/hrpay-smart-sync.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -1028,32 +1029,10 @@ function pickNonZero(...vals){
   for(const v of vals){const n=N(v);if(n!==0)return n;}return 0;
 }
 
-// Optional monthly work-hour columns.  Older Payroll workbooks do not have
-// them, so null is kept when the header is absent; the Attendance bridge will
-// display an em dash instead of inventing hours.
-function detectHourColumns(raw){
-  const out={normal:-1,ot:-1,total:-1};
-  for(let i=0;i<Math.min(raw.length,30);i++){
-    const row=raw[i]||[];
-    row.forEach((v,c)=>{
-      const h=String(v==null?'':v).toLowerCase().replace(/[\s_\-\/().:]+/g,'');
-      if(out.total<0&&(/totalhours|totalhrs?|hoursworked|attendancehours|workhours(total)?|工時合計|總工時|总工时|總時數|总时数/.test(h)))out.total=c;
-      else if(out.ot<0&&(/overtimehours?|overtimehrs?|othours?|加班工時|加班時數/.test(h)))out.ot=c;
-      else if(out.normal<0&&(/normalhours?|normalhrs?|regularhours?|regularhrs?|ordinaryhours?|workhours?|平日工時|正常工時|工作時數/.test(h)))out.normal=c;
-    });
-  }
-  return out;
-}
-function optionalNum(row,col){
-  if(col==null||col<0)return null;
-  const v=row[col];return v===null||v===undefined||v===''?null:N(v);
-}
-
 function parseSheet(ws){
   const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
   const recs=[];
   let dept='Other', rowA=null;
-  const hourCols=detectHourColumns(raw);
 
   // A valid dept name MUST contain at least one ASCII letter.
   // Also explicitly exclude patterns that are Khmer headers decoded as ASCII:
@@ -1171,9 +1150,6 @@ function parseSheet(ws){
         otTotal:     N(row[30]),         // col30 加班/假日合計（= col25..29）
         debt:        N(row[31]),         // col31 欠款（帶號）
         subtotal:    N(row[32]),         // col32 小計
-        normalHours: optionalNum(row,hourCols.normal),
-        otHours:     optionalNum(row,hourCols.ot),
-        totalHours:  optionalNum(row,hourCols.total),
         // 扣項：原表為負值，此處保留為正數以利呈現
         advDeduction,
         advGiven,
@@ -1194,19 +1170,11 @@ function parseSheet(ws){
 function _nowISO(){const d=new Date(),p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
 function _round2(v){return Math.round((v||0)*100)/100;}
-function _sumMaybe(rows,key){let ok=false,total=0;(rows||[]).forEach(r=>{if(r[key]!==null&&r[key]!==undefined&&r[key]!==''){ok=true;total+=Number(r[key])||0;}});return ok?_round2(total):null;}
 
 function buildPayrollProjection(entry){
   const rows=(entry.mergedRecords&&entry.stage==='full'?entry.mergedRecords:entry.payrollRecords||[]).map(r=>({
     employeeId:String(r.id), name:r.nameLat||r.nameKh||'', dept:r.dept||'Other',
     period:entry.periodKey, workDays:r.workDays||0,
-    // Optional work-hour fields are carried through only when the workbook
-    // actually supplied them. This powers the monthly Attendance bridge.
-    normalHours:r.normalHours==null?null:_round2(r.normalHours),
-    otHours:r.otHours==null?null:_round2(r.otHours),
-    totalHours:r.totalHours==null
-      ? (r.normalHours!=null&&r.otHours!=null?_round2(Number(r.normalHours)+Number(r.otHours)):null)
-      : _round2(r.totalHours),
     basic:_round2(r.basicPay), seniority:_round2(r.seniority), skill:_round2(r.skill),
     position:_round2(r.position), language:_round2(r.language), baseTotal:_round2(r.baseTotal),
     achieve:_round2(r.achieve), cut5:_round2(r.cut5), annualLeavePay:_round2(r.annualLeavePaid),
@@ -1221,8 +1189,6 @@ function buildPayrollProjection(entry){
   return {module:'payroll', period:entry.periodKey, payPhase:'final',
     updatedAt:_nowISO(), sourceFile:entry.payrollFile||'',
     rows, totals:{count:rows.length,
-      normalHours:_sumMaybe(rows,'normalHours'), otHours:_sumMaybe(rows,'otHours'), totalHours:_sumMaybe(rows,'totalHours'),
-      hoursAvailable:rows.some(r=>r.totalHours!=null),
       netPay:_round2(rows.reduce((s,r)=>s+r.netPay,0)),
       basic:_round2(rows.reduce((s,r)=>s+r.basic,0)), seniority:_round2(rows.reduce((s,r)=>s+r.seniority,0)),
       skill:_round2(rows.reduce((s,r)=>s+r.skill,0)), position:_round2(rows.reduce((s,r)=>s+r.position,0)),
@@ -1257,24 +1223,16 @@ async function _postProjection(payload){
   }catch(e){console.warn('projection push failed',e);}
 }
 
-function cachePayrollProjection(entry){
-  try{
-    if(entry&&entry.payrollRecords&&entry.payrollRecords.length)
-      localStorage.setItem('hrpay:result:payroll',JSON.stringify(buildPayrollProjection(entry)));
-    if(entry&&entry.advanceRecords&&entry.advanceRecords.length)
-      localStorage.setItem('hrpay:result:advance',JSON.stringify(buildAdvanceProjection(entry)));
-  }catch(e){console.warn('projection cache failed',e);}
-}
-
 async function pushProjection(entry){
   try{
-    cachePayrollProjection(entry);
     if(entry.payrollRecords&&entry.payrollRecords.length){
       const p=buildPayrollProjection(entry);
+      localStorage.setItem('hrpay:result:payroll',JSON.stringify(p));
       _postProjection(p);
     }
     if(entry.advanceRecords&&entry.advanceRecords.length){
       const a=buildAdvanceProjection(entry);
+      localStorage.setItem('hrpay:result:advance',JSON.stringify(a));
       _postProjection(a);
     }
     toast('📤 Projection 已輸出（本機+雲端）','success');
@@ -2693,46 +2651,31 @@ async function confirmSendTg(){
     ok=await sendTG(r.text);
   }
   btn.disabled=false; btn.textContent='確認傳送';
-  if(ok) closeTgModal();
+  if(ok){ closeTgModal(); scheduleAutoCloudSync('telegram',period); }
 }
 
 // ═══════════════════════════════════════════
 //  雲端上傳 / 下載
 // ═══════════════════════════════════════════
-async function cloudUpload(){
-  if(!ACTIVE){toast('尚無資料可上傳','error');return;}
-  const btn=qs('#btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
-  try{
-    await pushProjection(ACTIVE);
-    const payload={tool:'hrpay_payroll',period:ACTIVE.periodKey,updatedAt:_nowISO(),
-      stage:ACTIVE.stage, advance:ACTIVE.advanceRecords||[], payroll:ACTIVE.payrollRecords||[]};
-    await fetch(GAS_URL,{method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    toast('☁ 已上傳雲端','success');
-  }catch(e){toast('上傳失敗：'+e.message,'error');}
-  if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
+
+const HRPAY_SYNC_TOOL='hrpay_payroll', HRPAY_AUTO_KEY='hrpay:auto:payroll';
+function payShard(v){var h=2166136261>>>0,s=String(v||'');for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0)%8;}
+function payrollCloudRecords(){
+  const out=[];Object.keys(STORE).sort().forEach(function(k){const e=STORE[k]||{};
+    out.push({_syncId:'meta:'+k,_syncPeriod:k,_syncBucket:'m:'+k+':meta',kind:'meta',period:k,stage:e.stage||'full'});
+    (e.advanceRecords||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'advance:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':a'+payShard(id),kind:'advance',period:k,row:r});});
+    (e.payrollRecords||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'payroll:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':p'+payShard(id),kind:'payroll',period:k,row:r});});
+  });return out;
 }
-async function cloudDownload(){
-  const btn=qs('#btn-cloud-down'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
-  try{
-    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_payroll');
-    const d=await r.json();
-    const D=(d&&d.data)||{};
-    if(!D.period){toast('雲端尚無資料','error');}
-    else{
-      const entry={periodKey:D.period, label:labelFromKey(D.period), stage:D.stage||'full',
-        advanceRecords:D.advance||[], payrollRecords:D.payroll||[]};
-      entry.mergedRecords = (entry.payrollRecords.length)
-        ? runAudit(entry.advanceRecords, entry.payrollRecords)
-        : runAudit([], entry.advanceRecords);
-      cachePayrollProjection(entry);
-      STORE[entry.periodKey]=entry; await idbSave(entry);
-      ACTIVE=entry; buildPeriodSelect(); renderAll();
-      toast(`☁ 已載入雲端資料（${labelFromKey(entry.periodKey)}）`,'success');
-    }
-  }catch(e){toast('下載失敗：'+e.message,'error');}
-  if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
-}
+function payrollCloudMeta(){const pp=[],ap=[];Object.keys(STORE).sort().forEach(function(k){const e=STORE[k]||{};if((e.payrollRecords||[]).length)pp.push(k);if((e.advanceRecords||[]).length)ap.push(k);});return{periods:Array.from(new Set(pp.concat(ap))),payrollPeriods:pp,advancePeriods:ap};}
+function payrollLegacyRows(env){const D=(env&&env.data)||env||{},out=[];if(!D.period)return out;const k=D.period;out.push({_syncId:'meta:'+k,_syncPeriod:k,_syncBucket:'m:'+k+':meta',kind:'meta',period:k,stage:D.stage||'full'});(D.advance||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'advance:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':a'+payShard(id),kind:'advance',period:k,row:r});});(D.payroll||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'payroll:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':p'+payShard(id),kind:'payroll',period:k,row:r});});return out;}
+async function payrollApplyCloud(rows){const by={};(rows||[]).forEach(function(x){const k=x.period||x._syncPeriod;if(!k)return;const g=by[k]||(by[k]={stage:'full',advance:[],payroll:[]});if(x.kind==='meta')g.stage=x.stage||g.stage;else if(x.kind==='advance')g.advance.push(x.row||{});else if(x.kind==='payroll')g.payroll.push(x.row||{});});for(const k of Object.keys(by)){const g=by[k],e={periodKey:k,label:labelFromKey(k),stage:g.stage||'full',advanceRecords:g.advance,payrollRecords:g.payroll};e.mergedRecords=e.payrollRecords.length?runAudit(e.advanceRecords,e.payrollRecords):runAudit([],e.advanceRecords);STORE[k]=e;await idbSave(e);}const ks=Object.keys(STORE).sort();if(ks.length){ACTIVE=STORE[ks[ks.length-1]];buildPeriodSelect();renderAll();}}
+function payrollSyncStatus(msg,type){console.log('[PAY smart sync]',msg);}
+function scheduleAutoCloudSync(reason,period){if(!period){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');period=x.period||'';}catch(e){}}try{localStorage.setItem(HRPAY_AUTO_KEY,JSON.stringify({reason:reason||'telegram',period:period||'',at:Date.now()}));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,period:period||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+async function cloudUpload(opts){opts=opts||{};if(!Object.keys(STORE).length){if(!opts.silent)toast('尚無資料可上傳','error');return false;}const btn=qs('#btn-cloud-up');if(btn){btn.disabled=true;btn.classList.add('opacity-50');}try{const pk=opts.period||(ACTIVE&&ACTIVE.periodKey)||'';if(pk&&STORE[pk])await pushProjection(STORE[pk]);const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:payrollCloudRecords(),legacyToRecords:payrollLegacyRows,meta:payrollCloudMeta(),onStatus:payrollSyncStatus});if(!opts.silent)toast(res&&res.skipped?'☁ 雲端已是最新，不需重傳':`☁ 智慧上傳完成${res&&res.uploaded!=null?' · '+res.uploaded+' 期變更':''}`,'success');return true;}catch(e){if(!opts.silent)toast('上傳失敗：'+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}}}
+
+
+async function cloudDownload(opts){opts=opts||{};const btn=qs('#btn-cloud-down');if(btn){btn.disabled=true;btn.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:payrollCloudRecords(),legacyToRecords:payrollLegacyRows,apply:payrollApplyCloud,onStatus:payrollSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast('雲端尚無資料','warning');return false;}if(!opts.silent)toast(`☁ 智慧下載完成 · 下載 ${res.downloaded||0} · 未變 ${res.unchanged||0}`,'success');return true;}catch(e){if(!opts.silent)toast('下載失敗：'+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}}}
 
 // ── AUDIT TABLE ───────────────────────────
 function renderAudit(){
@@ -3231,6 +3174,8 @@ function setupDropZone(sel, handler, ringCls){
 }
 
 setupDropZone('#dz-smart', smartImport, 'ring-sky-400');
+
+window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:payroll'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
 </script>
 </body>
 </html>

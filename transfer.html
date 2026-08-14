@@ -64,6 +64,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 }
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
+<script src="shared/hrpay-smart-sync.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -2286,7 +2287,7 @@ async function confirmSendTg(){
     }
   }else{ ok=await sendTG(r.text); }
   btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
-  if(ok)closeM('m-tg');
+  if(ok){closeM('m-tg');scheduleAutoCloudSync('telegram');}
 }
 var DOCS={};
 async function refreshApprovalStatus(silent){
@@ -2349,39 +2350,18 @@ function stripRec(r){
     'effDate','before','after','status','src','kindLock','batchKey','note','updatedAt'].forEach(function(k){o[k]=r[k];});
   return o;
 }
-async function cloudUpload(){
-  if(!RECS.length){toast(L('尚無資料可上傳','Nothing to upload','គ្មានទិន្នន័យ'),'error');return;}
-  var btn=el('btn-cloud-up'); btn.disabled=true; btn.style.opacity=.5;
-  try{
-    var ms={}; RECS.forEach(function(r){if(r.effDate)ms[r.effDate.slice(0,7)]=1;});
-    var keys=Object.keys(ms).sort();
-    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({tool:CLOUD_TOOL,period:keys.length?keys[keys.length-1]:'',updatedAt:nowStr(),
-        count:RECS.length,records:RECS.map(stripRec)})});
-    setTxt('cloud-stat','☁ '+nowStr().slice(5,16));
-    toast(L('☁ 已上傳 '+RECS.length+' 筆','☁ Uploaded '+RECS.length,'☁ បានផ្ទុក '+RECS.length),'success');
-  }catch(e){toast(L('上傳失敗：','Upload failed: ','បរាជ័យ៖ ')+e.message,'error');}
-  btn.disabled=false; btn.style.opacity=1;
-}
-async function cloudDownload(){
-  var btn=el('btn-cloud-down'); btn.disabled=true; btn.style.opacity=.5;
-  try{
-    var r=await fetch(GAS_URL+'?action=pull&tool='+CLOUD_TOOL);
-    var d=await r.json(), D=(d&&d.data)||{}, list=D.records||D.recs||[];
-    if(!list.length)toast(L('雲端尚無資料','No cloud data','គ្មានទិន្នន័យលើពពក'),'error');
-    else{
-      var norm=list.map(function(x){return Object.assign({id:uid('t_'),before:zeroSal(),after:zeroSal(),status:'approved'},x);});
-      var res=mergeRecords(norm);
-      await idbSaveAll(); rebuild();
-      ['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});
-      showApp(); renderAll();
-      toast(L('☁ 已載入 '+list.length+' 筆（新增 '+res.added+'／覆蓋 '+res.updated+'）',
-              '☁ Loaded '+list.length+' ('+res.added+' new / '+res.updated+' updated)',
-              '☁ បានផ្ទុក '+list.length),'success');
-    }
-  }catch(e){toast(L('下載失敗：','Download failed: ','បរាជ័យ៖ ')+e.message,'error');}
-  btn.disabled=false; btn.style.opacity=1;
-}
+
+var HRPAY_SYNC_TOOL='hrpay_transfer', HRPAY_AUTO_KEY='hrpay:auto:transfer';
+function transferCloudRecords(){return RECS.map(function(r){return Object.assign({_syncId:'transfer:'+dedupKey(r),_syncPeriod:(r.effDate||'').slice(0,7)},stripRec(r));});}
+function transferCloudMeta(){var m={};RECS.forEach(function(r){if(r.effDate)m[r.effDate.slice(0,7)]=1;});return{periods:Object.keys(m).sort()};}
+function transferLegacyRows(env){var D=(env&&env.data)||env||{},list=D.records||D.recs||[];return list.map(function(r){return Object.assign({_syncId:'transfer:'+dedupKey(r),_syncPeriod:(r.effDate||'').slice(0,7)},r);});}
+async function transferApplyCloud(rows){RECS=(rows||[]).map(function(x){var r=Object.assign({id:uid('t_'),before:zeroSal(),after:zeroSal(),status:'approved'},x);delete r._syncId;delete r._syncPeriod;return r;});await idbSaveAll();rebuild();['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});showApp();renderAll();}
+function transferSyncStatus(msg,type){setTxt('cloud-stat',type==='ok'?'☁ ✓':'☁ …');console.log('[Transfer smart sync]',msg);}
+function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){var ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(L('尚無資料可上傳','Nothing to upload','គ្មានទិន្នន័យ'),'error');return false;}var btn=el('btn-cloud-up');if(btn){btn.disabled=true;btn.style.opacity=.5;}try{var res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:transferCloudRecords(),legacyToRecords:transferLegacyRows,meta:transferCloudMeta(),onStatus:transferSyncStatus});setTxt('cloud-stat','☁ '+nowStr().slice(5,16));if(!opts.silent)toast(res&&res.skipped?L('☁ 雲端已是最新，不需重傳','☁ Cloud already current','☁ ពពកបច្ចុប្បន្ន'):L('☁ 智慧上傳完成','☁ Smart upload complete','☁ ផ្ទុកឆ្លាតវៃបានបញ្ចប់'),'success');return true;}catch(e){if(!opts.silent)toast(L('上傳失敗：','Upload failed: ','បរាជ័យ៖ ')+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.style.opacity=1;}}}
+
+
+async function cloudDownload(opts){opts=opts||{};var btn=el('btn-cloud-down');if(btn){btn.disabled=true;btn.style.opacity=.5;}try{var res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:transferCloudRecords(),legacyToRecords:transferLegacyRows,apply:transferApplyCloud,onStatus:transferSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(L('雲端尚無資料','No cloud data','គ្មានទិន្នន័យលើពពក'),'warning');return false;}if(!opts.silent)toast(L('☁ 智慧下載完成 · '+(res.downloaded||0)+' 筆變更','☁ Smart download · '+(res.downloaded||0)+' changed','☁ ទាញយកបានបញ្ចប់'),'success');return true;}catch(e){if(!opts.silent)toast(L('下載失敗：','Download failed: ','បរាជ័យ៖ ')+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.style.opacity=1;}}}
 function _dl(blob,name){
   var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
   document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
@@ -2511,6 +2491,8 @@ Object.assign(window,{setLang:setLang,setTab:setTab,onFiles:onFiles,
   cloudUpload:cloudUpload,cloudDownload:cloudDownload,exportJSON:exportJSON,importJSON:importJSON,
   exportXlsx:exportXlsx,clearAllData:clearAllData});
 init();
+
+window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:transfer'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
 </script>
 </body>
 </html>

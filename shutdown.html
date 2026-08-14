@@ -19,6 +19,7 @@
   ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
+<script src="shared/hrpay-smart-sync.js"></script>
 </head>
 <body class="text-slate-800">
 
@@ -962,7 +963,7 @@ async function confirmSendTg(){
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   const ok=await sendTG(r.text);
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
-  if(ok)closeTgModal();
+  if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
 async function sendTG(text){
   const checker=hrpPersonValue('checker',true);
@@ -990,33 +991,19 @@ async function pushProjection(){
     }));
   }catch(e){console.warn(e);}
 }
-async function cloudUpload(){
-  if(!EVENTS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
-  const b=qs('#btn-cloud-up'); b.disabled=true; b.classList.add('opacity-50');
-  try{
-    await pushProjection();
-    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({tool:'hrpay_shutdown',updatedAt:_nowISO(),events:EVENTS})});
-    toast(T('☁ 已上傳雲端','☁ Uploaded'),'success');
-  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
-  b.disabled=false; b.classList.remove('opacity-50');
-}
-async function cloudDownload(){
-  const b=qs('#btn-cloud-down'); b.disabled=true; b.classList.add('opacity-50');
-  try{
-    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_shutdown');
-    const d=await r.json();
-    const arr=(d&&d.data&&d.data.events)||[];
-    if(!arr.length)toast(T('雲端尚無資料','No cloud data'),'warning');
-    else{
-      EVENTS=arr; await idbSaveAll();
-      const ps=periods(); ACTIVE=ps[ps.length-1];
-      renderAll();
-      toast(T(`☁ 已載入 ${arr.length} 筆停工記錄`,`☁ Loaded ${arr.length} events`),'success');
-    }
-  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
-  b.disabled=false; b.classList.remove('opacity-50');
-}
+
+const HRPAY_SYNC_TOOL='hrpay_shutdown', HRPAY_AUTO_KEY='hrpay:auto:shutdown';
+function shutdownSyncId(e){return 'shutdown:'+String(e.year||'')+':'+String(e.start||'')+':'+String(e.end||'')+':'+String(e.seq||'');}
+function shutdownCloudRecords(){return EVENTS.map(function(e){return Object.assign({_syncId:shutdownSyncId(e),_syncPeriod:(e.start||'').slice(0,7)},e);});}
+function shutdownCloudMeta(){return{periods:Array.from(new Set(EVENTS.map(function(e){return(e.start||'').slice(0,7);}).filter(Boolean))).sort()};}
+function shutdownLegacyRows(env){const D=(env&&env.data)||env||{};return(D.events||[]).map(function(e){return Object.assign({_syncId:shutdownSyncId(e),_syncPeriod:(e.start||'').slice(0,7)},e);});}
+async function shutdownApplyCloud(rows){EVENTS=(rows||[]).map(function(x){const e=Object.assign({},x);delete e._syncId;delete e._syncPeriod;return e;});await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
+function shutdownSyncStatus(msg,type){console.log('[Shutdown smart sync]',msg);}
+function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+async function cloudUpload(opts){opts=opts||{};if(!EVENTS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:shutdownCloudRecords(),legacyToRecords:shutdownLegacyRows,meta:shutdownCloudMeta(),onStatus:shutdownSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+
+
+async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:shutdownCloudRecords(),legacyToRecords:shutdownLegacyRows,apply:shutdownApplyCloud,onStatus:shutdownSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}if(!opts.silent)toast(T(`☁ 智慧下載完成 · ${res.downloaded||0} 筆變更`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 // ━━━━ 其他 ━━━━
 function exportCSV(which){
@@ -1068,6 +1055,8 @@ function setupDropZone(sel,handler,ringCls){
   setupDropZone('#dz-smart',smartImport,'ring-rose-400');
   applyLang();
 })();
+
+window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:shutdown'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
 </script>
 </body>
 </html>

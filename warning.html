@@ -1079,48 +1079,11 @@ async function approveRec(id,approve){
 }
 
 // ━━━━ 雲端 ━━━━
-async function cloudDownload(){
-  const b=qs('#btn-cloud-down');b.disabled=true;b.classList.add('opacity-50');
-  try{
-    const res=await gasGet({action:'warnList'});
-    if(res&&res.ok&&Array.isArray(res.records)){
-      const cloud=res.records.map(r=>({...r,
-        id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),
-        expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));
-      // 雲端優先，本機獨有的保留
-      const ck=new Set(cloud.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));
-      RECS=cloud.concat(RECS.filter(r=>!ck.has(r.empId+'|'+r.incidentDate+'|'+r.level)));
-      RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);
-      await idbSaveAll();
-      const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];
-      showApp();renderAll();
-      toast(T(`☁ 已載入 ${cloud.length} 筆雲端記錄`,`☁ Loaded ${cloud.length}`),'success');
-    }else toast(T('雲端尚無資料','No cloud data'),'warning');
-  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
-  b.disabled=false;b.classList.remove('opacity-50');
-}
-async function cloudUpload(){
-  if(!RECS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
-  const pending=RECS.filter(r=>r._src==='import'||!r.row);
-  if(!pending.length){toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'warning');return;}
-  const b=qs('#btn-cloud-up');b.disabled=true;b.classList.add('opacity-50');
-  let done=0,skipped=0;
-  try{
-    // GET 的 URL 有長度限制，分批送（每批 40 筆）
-    for(let i=0;i<pending.length;i+=40){
-      const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',
-        empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',
-        level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',
-        status:r.status||'已核可'}));
-      const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,data:JSON.stringify(chunk)});
-      if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}
-      b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;
-    }
-    toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');
-  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
-  b.disabled=false;b.classList.remove('opacity-50');
-  b.querySelector('span').textContent=T('上傳','Upload');
-}
+async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await gasGet({action:'warnList'});if(res&&res.ok&&Array.isArray(res.records)){const cloud=res.records.map(r=>({...r,id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));const ck=new Set(cloud.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));RECS=cloud.concat(RECS.filter(r=>!ck.has(r.empId+'|'+r.incidentDate+'|'+r.level)));RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);await idbSaveAll();const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];showApp();renderAll();if(!opts.silent)toast(T(`☁ 已載入 ${cloud.length} 筆雲端記錄`,`☁ Loaded ${cloud.length}`),'success');return true;}if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const pending=RECS.filter(r=>r._src==='import'||!r.row);if(!pending.length){if(!opts.silent)toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'success');return true;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}let done=0,skipped=0;try{for(let i=0;i<pending.length;i+=40){const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',status:r.status||'已核可'}));const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,data:JSON.stringify(chunk)});if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}if(b&&b.querySelector('span'))b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;}if(!opts.silent)toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');if(b.querySelector('span'))b.querySelector('span').textContent=T('上傳','Upload');}}}
+
+const HRPAY_WARNING_AUTO_KEY='hrpay:auto:warning';
+function scheduleWarningAutoSync(reason){try{localStorage.setItem(HRPAY_WARNING_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok){await cloudDownload({silent:true});try{localStorage.removeItem(HRPAY_WARNING_AUTO_KEY);}catch(e){}}},10);}
 
 // ━━━━ TELEGRAM ━━━━
 
@@ -1268,6 +1231,12 @@ async function confirmSendTg(){
   const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
   try{
     if(TG_MODE==='review'){
+      // Review needs cloud row IDs.  Sync only local-new warnings first, then refresh rows.
+      await cloudUpload({silent:true,auto:true});
+      await cloudDownload({silent:true});
+      const rr=buildTgReview(unit,key);
+      if(rr.err){toast(rr.err,'error');b.disabled=false;b.textContent=T('送群組審查','Send for review');return;}
+      r.rows=rr.rows||[];r.localOnly=rr.localOnly||0;
       let sent=0,failed=0;
       for(const row of r.rows||[]){
         const d=await gasGet({action:'warnSendTelegram',row:String(row)});
@@ -1288,7 +1257,7 @@ async function confirmSendTg(){
         body:JSON.stringify({type:'notify',text:r.text,checker})});
       let d=null;try{d=await res.json();}catch(e){}
       if(d&&(d.ok===false||d.sent===false))toast(T('GAS 回報未送出','Not sent'),'error');
-      else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();}
+      else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();scheduleWarningAutoSync('summary');}
     }
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');}
   b.disabled=false;b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
@@ -1326,6 +1295,8 @@ function setupDropZone(sel,handler,ringCls){
   setupDropZone('#dz-smart',smartImport,'ring-amber-400');
   applyLang();
 })();
+
+window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:warning'))scheduleWarningAutoSync('retry');}catch(e){}},1200);});
 </script>
 </body>
 </html>
