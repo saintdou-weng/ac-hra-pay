@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC HRA · 職位異動管理 Position Transfer v3.4</title>
+<title>AC HRA · 職位異動管理 Position Transfer v3.5</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -76,7 +76,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800" data-t="hdr_title">職位異動管理 Position Transfer</p>
       <p class="text-[11px] text-slate-400 mt-0.5">AC HRA Pay · Vantage River Textiles
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.4</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.5</span>
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
@@ -475,8 +475,18 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
           <button id="ts-ind"   onclick="setTgScope('ind')"   class="navbtn navbtn-off flex-1" data-t="tg_s2">👤 個人調職</button>
           <button id="ts-sum"   onclick="setTgScope('sum')"   class="navbtn navbtn-off flex-1" data-t="tg_s3">📊 期間彙總</button>
         </div></div>
-      <div><label id="tg-plabel" class="rl">選擇批次／期間</label>
-        <select id="tg-period" onchange="previewTg()" class="ri"></select></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div id="tg-ptype-wrap"><label class="rl">期間類型 Type</label>
+          <select id="tg-ptype" onchange="setTgPeriodType(this.value)" class="ri bg-white">
+            <option value="day">日 Day</option><option value="week">週 Week</option>
+            <option value="month" selected>月 Month</option><option value="year">年 Year</option>
+          </select></div>
+        <div id="tg-period-wrap"><label id="tg-plabel" class="rl">選擇批次／期間</label>
+          <select id="tg-period" onchange="tgPeriodChanged()" class="ri"></select></div>
+      </div>
+      <div id="tg-ind-wrap" class="hidden"><label class="rl">單人／記錄 Employee / Record</label>
+        <select id="tg-ind-record" onchange="tgIndividualChanged()" class="ri bg-white"></select>
+        <p class="text-[10px] text-slate-400 mt-1">個人調職可直接選單一員工送摘要／核可；也可選「本期間全部個人調職」。</p></div>
       <div><label class="rl" data-t="tg_mode">傳送模式 Mode</label>
         <div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
           <button id="tm-sum" onclick="setTgMode('summary')" class="navbtn navbtn-on flex-1" data-t="tg_m1">📄 摘要</button>
@@ -506,9 +516,14 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   AC-HRA-PAY · transfer.html v3.1
+   AC-HRA-PAY · transfer.html v3.5
    職位異動管理（個人調職 + 團體調轉）
-   v3.1 變更：改用 ac_hra_onboarding_v3 的介面架構
+   v3.5 變更：Telegram 單人送核 + 日／週／月／年期間發送
+     · 個人調職可選單一員工，不再用整月共用同一個核可 key
+     · 個人／期間彙總可依 Day / Week / Month / Year 發摘要或核可
+     · 從核可清單點 ✈️ 會直接帶入該員工與生效日
+     · 單人核可採獨立 period key，避免同月第二人被誤判為已結案
+   v3.1 基礎：改用 ac_hra_onboarding_v3 的介面架構
      · 每個分頁獨立的期間導覽（全部/日/週/月/季/年 + ◀ 下拉 ▶ + 最新）
      · Chart.js 圖表 ＋ 數字表格並存（圖看趨勢、表看數字）
      · 新增「員工分析」分頁：異動次數排行、年資分佈、累計調薪、調動路徑
@@ -573,7 +588,7 @@ var RECS=[], BATCHES={}, EMPS={};
 var LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})();
 var TAB='ov', _charts={}, METRIC='total', DIMVAL='count';
 var GRULE=(function(){try{return localStorage.getItem('tr_grule')||'dept';}catch(e){return 'dept';}})();
-var APPROVALS={}, _apprSel={}, _tgScope='batch', _tgMode='summary';
+var APPROVALS={}, _apprSel={}, _tgScope='batch', _tgMode='summary', _tgPType='month', _tgRecordId='';
 /* 每個分頁自己的期間 state（onboarding 做法） */
 var NAV={ ov  :{mode:'month',pivot:new Date()},
           grp :{mode:'month',pivot:new Date()},
@@ -1849,15 +1864,19 @@ function renderAppr(){
    +'<th>'+L('狀態','Status','ស្ថានភាព')+'</th><th>'+L('可核可','Approvable','អាចអនុម័ត')+'</th><th></th></tr></thead><tbody>';
   U.forEach(function(u){
     var ok=needsApproval(u.kind==='group'?u.key:u.eff);
+    var apPeriod=u.kind==='group'?u.key:tgSingleApprovalPeriod(u.recs&&u.recs[0]);
+    var apSt=APPROVALS[MODULE_CODE+'|'+apPeriod]||'';
+    var apRv=APPROVALS['rv|'+apPeriod]||'';
+    var apDoc=DOCS[apPeriod]||'';
     h+='<tr><td><input type="checkbox" '+(_apprSel[u.id]?'checked':'')+' onchange="apprToggle(\''+esc(u.id)+'\',this.checked)"'+(ok?'':' disabled')+'></td>'
       +'<td>'+pillKind(u.kind)+'</td><td class="font-medium">'+esc(u.title)+'</td>'
       +'<td class="text-slate-500">'+esc(u.sub)+'</td><td class="jmono">'+esc(u.eff)+'</td>'
       +'<td class="text-right jmono font-semibold">'+u.head+'</td>'
-      +'<td class="text-right">'+tdDiff(u.amt)+'</td><td>'+pillStatus(u.status)+' '+stageBadge(APPROVALS[MODULE_CODE+'|'+(u.kind==='group'?u.key:keyOfMonth(u.eff))])+(APPROVALS['rv|'+(u.kind==='group'?u.key:keyOfMonth(u.eff))]?' <span class="pill bg-sky-50 text-sky-700 border border-sky-100">👀 '+esc(APPROVALS['rv|'+(u.kind==='group'?u.key:keyOfMonth(u.eff))])+'</span>':'')+(DOCS[u.kind==='group'?u.key:keyOfMonth(u.eff)]?' <a class="pill bg-emerald-50 text-emerald-700 border border-emerald-100" target="_blank" href="'+esc(DOCS[u.kind==='group'?u.key:keyOfMonth(u.eff)])+'">📄 文件</a>':'')+'</td>'
+      +'<td class="text-right">'+tdDiff(u.amt)+'</td><td>'+pillStatus(u.status)+' '+stageBadge(apSt)+(apRv?' <span class="pill bg-sky-50 text-sky-700 border border-sky-100">👀 '+esc(apRv)+'</span>':'')+(apDoc?' <a class="pill bg-emerald-50 text-emerald-700 border border-emerald-100" target="_blank" href="'+esc(apDoc)+'">📄 文件</a>':'')+'</td>'
       +'<td>'+(ok?'<span class="pill bg-emerald-50 text-emerald-700 border border-emerald-100">'+L('可送核','yes','បាទ')+'</span>'
                  :'<span class="pill bg-slate-100 text-slate-400">'+L('已結案','closed','បានបិទ')+'</span>')+'</td>'
       +'<td class="whitespace-nowrap"><button onclick="openTgFor(\''+(u.kind==='group'?'batch':'ind')+'\',\''
-        +esc(u.kind==='group'?u.key:keyOfMonth(u.eff))+'\')" class="btn border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️</button></td></tr>';
+        +esc(u.kind==='group'?u.key:u.eff)+'\''+(u.kind==='group'?'':',\''+esc(u.recs[0].id)+'\'')+')" class="btn border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️</button></td></tr>';
   });
   setHtml('appr-tbl',h+'</tbody></table>');
 }
@@ -1871,18 +1890,24 @@ async function apprSend(route){
   route=route||'review';
   var U=apprUnits().filter(function(u){return _apprSel[u.id];});
   if(!U.length){toast(L('請先勾選要送核的項目','Select items first','សូមជ្រើសរើសជាមុន'),'warning');return;}
+  var applicant=hrpPersonValue('applicant',true);
+  if(!applicant){toast(L('請填申請人 Applicant','Enter applicant','សូមបញ្ចូលអ្នកស្នើសុំ'),'error');return;}
   var okN=0;
   for(var i=0;i<U.length;i++){
     var u=U[i], scope=u.kind==='group'?'batch':'ind';
-    var key=u.kind==='group'?u.key:keyOfMonth(u.eff);
-    var r=buildTgText(scope,key);
+    var key=u.kind==='group'?u.key:u.eff;
+    var rid=u.kind==='group'?'':String(u.recs[0].id||'');
+    var pt=u.kind==='group'?'month':'day';
+    var r=buildTgText(scope,key,rid,pt);
     if(r.err)continue;
-    var sent=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount,route,tgItems(scope,key));
-    if(sent){ okN++; u.recs.forEach(function(x){ if(x.status!=='approved')x.status='pending'; }); }
+    var apPeriod=tgApprovalPeriod(scope,key,rid,pt);
+    var items=tgItems(scope,key,rid,pt);
+    var sent=await sendApprovalRequest(apPeriod,r.title,r.text,r.amount,r.headcount,route,items);
+    if(sent){ okN++; items.forEach(function(x){ if(x.status!=='approved')x.status='pending'; }); }
   }
   _apprSel={};
   await idbSaveAll(); rebuild(); renderAll();
-  toast(L('已送出 '+okN+' 項（'+(route==='review'?'經群組審查':'直送核可')+'）',
+  toast(L('已送出 '+okN+' 項（'+(route==='review'?'經群組審查':'核可流程')+'）',
           'Sent '+okN+' requests ('+route+')','បានផ្ញើ '+okN),okN?'success':'error');
 }
 
@@ -2091,14 +2116,93 @@ function hrpPreviewText(text,kind){
 var TG_LIMIT=3600;
 function keyMonth(k){var m=String(k||'').match(/(\d{4})-(\d{2})/);return m?m[1]+'-'+m[2]:'';}
 function needsApproval(k){ return keyMonth(k)>=APPROVAL_FROM; }
+function tgTypeCode(t){return t==='day'?'D':t==='week'?'W':t==='year'?'Y':'M';}
+function tgTypeFromCode(c){return c==='D'?'day':c==='W'?'week':c==='Y'?'year':'month';}
+function tgWeekKey(ds){
+  var a=String(ds||'').slice(0,10).split('-'); if(a.length<3)return '';
+  var d=new Date(+a[0],+a[1]-1,+a[2]); if(isNaN(d))return '';
+  var dw=(d.getDay()+6)%7; d.setDate(d.getDate()-dw);
+  var e=new Date(d.getFullYear(),d.getMonth(),d.getDate()+6);
+  return lds(d)+'~'+lds(e);
+}
+function tgPeriodOfDate(ds,type){
+  ds=String(ds||'').slice(0,10); if(!ds)return '';
+  if(type==='day')return ds;
+  if(type==='week')return tgWeekKey(ds);
+  if(type==='year')return ds.slice(0,4);
+  return ds.slice(0,7);
+}
+function tgDateInPeriod(ds,type,key){
+  ds=String(ds||'').slice(0,10); key=String(key||''); if(!ds||!key)return false;
+  if(type==='day')return ds===key;
+  if(type==='week'){var p=key.split('~');return p.length===2&&ds>=p[0]&&ds<=p[1];}
+  if(type==='year')return ds.slice(0,4)===key;
+  return ds.slice(0,7)===key;
+}
+function tgPeriodLabel(type,key){
+  if(type==='day')return L('日','Day','ថ្ងៃ')+' '+key;
+  if(type==='week')return L('週','Week','សប្តាហ៍')+' '+key;
+  if(type==='year')return L('年','Year','ឆ្នាំ')+' '+key;
+  return L('月','Month','ខែ')+' '+key;
+}
+function tgRowsForScope(scope){
+  if(scope==='ind')return RECS.filter(function(r){return r.kind==='individual';});
+  return RECS.slice();
+}
+function tgPeriodOptions(scope,type){
+  var set={}; tgRowsForScope(scope).forEach(function(r){var k=tgPeriodOfDate(r.effDate,type);if(k)set[k]=1;});
+  return Object.keys(set).sort().reverse();
+}
+function tgSingleApprovalPeriod(rec){
+  if(!rec)return '';
+  var rid=String(rec.id||'').replace(/[^A-Za-z0-9_-]/g,'').slice(-12);
+  var emp=String(rec.empId||'').replace(/[^A-Za-z0-9_-]/g,'').slice(0,14);
+  return 'I:'+String(rec.effDate||'').slice(0,10)+':'+emp+':'+rid;
+}
+function tgApprovalPeriod(scope,key,recordId,ptype){
+  ptype=ptype||_tgPType;
+  if(scope==='batch')return key;
+  if(scope==='ind'&&recordId){
+    var rec=RECS.find(function(r){return String(r.id)===String(recordId);});
+    return tgSingleApprovalPeriod(rec);
+  }
+  return (scope==='ind'?'IP:':'SUM:')+tgTypeCode(ptype)+':'+key;
+}
+function tgSelectedRecordId(){
+  var n=el('tg-ind-record'); return (_tgScope==='ind'&&n)?String(n.value||''):'';
+}
+function tgSelectedRecord(){var id=tgSelectedRecordId();return id?RECS.find(function(r){return String(r.id)===id;}):null;}
+function buildTgIndividualSelect(preRecordId){
+  var wrap=el('tg-ind-wrap'),sel=el('tg-ind-record'); if(!wrap||!sel)return;
+  if(_tgScope!=='ind'){wrap.classList.add('hidden');_tgRecordId='';return;}
+  wrap.classList.remove('hidden');
+  var key=val('tg-period');
+  var rows=RECS.filter(function(r){return r.kind==='individual'&&tgDateInPeriod(r.effDate,_tgPType,key);})
+    .sort(function(a,b){return String(b.effDate).localeCompare(String(a.effDate))||String(a.empId).localeCompare(String(b.empId));});
+  var html='<option value="">'+L('本期間全部個人調職','All individual transfers in period','ទាំងអស់ក្នុងរយៈពេល')+' ('+rows.length+')</option>';
+  html+=rows.map(function(r){return '<option value="'+esc(r.id)+'">'+esc(r.effDate)+' · '+esc(r.empId)+' '+esc(r.name)+' · '+esc((r.origDept||'—')+' → '+(r.newDept||'—'))+'</option>';}).join('');
+  sel.innerHTML=html;
+  var want=preRecordId||_tgRecordId;
+  if(want&&rows.some(function(r){return String(r.id)===String(want);}))sel.value=String(want);
+  else sel.value='';
+  _tgRecordId=sel.value;
+}
+function setTgPeriodType(t){
+  _tgPType=(t==='day'||t==='week'||t==='year')?t:'month';
+  _tgRecordId=''; buildTgPeriodSelect(); previewTg();
+}
+function tgPeriodChanged(){_tgRecordId='';buildTgIndividualSelect();previewTg();}
+function tgIndividualChanged(){_tgRecordId=tgSelectedRecordId();previewTg();}
 function setTgScope(s){
-  _tgScope=s;
+  _tgScope=s; _tgRecordId='';
   ['batch','ind','sum'].forEach(function(x){var b=el('ts-'+x);
     if(b)b.className='navbtn flex-1 '+(x===s?'navbtn-on':'navbtn-off');});
   buildTgPeriodSelect(); previewTg();
 }
 function setTgMode(m){
-  var dis=(m!=='summary')&&!needsApproval(val('tg-period'));
+  var base=val('tg-period'), rid=tgSelectedRecordId();
+  var ap=tgApprovalPeriod(_tgScope,base,rid,_tgPType);
+  var dis=(m!=='summary')&&!needsApproval(ap||base);
   if(dis)return;                       // 已結案的期間不能送核可
   _tgMode=m;
   hrpSyncPersonField();
@@ -2107,28 +2211,33 @@ function setTgMode(m){
     if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
   previewTg();
 }
-function buildTgPeriodSelect(pre){
-  var sel=el('tg-period'), opts=[];
+function buildTgPeriodSelect(pre,preRecordId){
+  var sel=el('tg-period'), opts=[]; if(!sel)return;
+  var ptw=el('tg-ptype-wrap'), prw=el('tg-period-wrap'), pts=el('tg-ptype');
   if(_tgScope==='batch'){
+    if(ptw)ptw.classList.add('hidden'); if(prw)prw.classList.add('col-span-2');
     setTxt('tg-plabel',L('選擇批次 Batch','Select Batch','ជ្រើសក្រុម'));
     opts=Object.keys(BATCHES).sort().reverse().map(function(k){return {v:k,t:batchLabel(k)};});
-  }else if(_tgScope==='ind'){
-    setTxt('tg-plabel',L('選擇期間（個人調職）','Period (Individual)','រយៈពេល (បុគ្គល)'));
-    var s={}; RECS.forEach(function(r){if(r.kind==='individual')s[keyOfMonth(r.effDate)]=1;});
-    opts=Object.keys(s).sort().reverse().map(function(k){
-      return {v:k,t:k+'　('+RECS.filter(function(r){return r.kind==='individual'&&keyOfMonth(r.effDate)===k;}).length+')'};});
   }else{
-    setTxt('tg-plabel',L('選擇期間','Period','រយៈពេល'));
-    var s2={}; RECS.forEach(function(r){s2[keyOfMonth(r.effDate)]=1;});
-    opts=Object.keys(s2).sort().reverse().map(function(k){
-      return {v:k,t:k+'　('+RECS.filter(function(r){return keyOfMonth(r.effDate)===k;}).length+')'};});
+    if(ptw)ptw.classList.remove('hidden'); if(prw)prw.classList.remove('col-span-2');
+    if(pts)pts.value=_tgPType;
+    setTxt('tg-plabel',L('期間 Period','Period','រយៈពេល'));
+    opts=tgPeriodOptions(_tgScope,_tgPType).map(function(k){
+      var n=tgRowsForScope(_tgScope).filter(function(r){return tgDateInPeriod(r.effDate,_tgPType,k);}).length;
+      return {v:k,t:tgPeriodLabel(_tgPType,k)+'　('+n+')'};
+    });
   }
   sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o.v)+'">'+esc(o.t)+'</option>';}).join('')
     ||'<option value="">'+L('（無資料）','(no data)','(គ្មាន)')+'</option>';
-  if(pre){ for(var i=0;i<opts.length;i++)if(opts[i].v===pre){sel.value=pre;break;} }
+  if(pre){
+    var want=String(pre);
+    if(_tgScope!=='batch'&&/^\d{4}-\d{2}-\d{2}$/.test(want))want=tgPeriodOfDate(want,_tgPType);
+    for(var i=0;i<opts.length;i++)if(opts[i].v===want){sel.value=want;break;}
+  }
+  buildTgIndividualSelect(preRecordId);
 }
 function syncTgMode(){
-  var p=val('tg-period'), ok=needsApproval(p);
+  var p=val('tg-period'), rid=tgSelectedRecordId(), ap=tgApprovalPeriod(_tgScope,p,rid,_tgPType), ok=needsApproval(ap||p);
   ['rev','dir'].forEach(function(x){
     var b=el('tm-'+x); if(!b)return;
     b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';});
@@ -2137,8 +2246,11 @@ function syncTgMode(){
   ['sum','rev','dir'].forEach(function(x){
     var id={sum:'summary',rev:'review',dir:'direct'}[x], b=el('tm-'+x);
     if(b)b.className='navbtn flex-1 '+(_tgMode===id?'navbtn-on':'navbtn-off');});
+  var targetNote=(_tgScope==='ind'&&rid)
+    ? L('目前為單人送出：只會送這一筆個人調職。','Single-record mode: only this employee transfer will be sent.','ផ្ញើតែបុគ្គលម្នាក់នេះ')
+    : L('目前依所選日／週／月／年期間送出。','Uses the selected day / week / month / year period.','ផ្ញើតាមរយៈពេលដែលបានជ្រើស');
   setTxt('tg-note', ok
-    ? (_tgMode==='review'
+    ? ((_tgMode==='review'
         ? L('送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。',
             'Goes to the group; anyone there can verify, then your Approve button appears.',
             'ផ្ញើទៅក្រុម — អ្នកណាក៏អាចត្រួតពិនិត្យបាន')
@@ -2148,9 +2260,9 @@ function syncTgMode(){
             'ផ្ញើផ្ទាល់ទៅអ្នក')
         : L('只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。',
             'Notification only — no batch created, repeatable. Dashboard is appended automatically.',
-            'ជូនដំណឹងតែប៉ុណ្ណោះ'))
+            'ជូនដំណឹងតែប៉ុណ្ណោះ'))+' '+targetNote)
     : APPROVAL_FROM+L(' 之前的期間已結案，只提供摘要傳送。',' and earlier are closed — summary only.',' បានបិទ។'));
-  var st=el('tg-stat'), s2=APPROVALS[MODULE_CODE+'|'+p];
+  var st=el('tg-stat'), s2=APPROVALS[MODULE_CODE+'|'+ap];
   if(st){ if(s2){var c=/approve/i.test(s2)||s2==='A'?'emerald':/reject/i.test(s2)||s2==='R'?'rose':/verif/i.test(s2)?'sky':'amber';
       st.className='pill bg-'+c+'-50 text-'+c+'-700 border border-'+c+'-100';
       st.textContent=(/approve/i.test(s2)||s2==='A')?'✅ Approved':(/reject/i.test(s2)||s2==='R')?'❌ Rejected'
@@ -2161,7 +2273,8 @@ function salLine(s,b,a){
   var d=a-b;
   return '　'+L(s.zh,s.en,s.km)+' '+s.en+'：'+fmt(b)+' → '+fmt(a)+(d?'　<b>'+fmtS(d)+'</b>':'');
 }
-function buildTgText(scope,key){
+function buildTgText(scope,key,recordId,ptype){
+  ptype=ptype||_tgPType;
   if(!key)return {err:L('沒有可傳送的資料','Nothing to send','គ្មានទិន្នន័យ')};
   var H='🏭 <b>Vantage River Textiles</b>　'+L('人事異動','Position Transfer','ផ្លាស់ប្តូរតំណែង')+'\n';
   if(scope==='batch'){
@@ -2187,12 +2300,14 @@ function buildTgText(scope,key){
       title:'團體調轉 Group Transfer — '+b.origDept+' → '+b.dests.join('/')+' ('+b.eff+')'};
   }
   if(scope==='ind'){
-    var D=RECS.filter(function(r){return r.kind==='individual'&&keyOfMonth(r.effDate)===key;})
-      .sort(function(a,b2){return recDiff(b2)-recDiff(a);});
+    var D=RECS.filter(function(r){return r.kind==='individual'&&tgDateInPeriod(r.effDate,ptype,key);});
+    if(recordId)D=D.filter(function(r){return String(r.id)===String(recordId);});
+    D=D.sort(function(a,b2){return recDiff(b2)-recDiff(a);});
     if(!D.length)return {err:L('該期間無個人調職記錄','No individual transfers','គ្មានទិន្នន័យ')};
-    var tot=D.reduce(function(s,r){return s+recDiff(r);},0);
-    var t2='👤 <b>個人調職 Individual Transfer</b>\n'+H
-     +'📅 期間 Period：<b>'+esc(key)+'</b>\n'
+    var tot=D.reduce(function(s,r){return s+recDiff(r);},0), single=(D.length===1&&recordId);
+    var t2=(single?'👤 <b>單人調職 Single Employee Transfer</b>\n':'👤 <b>個人調職 Individual Transfer</b>\n')+H
+     +(single?('📅 生效日 Effective：<b>'+esc(D[0].effDate)+'</b>\n'):
+               ('📅 期間 Period：<b>'+esc(tgPeriodLabel(ptype,key))+'</b>\n'))
      +'👥 筆數 Records：<b>'+D.length+'</b>　💰 調薪合計 Total Adj.：<b>$'+fmtS(tot)+'</b>\n';
     var acc2='',cut2=0;
     D.forEach(function(r,i){
@@ -2206,17 +2321,19 @@ function buildTgText(scope,key){
       if((t2+acc2+blk).length<TG_LIMIT)acc2+=blk; else cut2++;
     });
     t2+=acc2+(cut2?'\n　…（其餘 '+cut2+' 筆略 and '+cut2+' more）\n':'')+'\n🕐 '+nowStr();
-    return {text:t2,headcount:D.length,amount:tot,title:'個人調職 Individual Transfer — '+key};
+    return {text:t2,headcount:D.length,amount:tot,
+      title:(single?'單人調職 Single Employee Transfer — '+D[0].empId+' '+D[0].name+' ('+D[0].effDate+')'
+                   :'個人調職 Individual Transfer — '+tgPeriodLabel(ptype,key))};
   }
-  var D2=RECS.filter(function(r){return keyOfMonth(r.effDate)===key;});
+  var D2=RECS.filter(function(r){return tgDateInPeriod(r.effDate,ptype,key);});
   if(!D2.length)return {err:L('該期間無資料','No data','គ្មានទិន្នន័យ')};
   var g=D2.filter(function(r){return r.kind==='group';}), i2=D2.filter(function(r){return r.kind==='individual';});
   var bks={}; g.forEach(function(r){if(r._bk)bks[r._bk]=1;});
   var em={}; D2.forEach(function(r){em[_norm(r.empId).toUpperCase()]=1;});
   var tot2=i2.reduce(function(s,r){return s+recDiff(r);},0);
   var dep={}; D2.forEach(function(r){var k2=(r.origDept||'—')+' → '+(r.newDept||'—');dep[k2]=(dep[k2]||0)+1;});
-  var t3='📊 <b>人事異動月報 Monthly Transfer Report</b>\n'+H
-   +'📅 期間 Period：<b>'+esc(key)+'</b>\n\n'
+  var t3='📊 <b>人事異動期間報告 Period Transfer Report</b>\n'+H
+   +'📅 期間 Period：<b>'+esc(tgPeriodLabel(ptype,key))+'</b>\n\n'
    +'👥 異動人次 Movements：<b>'+D2.length+'</b>　（涉及員工 Employees：'+Object.keys(em).length+'）\n'
    +'📦 團體調轉 Group：'+g.length+' 人 ppl（'+Object.keys(bks).length+' 批 batches）\n'
    +'👤 個人調職 Individual：'+i2.length+' 人 ppl\n'
@@ -2225,18 +2342,24 @@ function buildTgText(scope,key){
    +Object.keys(dep).sort(function(a,b2){return dep[b2]-dep[a];}).slice(0,10)
      .map(function(k2){return '　• '+esc(k2)+'　'+dep[k2]+' 人 ppl';}).join('\n')
    +'\n\n🕐 '+nowStr();
-  return {text:t3,headcount:D2.length,amount:tot2,title:'人事異動月報 Transfer Report — '+key};
+  return {text:t3,headcount:D2.length,amount:tot2,title:'人事異動期間報告 Transfer Report — '+tgPeriodLabel(ptype,key)};
 }
 function openTg(){ buildTgPeriodSelect(); hrpSyncPersonField(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
-function openTgFor(scope,key){
-  _tgScope=scope;
+function openTgFor(scope,key,recordId){
+  _tgScope=scope; _tgRecordId=recordId||'';
+  if(scope==='ind'&&recordId){
+    var rec=RECS.find(function(r){return String(r.id)===String(recordId);});
+    _tgPType='day';
+    if(rec)key=rec.effDate;
+  }
   ['batch','ind','sum'].forEach(function(x){var b=el('ts-'+x);
     if(b)b.className='navbtn flex-1 '+(x===scope?'navbtn-on':'navbtn-off');});
-  buildTgPeriodSelect(key); hrpSyncPersonField(); previewTg(); el('m-tg').classList.add('open');
+  buildTgPeriodSelect(key,recordId); hrpSyncPersonField(); previewTg(); el('m-tg').classList.add('open');
 }
 function previewTg(){
   syncTgMode();
-  var r=buildTgText(_tgScope,val('tg-period')), pv=el('tg-preview'), btn=el('tg-send');
+  var key=val('tg-period'), rid=tgSelectedRecordId();
+  var r=buildTgText(_tgScope,key,rid,_tgPType), pv=el('tg-preview'), btn=el('tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='btn flex-1 bg-slate-200 text-slate-400'; }
   else{ pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|code)>/g,''); btn.disabled=false;
     btn.className='btn flex-1 bg-violet-600 text-white hover:bg-violet-700'; }
@@ -2266,30 +2389,54 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
   }catch(e){ toast(L('送出失敗：','Send failed: ','បរាជ័យ៖ ')+e.message,'error'); return false; }
 }
 /* 依傳送對象取出要附進核可文件的明細 */
-function tgItems(scope,key){
+function tgItems(scope,key,recordId,ptype){
+  ptype=ptype||_tgPType;
   if(scope==='batch')return BATCHES[key]?BATCHES[key].recs:[];
-  if(scope==='ind')return RECS.filter(function(r){return r.kind==='individual'&&keyOfMonth(r.effDate)===key;});
-  return RECS.filter(function(r){return keyOfMonth(r.effDate)===key;});
+  var rows=RECS.filter(function(r){return tgDateInPeriod(r.effDate,ptype,key);});
+  if(scope==='ind')rows=rows.filter(function(r){return r.kind==='individual';});
+  if(scope==='ind'&&recordId)rows=rows.filter(function(r){return String(r.id)===String(recordId);});
+  return rows;
 }
 async function confirmSendTg(){
-  var key=val('tg-period'), r=buildTgText(_tgScope,key);
+  var key=val('tg-period'), rid=tgSelectedRecordId(), r=buildTgText(_tgScope,key,rid,_tgPType);
   if(r.err){toast(r.err,'error');return;}
+  var items=tgItems(_tgScope,key,rid,_tgPType);
+  var approvalPeriod=tgApprovalPeriod(_tgScope,key,rid,_tgPType);
   var btn=el('tg-send'); btn.disabled=true; btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
   var ok;
-  if(_tgMode!=='summary'&&needsApproval(key)){
-    ok=await sendApprovalRequest(key,r.title,r.text,r.amount,r.headcount,_tgMode,tgItems(_tgScope,key));
+  if(_tgMode!=='summary'&&needsApproval(approvalPeriod||key)){
+    ok=await sendApprovalRequest(approvalPeriod,r.title,r.text,r.amount,r.headcount,_tgMode,items);
     if(ok){
-      tgItems(_tgScope,key).forEach(function(x){ if(x.status!=='approved')x.status='pending'; });
+      items.forEach(function(x){ if(x.status!=='approved')x.status='pending'; });
       await idbSaveAll(); rebuild(); renderAll();
       toast(_tgMode==='review'
         ? L('已送群組，等待審查','Sent to group for review','បានផ្ញើទៅក្រុម')
-        : L('已直送你的 Telegram，請核可','Sent straight to your Telegram','បានផ្ញើផ្ទាល់'),'success');
+        : L('已送出核可請求','Approval request sent','បានផ្ញើសំណើអនុម័ត'),'success');
     }
   }else{ ok=await sendTG(r.text); }
   btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
   if(ok){closeM('m-tg');scheduleAutoCloudSync('telegram');}
 }
-var DOCS={};
+var DOCS={}, APPROVAL_ROWS=[];
+function tgApprovalPeriodInfo(period){
+  var p=String(period||''),m=p.match(/^(IP|SUM):([DWMY]):(.+)$/);
+  if(m)return {scope:m[1]==='IP'?'ind':'sum',type:tgTypeFromCode(m[2]),key:m[3]};
+  return null;
+}
+function tgStatusForRecord(rec,rows){
+  var exact=rec.kind==='group'?String(rec._bk||''):tgSingleApprovalPeriod(rec);
+  var st=APPROVALS[MODULE_CODE+'|'+exact]; if(st)return st;
+  rows=Array.isArray(rows)?rows:[];
+  for(var i=0;i<rows.length;i++){
+    var x=rows[i],p=String(x.period||x.Period||''),info=tgApprovalPeriodInfo(p);
+    if(!info)continue;
+    if(info.scope==='ind'&&rec.kind!=='individual')continue;
+    if(tgDateInPeriod(rec.effDate,info.type,info.key))return x.code||x.status||x.Status||'';
+  }
+  /* 舊版相容：2026-08 代表當月個人／期間核可。新送件不再共用這個 key。 */
+  if(rec.kind==='individual')return APPROVALS[MODULE_CODE+'|'+keyOfMonth(rec.effDate)]||'';
+  return '';
+}
 async function refreshApprovalStatus(silent){
   try{
     var arr=[];
@@ -2303,8 +2450,8 @@ async function refreshApprovalStatus(silent){
       var d=await r.json();
       arr=(d&&d.data&&d.data.records)||(d&&(d.data||d.rows||d.list))||[];
     }
-    APPROVALS={}; DOCS={};
-    (Array.isArray(arr)?arr:[]).forEach(function(x){
+    APPROVALS={}; DOCS={}; APPROVAL_ROWS=Array.isArray(arr)?arr:[];
+    APPROVAL_ROWS.forEach(function(x){
       var p=x.period||x.Period; if(!p)return;
       APPROVALS[MODULE_CODE+'|'+p]=x.code||x.status||x.Status||'';
       if(x.docUrl)DOCS[p]=x.docUrl;
@@ -2312,8 +2459,7 @@ async function refreshApprovalStatus(silent){
     });
     var n=0;
     RECS.forEach(function(rec){
-      var k=rec.kind==='group'?rec._bk:keyOfMonth(rec.effDate);
-      var st=APPROVALS[MODULE_CODE+'|'+k]; if(!st)return;
+      var st=tgStatusForRecord(rec,APPROVAL_ROWS); if(!st)return;
       var ns=stMap(st); if(ns&&ns!==rec.status){rec.status=ns;n++;}
     });
     if(n){await idbSaveAll(); rebuild();}
@@ -2487,6 +2633,7 @@ Object.assign(window,{setLang:setLang,setTab:setTab,onFiles:onFiles,
   openGrp:openGrp,saveGrp:saveGrp,delBatch:delBatch,grpAdd:grpAdd,grpAddN:grpAddN,grpDel:grpDel,
   grpCount:grpCount,grpSync:grpSync,grpTogglePaste:grpTogglePaste,grpParse:grpParse,
   openTg:openTg,openTgFor:openTgFor,closeM:closeM,setTgScope:setTgScope,setTgMode:setTgMode,
+  setTgPeriodType:setTgPeriodType,tgPeriodChanged:tgPeriodChanged,tgIndividualChanged:tgIndividualChanged,
   previewTg:previewTg,confirmSendTg:confirmSendTg,refreshApprovalStatus:refreshApprovalStatus,
   cloudUpload:cloudUpload,cloudDownload:cloudDownload,exportJSON:exportJSON,importJSON:importJSON,
   exportXlsx:exportXlsx,clearAllData:clearAllData});
