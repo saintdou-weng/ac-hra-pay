@@ -23,6 +23,7 @@
   @media print{.no-print{display:none!important}}
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 </head>
 <body class="text-slate-800">
 
@@ -697,6 +698,7 @@ async function smartImport(input){
      : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('所選期間的餐費表與考勤表皆已齊全。','Meal-fee and attendance files are both complete.')}</div>`);
   rep.classList.remove('hidden');
   applyLang();
+  if(okN>0) scheduleAutoCloudSync('import',keys.length?keys[keys.length-1]:'');
 }
 
 // 多份考勤檔合併（依工號 + 日期）
@@ -1532,7 +1534,12 @@ function mealCloudMeta(){return{periods:Array.from(new Set(sortedKeys().map(func
 function mealLegacyRows(env){const D=(env&&env.data)||env||{};return(D.batches||[]).reduce(function(a,e){return a.concat(mealBatchToSync(e));},[]);}
 async function mealApplyCloud(rows){const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,att:[],meal:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='att')z.att.push(x.row||{});else if(x.kind==='meal')z.meal.push(x.row||{});});for(const key of Object.keys(g)){const z=g[key],e=Object.assign({key:key},z.meta||{});if(e.att||z.att.length)e.att=Object.assign({},e.att||{},{rows:z.att});if(e.meal||z.meal.length)e.meal=Object.assign({},e.meal||{},{rows:z.meal});STORE[key]=e;await idbSave(e);}const ks=sortedKeys();if(ks.length)ACTIVE=STORE[ks[ks.length-1]];cacheMealProjectionLocal();renderAll();}
 function mealSyncStatus(msg,type){console.log('[Meal smart sync]',msg);}
-function scheduleAutoCloudSync(reason,key){if(!key){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');key=x.key||'';}catch(e){}}try{localStorage.setItem(HRPAY_AUTO_KEY,JSON.stringify({reason:reason||'telegram',key:key||'',at:Date.now()}));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,key:key||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+function scheduleAutoCloudSync(reason,key){
+  if(!key){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');key=x.key||'';}catch(e){}}
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('meal',reason||'change',key?{key:key}:{},900);return;}
+  try{localStorage.setItem(HRPAY_AUTO_KEY,JSON.stringify({reason:reason||'change',key:key||'',at:Date.now()}));}catch(e){}
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,key:key||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+}
 async function cloudUpload(opts){opts=opts||{};if(!Object.keys(STORE).length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const k=opts.key||(ACTIVE&&ACTIVE.key)||'';if(k&&STORE[k])await pushProjection(STORE[k]);const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:mealCloudRecords(),legacyToRecords:mealLegacyRows,meta:mealCloudMeta(),onStatus:mealSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
@@ -1598,7 +1605,9 @@ function setupDropZone(sel, handler, ringCls){
 
 setupDropZone('#dz-smart', smartImport, 'ring-orange-400');
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:meal'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'meal',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>

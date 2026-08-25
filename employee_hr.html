@@ -25,6 +25,7 @@
   }
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 </head>
 <body class="text-slate-800">
 
@@ -621,6 +622,7 @@ async function smartImport(input){
   ).join('');
   rep.classList.remove('hidden');
   applyLang();
+  if(okN>0) scheduleAutoCloudSync('import');
 }
 
 // ━━━━ 資料存取 ━━━━
@@ -1195,6 +1197,7 @@ async function saveEdit(){
   snap.updatedAt=_nowISO();
   await idbSave(snap);
   closeEdit(); renderAll(); pushProjection();
+  scheduleAutoCloudSync(i>=0?'edit':'add');
   toast(i>=0?T('已更新','Updated'):T('已新增','Added'),'success');
 }
 
@@ -1347,7 +1350,11 @@ function employeeCloudMeta(){return{periods:snapKeys().slice()};}
 function employeeLegacyRows(env){const D=(env&&env.data)||env||{};return(D.snapshots||[]).reduce(function(a,x){return a.concat(employeeSnapToSync(x));},[]);}
 async function employeeApplyCloud(rows){const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,rows:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='row')z.rows.push(x.row||{});});for(const key of Object.keys(g)){const z=g[key],x=Object.assign({key:key},z.meta||{},{rows:z.rows});SNAPS[key]=x;await idbSave(x);}const ks=snapKeys();if(ks.length)ACTIVE=ks[ks.length-1];await pushProjection();renderAll();}
 function employeeSyncStatus(msg,type){console.log('[Employee smart sync]',msg);}
-function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+function scheduleAutoCloudSync(reason){
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('employee',reason||'change',{},900);return;}
+  try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+}
 async function cloudUpload(opts){opts=opts||{};if(!Object.keys(SNAPS).length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:employeeCloudRecords(),legacyToRecords:employeeLegacyRows,meta:employeeCloudMeta(),onStatus:employeeSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
@@ -1396,7 +1403,9 @@ function setupDropZone(sel,handler,ringCls){
   applyLang();
 })();
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:employee'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'employee',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>

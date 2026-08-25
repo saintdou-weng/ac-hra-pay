@@ -20,6 +20,7 @@
   @media print{.no-print{display:none!important}}
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 </head>
 <body class="text-slate-800">
 
@@ -518,6 +519,7 @@ async function smartImport(input){
   ).join('');
   rep.classList.remove('hidden');
   applyLang();
+  if(okN>0) scheduleAutoCloudSync('import');
 }
 
 // ━━━━ 篩選 ━━━━
@@ -999,7 +1001,11 @@ function shutdownCloudMeta(){return{periods:Array.from(new Set(EVENTS.map(functi
 function shutdownLegacyRows(env){const D=(env&&env.data)||env||{};return(D.events||[]).map(function(e){return Object.assign({_syncId:shutdownSyncId(e),_syncPeriod:(e.start||'').slice(0,7)},e);});}
 async function shutdownApplyCloud(rows){EVENTS=(rows||[]).map(function(x){const e=Object.assign({},x);delete e._syncId;delete e._syncPeriod;return e;});await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
 function shutdownSyncStatus(msg,type){console.log('[Shutdown smart sync]',msg);}
-function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+function scheduleAutoCloudSync(reason){
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('shutdown',reason||'change',{},900);return;}
+  try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+}
 async function cloudUpload(opts){opts=opts||{};if(!EVENTS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:shutdownCloudRecords(),legacyToRecords:shutdownLegacyRows,meta:shutdownCloudMeta(),onStatus:shutdownSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
@@ -1056,7 +1062,9 @@ function setupDropZone(sel,handler,ringCls){
   applyLang();
 })();
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:shutdown'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'shutdown',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>

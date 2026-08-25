@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC HRA · 職位異動管理 Position Transfer v3.5</title>
+<title>AC HRA · 職位異動管理 Position Transfer v3.7</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,6 +65,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -76,7 +77,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
     <div class="leading-none">
       <p class="text-sm font-semibold text-slate-800" data-t="hdr_title">職位異動管理 Position Transfer</p>
       <p class="text-[11px] text-slate-400 mt-0.5">AC HRA Pay · Vantage River Textiles
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.5</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 jmono border border-emerald-100">v3.7</span>
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
@@ -1025,6 +1026,7 @@ async function onFiles(files){
   await idbSaveAll(); rebuild();
   ['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});
   showApp(); renderAll();
+  if(added||updated) scheduleAutoCloudSync('import');
   toast(L('匯入完成：新增 '+added+' 筆、覆蓋 '+updated+' 筆','Imported: '+added+' new, '+updated+' overwritten','នាំចូល៖ '+added+' ថ្មី, '+updated+' សរសេរជាន់'),'success');
 }
 
@@ -1965,13 +1967,14 @@ function saveInd(){
     else RECS.push(Object.assign({id:uid('t_'),status:'pending'},base));
   }
   idbSaveAll(); rebuild(); closeM('m-ind'); showApp(); renderAll();
+  scheduleAutoCloudSync(id?'edit':'add');
   toast(L('已儲存','Saved','បានរក្សាទុក'),'success');
 }
 function delRecord(id){
   if(!id)return;
   if(!confirm(L('確定刪除這筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   RECS=RECS.filter(function(r){return r.id!==id;});
-  idbSaveAll(); rebuild(); renderAll(); toast(L('已刪除','Deleted','បានលុប'),'success');
+  idbSaveAll(); rebuild(); renderAll(); scheduleAutoCloudSync('delete'); toast(L('已刪除','Deleted','បានលុប'),'success');
 }
 
 /* ═══════════ MODALS · 團體調轉 ═══════════ */
@@ -2053,6 +2056,7 @@ function saveGrp(){
   idbSaveAll(); rebuild(); closeM('m-grp'); showApp();
   ['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});
   renderAll();
+  scheduleAutoCloudSync('batch-save');
   toast(L('已儲存整批 '+rows.length+' 人','Batch of '+rows.length+' saved','បានរក្សាទុក '+rows.length+' នាក់'),'success');
 }
 function delBatch(key){
@@ -2060,7 +2064,7 @@ function delBatch(key){
   if(!confirm(L('確定刪除整批 '+b.recs.length+' 筆記錄？','Delete this batch of '+b.recs.length+' records?','លុបក្រុមនេះ?')))return;
   var ids={}; b.recs.forEach(function(r){ids[r.id]=1;});
   RECS=RECS.filter(function(r){return !ids[r.id];});
-  idbSaveAll(); rebuild(); renderAll(); toast(L('已刪除整批','Batch deleted','បានលុបក្រុម'),'success');
+  idbSaveAll(); rebuild(); renderAll(); scheduleAutoCloudSync('batch-delete'); toast(L('已刪除整批','Batch deleted','បានលុបក្រុម'),'success');
 }
 
 /* ═══════════ TELEGRAM ═══════════ */
@@ -2503,7 +2507,11 @@ function transferCloudMeta(){var m={};RECS.forEach(function(r){if(r.effDate)m[r.
 function transferLegacyRows(env){var D=(env&&env.data)||env||{},list=D.records||D.recs||[];return list.map(function(r){return Object.assign({_syncId:'transfer:'+dedupKey(r),_syncPeriod:(r.effDate||'').slice(0,7)},r);});}
 async function transferApplyCloud(rows){RECS=(rows||[]).map(function(x){var r=Object.assign({id:uid('t_'),before:zeroSal(),after:zeroSal(),status:'approved'},x);delete r._syncId;delete r._syncPeriod;return r;});await idbSaveAll();rebuild();['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});showApp();renderAll();}
 function transferSyncStatus(msg,type){setTxt('cloud-stat',type==='ok'?'☁ ✓':'☁ …');console.log('[Transfer smart sync]',msg);}
-function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){var ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+function scheduleAutoCloudSync(reason){
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('transfer',reason||'change',{},900);return;}
+  try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
+  setTimeout(async function(){var ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+}
 async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(L('尚無資料可上傳','Nothing to upload','គ្មានទិន្នន័យ'),'error');return false;}var btn=el('btn-cloud-up');if(btn){btn.disabled=true;btn.style.opacity=.5;}try{var res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:transferCloudRecords(),legacyToRecords:transferLegacyRows,meta:transferCloudMeta(),onStatus:transferSyncStatus});setTxt('cloud-stat','☁ '+nowStr().slice(5,16));if(!opts.silent)toast(res&&res.skipped?L('☁ 雲端已是最新，不需重傳','☁ Cloud already current','☁ ពពកបច្ចុប្បន្ន'):L('☁ 智慧上傳完成','☁ Smart upload complete','☁ ផ្ទុកឆ្លាតវៃបានបញ្ចប់'),'success');return true;}catch(e){if(!opts.silent)toast(L('上傳失敗：','Upload failed: ','បរាជ័យ៖ ')+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.style.opacity=1;}}}
 
 
@@ -2529,6 +2537,7 @@ async function importJSON(inp){
     await idbSaveAll(); rebuild();
     ['ov','grp','ind','emp','dim','rec','appr'].forEach(function(k){pLatest(k);});
     showApp(); renderAll();
+    if(res.added||res.updated) scheduleAutoCloudSync('restore');
     toast(L('已還原（新增 '+res.added+'／覆蓋 '+res.updated+'）','Restored ('+res.added+' new / '+res.updated+' updated)','បានស្តារ'),'success');
   }catch(e){toast(L('還原失敗：','Restore failed: ','បរាជ័យ៖ ')+e.message,'error');}
   inp.value='';
@@ -2639,7 +2648,9 @@ Object.assign(window,{setLang:setLang,setTab:setTab,onFiles:onFiles,
   exportXlsx:exportXlsx,clearAllData:clearAllData});
 init();
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:transfer'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'transfer',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>

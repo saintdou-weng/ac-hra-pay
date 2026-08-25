@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
@@ -555,9 +556,10 @@ async function smartImport(input){
     ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${l.n} ${T('筆警告記錄','records')} · ${l.emps} ${T('位員工','staff')} · ${T('年度','years')} ${l.sheets.join(', ')}
       <br><span class="text-slate-400">${Object.entries(l.byLv).map(([k,v])=>lvName(k)+' '+v).join('　')}${l.skipped?T(`　（略過 ${l.skipped} 張非年度分頁）`,''):''}</span></span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`).join('')
-   +`<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-sky-700">📌 ${T('匯入資料目前只存在本機。要同步到 Google Sheet 供 Telegram 查詢，請按右上角「☁ 上傳」（需管理權限）。','Imported data is local only — use ☁ Upload to sync to the cloud sheet.')}</div>`;
+   +`<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('匯入後會在背景自動同步；右上角 ☁ 上傳／下載保留作手動維修。','Imported data syncs automatically in the background; manual cloud buttons remain as fallback.')}</div>`;
   rep.classList.remove('hidden');
   applyLang();
+  if(okN>0) scheduleWarningAutoSync('import');
 }
 
 // ━━━━ 篩選 ━━━━
@@ -1083,7 +1085,11 @@ async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');i
 async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const pending=RECS.filter(r=>r._src==='import'||!r.row);if(!pending.length){if(!opts.silent)toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'success');return true;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}let done=0,skipped=0;try{for(let i=0;i<pending.length;i+=40){const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',status:r.status||'已核可'}));const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,data:JSON.stringify(chunk)});if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}if(b&&b.querySelector('span'))b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;}if(!opts.silent)toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');if(b.querySelector('span'))b.querySelector('span').textContent=T('上傳','Upload');}}}
 
 const HRPAY_WARNING_AUTO_KEY='hrpay:auto:warning';
-function scheduleWarningAutoSync(reason){try{localStorage.setItem(HRPAY_WARNING_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok){await cloudDownload({silent:true});try{localStorage.removeItem(HRPAY_WARNING_AUTO_KEY);}catch(e){}}},10);}
+function scheduleWarningAutoSync(reason){
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('warning',reason||'change',{},900);return;}
+  try{localStorage.setItem(HRPAY_WARNING_AUTO_KEY,String(Date.now()));}catch(e){}
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok){await cloudDownload({silent:true});try{localStorage.removeItem(HRPAY_WARNING_AUTO_KEY);}catch(e){}}},900);
+}
 
 // ━━━━ TELEGRAM ━━━━
 
@@ -1296,7 +1302,9 @@ function setupDropZone(sel,handler,ringCls){
   applyLang();
 })();
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:warning'))scheduleWarningAutoSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'warning',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>

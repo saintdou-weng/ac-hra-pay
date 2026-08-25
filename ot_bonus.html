@@ -20,6 +20,7 @@
   @media print{.no-print{display:none!important}}
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
+<script src="shared/hrpay-auto-sync.js"></script>
 </head>
 <body class="text-slate-800">
 
@@ -509,6 +510,7 @@ async function smartImport(input){
     : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('加班表與獎金表皆已載入。','Both Overtime and Bonus files loaded.')}</div>`);
   rep.classList.remove('hidden');
   applyLang();
+  if(okN>0) scheduleAutoCloudSync('import');
 }
 
 // ━━━━━━━━━ 篩選與彙總 ━━━━━━━━━
@@ -1087,7 +1089,11 @@ function otCloudMeta(){return{periods:Array.from(new Set(RECS.map(function(r){re
 function otLegacyRows(env){const D=(env&&env.data)||env||{};return(D.records||[]).map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
 async function otApplyCloud(rows){RECS=(rows||[]).map(function(x){const r=Object.assign({},x);delete r._syncId;delete r._syncPeriod;return r;});await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
 function otSyncStatus(msg,type){console.log('[OT smart sync]',msg);}
-function scheduleAutoCloudSync(reason){try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},10);}
+function scheduleAutoCloudSync(reason){
+  if(window.HRPayAutoSync){HRPayAutoSync.schedule('otbonus',reason||'change',{},900);return;}
+  try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+}
 async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:otCloudRecords(),legacyToRecords:otLegacyRows,meta:otCloudMeta(),onStatus:otSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
@@ -1151,7 +1157,9 @@ function setupDropZone(sel, handler, ringCls){
 
 setupDropZone('#dz-smart-ob', smartImport, 'ring-teal-400');
 
-window.addEventListener('load',function(){setTimeout(function(){try{if(localStorage.getItem('hrpay:auto:otbonus'))scheduleAutoCloudSync('retry');}catch(e){}},1200);});
+window.addEventListener('load',function(){
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'otbonus',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+});
 </script>
 </body>
 </html>
