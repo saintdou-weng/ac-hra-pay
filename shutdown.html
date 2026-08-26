@@ -895,30 +895,17 @@ function hrpPreviewText(text,kind){
 
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(scope,period){
-  const evs=filtered().filter(e=> scope==='year'
-    ? e.start.slice(0,4)===period.slice(0,4)
-    : e.start.slice(0,7)===period);
+  const evs=filtered().filter(e=>scope==='year'?e.start.slice(0,4)===period.slice(0,4):e.start.slice(0,7)===period);
   if(!evs.length)return{err:T('此期間無停工記錄','No shutdown records for this period')};
-  const [y,m]=period.split('-');
-  const label = scope==='year' ? y : `${MS[+m-1]} ${y}`;
-  const days=evs.reduce((s,e)=>s+e.days,0);
-  const pd=evs.reduce((s,e)=>s+e.personDays,0);
-  const full=evs.filter(e=>e.lineRatio>=0.999).length;
-  let t=`🛑 <b>停工記錄 Shutdown Report</b>\n`
-   +`📅 期間 Period：${esc(label)}\n`
-   +`🔁 停工次數 Events：${evs.length}　（${T('全廠','full')} ${full}）\n`
-   +`📆 停工天數 Days：${int(days)}\n`
-   +`👥 停工人日 Person-days：<b>${int(pd)}</b>\n`
-   +`— — — — — — — — — —\n<b>各次明細 Event Detail</b>\n`
-   +`<i>日期 Date ｜ 天數 Days ｜ 人數 Staff</i>\n`;
-  evs.slice().sort((a,b)=>a.start<b.start?-1:1).forEach(e=>{
-    const same=e.start===e.end;
-    t+=`${e.start}${same?'':' ~ '+e.end}（${LANG==='zh'?WD_ZH[e.wdStart]||e.wdStart:e.wdStart}）：${e.days} 天 · ${int(e.shutPPL)} 人`
-      +(e.ttlLine?` · ${e.shutLine}/${e.ttlLine} 組`:'')+`\n`;
-  });
-  t+=`— — — — — — — — — —\n合計 TOTAL：${evs.length} 次 · ${int(days)} 天 · <b>${int(pd)} 人日</b>`;
-  return {text:t};
+  const [y,m]=period.split('-'),label=scope==='year'?y:`${MS[+m-1]} ${y}`;
+  const days=evs.reduce((s,e)=>s+N(e.days),0),pd=evs.reduce((s,e)=>s+N(e.personDays),0),ppl=evs.reduce((s,e)=>s+N(e.shutPPL),0),full=evs.filter(e=>e.lineRatio>=.999).length,partial=evs.length-full;
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[12,6,6,7,7,10];
+  let tb=row(['Date','Days','PPL','Lines','Ratio%','PersonDay'],W)+'\n'+row(['------------','------','------','-------','-------','----------'],W)+'\n';
+  evs.slice().sort((a,b)=>a.start<b.start?-1:1).forEach(e=>tb+=row([e.start,e.days,int(e.shutPPL),e.ttlLine?`${e.shutLine}/${e.ttlLine}`:'—',e.ttlLine?(e.lineRatio*100).toFixed(0):'—',int(e.personDays)],W)+'\n');
+  tb+=row(['TOTAL',int(days),int(ppl),evs.length,`${full}/${partial}`,int(pd)],W);
+  return{text:'🛑 <b>停工記錄 Shutdown Report</b>\n📅 期間 Period：'+esc(label)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Events',evs.length,'Full',full,'Partial',partial],[10,6,8,6,10,6])+'\n'+row(['Days',int(days),'PersonDays',int(pd),'Avg PPL',evs.length?int(ppl/evs.length):0],[10,6,10,8,10,6])+'</pre>\n<b>各次明細 Event Breakdown</b>\n<pre>'+esc(tb)+'</pre>'};
 }
+
 function openTgModal(){
   const ps=allPeriods().reverse();
   if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
@@ -956,7 +943,7 @@ function previewTg(){
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');btn.disabled=false;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition';}
 }
 async function confirmSendTg(){

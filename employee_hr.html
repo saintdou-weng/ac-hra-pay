@@ -555,6 +555,7 @@ function parseRoster(wb, fileName){
         education:col.education!==undefined?String(r[col.education]||'').trim():'',
         marital:col.marital!==undefined?String(r[col.marital]||'').trim():'',
         workStatus:col.workStatus!==undefined?String(r[col.workStatus]||'').trim():'',
+        empStatus:col.empStatus!==undefined?String(r[col.empStatus]||'').trim():'',
         phone:col.phone!==undefined?String(r[col.phone]||'').trim():''
       });
     }
@@ -1253,32 +1254,39 @@ function hrpPreviewText(text,kind){
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept){
   const s=SNAPS[key]; if(!s)return{err:T('查無此快照','Snapshot not found')};
-  const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;
-  if(!rows.length)return{err:T('此範圍無人員資料','No staff in this scope')};
-  const fem=rows.filter(r=>r.gender==='F').length;
+  const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows; if(!rows.length)return{err:T('此範圍無人員資料','No staff in this scope')};
   const sd=(()=>{const [y,m]=key.split('-').map(Number);return new Date(y,(m||12)-1,28);})();
-  const ten=rows.map(r=>{const j=toDate(r.join);return j?yearsBetween(j,sd):0;}).filter(t=>t>0);
-  const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
-  const dm={};
-  rows.forEach(r=>{(dm[r.dept]=dm[r.dept]||{n:0,f:0});dm[r.dept].n++;if(r.gender==='F')dm[r.dept].f++;});
-  const list=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n);
-  const y=+key.slice(0,4);
-  const newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===y).length;
-
-  let t=`👥 <b>員工人力概況 Workforce Summary</b>\n`
-   +`📅 時點 Snapshot：${esc(s.label)}\n`
-   +(dept?`🏭 部門 Dept：${esc(dept)}\n`:'')
-   +`👤 總人數 Headcount：<b>${int(rows.length)}</b>\n`
-   +`⚧ 女 Female ${fem}（${(fem/rows.length*100).toFixed(1)}%）　男 Male ${rows.length-fem}\n`
-   +(ages.length?`🎂 平均年齡 Avg age：${(ages.reduce((a,b)=>a+b,0)/ages.length).toFixed(1)}\n`:'')
-   +(ten.length?`📆 平均年資 Avg tenure：${(ten.reduce((a,b)=>a+b,0)/ten.length).toFixed(1)} ${T('年','yr')}\n`:'')
-   +`🆕 ${y} ${T('年到職','joiners')}：${newN}\n`
-   +`— — — — — — — — — —\n<b>各部門人數 By Department</b>\n`
-   +`<i>部門 Dept ｜ 人數 Staff ｜ 女性比 F%</i>\n`;
-  list.forEach(([d,v])=>{t+=`${esc(d)}：${v.n} 人 · ${(v.f/v.n*100).toFixed(0)}%\n`;});
-  t+=`— — — — — — — — — —\n合計 TOTAL：${int(rows.length)} 人 Staff · ${list.length} ${T('部門','depts')}`;
-  return {text:t};
+  function locType(r){const p=String(r.province||'').toLowerCase();if(!p)return'U';return /sihanouk|preah\s*sihanouk|ព្រះសីហនុ|西哈努克/.test(p)?'L':'O';}
+  function natType(r){const n=String(r.nationality||'').toLowerCase();if(!n)return'U';return /cambod|khmer|កម្ពុជា|ខ្មែរ|柬埔寨/.test(n)?'C':'F';}
+  function empType(r){const x=[r.workStatus,r.empStatus,r.status].filter(Boolean).join(' ').toLowerCase();if(!x)return'U';if(/probation|試用|សាកល្បង/.test(x))return'P';if(/contract|fixed|temporary|temp\b|合同|契約|កិច្ចសន្យា/.test(x))return'C';if(/regular|permanent|formal|正式|正職|អចិន្ត្រៃយ៍/.test(x))return'R';return'O';}
+  function stat(rs){
+    const f=rs.filter(r=>r.gender==='F').length,m=rs.length-f,ages=rs.map(r=>N(r.age)).filter(a=>a>5&&a<80),tens=rs.map(r=>{const j=toDate(r.join);return j?yearsBetween(j,sd):0;}).filter(v=>v>0);
+    const lc=rs.filter(r=>locType(r)==='L').length,lo=rs.filter(r=>locType(r)==='O').length,lu=rs.length-lc-lo;
+    const nc=rs.filter(r=>natType(r)==='C').length,nf=rs.filter(r=>natType(r)==='F').length,nu=rs.length-nc-nf;
+    const ec=rs.filter(r=>empType(r)==='C').length,er=rs.filter(r=>empType(r)==='R').length,ep=rs.filter(r=>empType(r)==='P').length,eo=rs.length-ec-er-ep;
+    return{n:rs.length,f,m,age:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,ten:tens.length?tens.reduce((a,b)=>a+b,0)/tens.length:0,lc,lo,lu,nc,nf,nu,ec,er,ep,eo};
+  }
+  const S=stat(rows),y=+key.slice(0,4),newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===y).length,dm={};rows.forEach(r=>(dm[r.dept||'Other']=dm[r.dept||'Other']||[]).push(r));
+  const list=Object.entries(dm).map(([d,rs])=>[d,stat(rs)]).sort((a,b)=>b[1].n-a[1].n);
+  const pct=(a,b)=>b?((a/b)*100).toFixed(1):'0.0', row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[18,6,6,6,6,6,6,6,6];
+  let tb=row(['Dept','Staff','%','F%','Age','Ten','Local%','Ctr%','Reg%'],W)+'\n'+row(['------------------','------','------','------','------','------','------','------','------'],W)+'\n';
+  list.forEach(([d,v])=>tb+=row([d,v.n,pct(v.n,S.n),pct(v.f,v.n),v.age?v.age.toFixed(1):'—',v.ten?v.ten.toFixed(1):'—',pct(v.lc,v.n),pct(v.ec,v.n),pct(v.er,v.n)],W)+'\n');
+  tb+=row(['TOTAL',S.n,'100.0',pct(S.f,S.n),S.age?S.age.toFixed(1):'—',S.ten?S.ten.toFixed(1):'—',pct(S.lc,S.n),pct(S.ec,S.n),pct(S.er,S.n)],W);
+  const W2=[12,9,12,9];
+  let summary=row(['Headcount',S.n,'Departments',list.length],W2)+'\n'
+    +row(['Female',`${S.f} ${pct(S.f,S.n)}%`,'Male',`${S.m} ${pct(S.m,S.n)}%`],W2)+'\n'
+    +row(['Avg Age',S.age?S.age.toFixed(1):'—','Avg Tenure',S.ten?S.ten.toFixed(1)+' yr':'—'],W2)+'\n'
+    +row(['Joiners '+y,newN,' ',' '],W2)+'\n'
+    +row(['本地 Local',`${S.lc} ${pct(S.lc,S.n)}%`,'外地 Out-area',`${S.lo} ${pct(S.lo,S.n)}%`],W2)+'\n'
+    +row(['柬籍 Cambodian',`${S.nc} ${pct(S.nc,S.n)}%`,'外籍 Foreign',`${S.nf} ${pct(S.nf,S.n)}%`],W2)+'\n'
+    +row(['合同 Contract',`${S.ec} ${pct(S.ec,S.n)}%`,'正式 Regular',`${S.er} ${pct(S.er,S.n)}%`],W2)+'\n'
+    +row(['試用 Probation',`${S.ep} ${pct(S.ep,S.n)}%`,'其他/未知',S.eo],W2);
+  if(S.lu||S.nu)summary+='\n'+row(['地區未知',S.lu,'國籍未知',S.nu],W2);
+  let t='👥 <b>員工人力概況 Workforce Summary</b>\n📅 時點 Snapshot：'+esc(s.label)+(dept?'\n🏭 部門 Dept：'+esc(dept):'')+'\n<b>整體結構 Workforce Profile</b>\n<pre>'+summary+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+  t+='\n<i>本地/外地依 Province 判定；合同/正式依 Work Status / Employee Status / Status 原始欄位判定，缺欄位則列未知，不自行猜測。</i>';
+  return{text:t};
 }
+
 function openTgModal(){
   const ks=snapKeys().reverse();
   if(!ks.length){toast(T('尚無資料','No data yet'),'error');return;}
@@ -1305,7 +1313,7 @@ function previewTg(){
   const pv=qs('#tg-preview'), b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
 }
 async function confirmSendTg(){

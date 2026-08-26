@@ -1150,36 +1150,15 @@ function inTgKey(r,unit,key){
   return `${y}-${pad(mo)}`===key;
 }
 function buildTgText(unit,key){
-  const list=filtered().filter(r=>inTgKey(r,unit,key));
-  if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
-  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key;
-  const pend=list.filter(r=>r.status==='待審核').length;
-  const act=list.filter(r=>r.status==='已核可'&&!isExpired(r)).length;
-  const byLv={};list.forEach(r=>byLv[r.level]=(byLv[r.level]||0)+1);
-  const dm={};list.forEach(r=>{const d=r.empDept||'—';dm[d]=(dm[d]||0)+1;});
-  const emps=new Set(list.map(r=>r.empId));
-  // 達終止門檻者（全期間計算）
-  const bf={};
-  filtered().filter(r=>!isExpired(r)&&r.status==='已核可'&&(r.level==='Big'||r.level==='Final'))
-    .forEach(r=>{if(!bf[r.empId])bf[r.empId]={n:0,name:r.empName};bf[r.empId].n++;});
-  const risk=Object.entries(bf).filter(([,v])=>v.n>=TERMINATE_AT);
-
-  let t=`⚠️ <b>員工警告摘要 Warning Summary</b>\n`
-   +`📅 期間 Period：${esc(label)}\n`
-   +`📋 警告件數 Records：<b>${list.length}</b>　👤 ${T('涉及','staff')}：${emps.size}\n`
-   +`⏳ ${T('待處理','Open')}：${pend}　🔶 ${T('目前有效','Active')}：${act}\n`
-   +`— — — — — — — — — —\n<b>${T('各等級 By Level','By Level')}</b>\n`;
-  LEVELS.forEach(l=>{if(byLv[l.k])t+=`${l.zh} ${l.en}：${byLv[l.k]}\n`;});
-  t+=`— — — — — — — — — —\n<b>${T('各部門 By Department','By Department')}</b>\n`;
-  Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,v])=>{t+=`${esc(d)}：${v}\n`;});
-  if(risk.length){
-    t+=`— — — — — — — — — —\n🚨 <b>${T(`達終止門檻（有效大過/最後 ≥ ${TERMINATE_AT}）`,`At termination threshold`)}</b>\n`;
-    risk.forEach(([id,v])=>{t+=`${esc(v.name||id)} #${esc(id)}：${v.n} ${T('次','×')}\n`;});
-  }
-  t+=`— — — — — — — — — —\n合計 TOTAL：${list.length} ${T('件','records')}`;
-  if(pend)t+=`\n\n👉 ${T('尚有 '+pend+' 件待 Paul 核可，可於申請通知訊息上直接按鈕核可','pending approval')}`;
-  return {text:t};
+  const list=filtered().filter(r=>inTgKey(r,unit,key)); if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
+  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key,pend=list.filter(r=>r.status==='待審核'||r.status==='待核可').length,act=list.filter(r=>r.status==='已核可'&&!isExpired(r)).length,emps=new Set(list.map(r=>r.empId));
+  const byLv={},dm={};list.forEach(r=>{byLv[r.level]=(byLv[r.level]||0)+1;const d=r.empDept||'—';dm[d]=(dm[d]||0)+1;});
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[20,7,8];
+  let tb=row(['Department','Records','%'],W)+'\n'+row(['--------------------','-------','--------'],W)+'\n';Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,v])=>tb+=row([d,v,((v/list.length)*100).toFixed(1)],W)+'\n');tb+=row(['TOTAL',list.length,'100.0'],W);
+  const lv=LEVELS.filter(l=>byLv[l.k]).map(l=>l.en+': '+byLv[l.k]).join(' | ');
+  return{text:'⚠️ <b>員工警告摘要 Warning Summary</b>\n📅 期間 Period：'+esc(label)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Records',list.length,'Employees',emps.size],[12,8,12,8])+'\n'+row(['Open',pend,'Active',act],[12,8,12,8])+'</pre>\n<b>等級 Level</b>\n'+esc(lv||'—')+'\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>'+(pend?'\n👉 '+T('尚有 '+pend+' 件待處理','Open items: '+pend):'')};
 }
+
 function buildTgReview(unit,key){
   const list=filtered().filter(r=>inTgKey(r,unit,key));
   if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
@@ -1190,12 +1169,13 @@ function buildTgReview(unit,key){
   const verified=open.filter(r=>r.status==='待核可').length;
   const cloud=open.filter(r=>r.row);
   const localOnly=open.length-cloud.length;
-  let t=`👀 警告核可流程 Warning Review\n📅 期間 Period：${label}\n`
-    +`📋 待處理 Open：${open.length}　① 待審查：${pending}　② 待 Paul 核可：${verified}\n`
-    +`☁️ 可送 Telegram：${cloud.length}`+(localOnly?`　⚠️ 本機未同步：${localOnly}`:'')
-    +`\n━━━━━━━━━━━━━━━━\n`
-    +T('確認後會逐筆發到群組。待審查項目顯示「👀 審查通過／↩ 退回」；審查通過後，同一則訊息改為「✅ Paul 核可／❌ 退件」。',
-       'Each open warning will be sent to the group. Review first, then Paul approves in the same message.');
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[12,8,12,8];
+  let t=`👀 <b>警告核可流程 Warning Review</b>\n📅 期間 Period：${label}\n<pre>`
+    +row(['Open',open.length,'Pending',pending],W)+`\n`
+    +row(['Verified',verified,'Cloud',cloud.length],W)+`\n`
+    +row(['Local only',localOnly,' ',' '],W)+`</pre>\n`
+    +T('確認後逐筆發到群組；每筆先審查，再由 Paul 於同一訊息核可。',
+       'Each record is sent to the group; review first, then Paul approves in the same message.');
   return {text:t,rows:cloud.map(r=>r.row),open:open.length,localOnly};
 }
 function openTgModal(){
@@ -1226,7 +1206,7 @@ function previewTg(){
   const b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{const shown=TG_MODE==='summary'?hrpPreviewText(r.text,'checker'):r.text;pv.textContent=shown.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');b.disabled=false;
+  else{const shown=TG_MODE==='summary'?hrpPreviewText(r.text,'checker'):r.text;pv.textContent=shown.replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg '+(TG_MODE==='review'?'bg-sky-600 hover:bg-sky-700':'bg-amber-600 hover:bg-amber-700')+' text-white transition';}
   b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }

@@ -2280,28 +2280,28 @@ function salLine(s,b,a){
 function buildTgText(scope,key,recordId,ptype){
   ptype=ptype||_tgPType;
   if(!key)return {err:L('沒有可傳送的資料','Nothing to send','គ្មានទិន្នន័យ')};
-  var H='🏭 <b>Vantage River Textiles</b>　'+L('人事異動','Position Transfer','ផ្លាស់ប្តូរតំណែង')+'\n';
+  var row=function(a,w){return a.map(function(v,i){return String(v==null?'':v).slice(0,w[i]).padEnd(w[i],' ');}).join(' ');};
+  var H='🏭 <b>Vantage River Textiles</b> · '+L('人事異動','Position Transfer','ផ្លាស់ប្តូរតំណែង')+'\n';
   if(scope==='batch'){
     var b=BATCHES[key]; if(!b)return {err:L('找不到該批次','Batch not found','រកមិនឃើញក្រុម')};
     var dest={}; b.recs.forEach(function(r){var d=r.newDept||'—';dest[d]=(dest[d]||0)+1;});
+    var W=[24,7,8], tb=row(['Destination','Staff','%'],W)+'\n'+row(['------------------------','-------','--------'],W)+'\n';
+    Object.keys(dest).sort(function(x,y){return dest[y]-dest[x];}).forEach(function(d){tb+=row([d,dest[d],(dest[d]/b.recs.length*100).toFixed(1)],W)+'\n';});
+    tb+=row(['TOTAL',b.recs.length,'100.0'],W);
     var t='📦 <b>團體調轉 Group Transfer</b>\n'+H
-     +'📅 生效日 Effective：<b>'+esc(b.eff)+'</b>\n'
-     +'🔀 調動 Movement：<b>'+esc(b.origDept||'—')+'</b> → '+esc(b.dests.join(' / ')||'—')+'\n'
-     +'📝 原因 Reason：'+esc(batchReason(b))+'\n'
-     +'👥 人數 Headcount：<b>'+b.recs.length+'</b> 人 ppl\n'
-     +'💰 薪資異動 Salary：無 None（團體調轉不涉薪資）\n\n'
-     +'<b>去向分佈 Destination</b>\n'
-     +Object.keys(dest).sort(function(x,y){return dest[y]-dest[x];})
-        .map(function(d){return '　• '+esc(d)+'　'+dest[d]+' 人 ppl';}).join('\n')
-     +'\n\n<b>人員清單 Member List</b>\n';
-    var acc='',cut=0;
+      +'<pre>'+row(['Effective',b.eff,'Headcount',b.recs.length],[12,14,12,8])+'\n'
+      +row(['From',b.origDept||'—','Salary','None'],[12,20,12,8])+'</pre>\n'
+      +'📝 <b>原因 Reason：</b>'+esc(batchReason(b))+'\n'
+      +'<b>去向分佈 Destination Breakdown</b>\n<pre>'+esc(tb)+'</pre>\n'
+      +'<b>人員清單 Member List</b>\n';
+    var Wm=[5,12,20,22], mt=row(['#','ID','Name','To Dept'],Wm)+'\n'+row(['-----','------------','--------------------','----------------------'],Wm)+'\n';
+    var cut=0;
     b.recs.forEach(function(r,i){
-      var m=String(i+1).padStart(2,' ')+'. <code>'+esc(r.empId)+'</code> '+esc(r.name)+'　'+esc(r.origDept)+' → <b>'+esc(r.newDept)+'</b>\n';
-      if((t+acc+m).length<TG_LIMIT)acc+=m; else cut++;
+      var m=row([i+1,r.empId||'',r.name||'',r.newDept||'—'],Wm)+'\n';
+      if((t+'<pre>'+mt+m+'</pre>').length<TG_LIMIT-120)mt+=m; else cut++;
     });
-    t+=acc+(cut?'　…（其餘 '+cut+' 筆略 and '+cut+' more）\n':'')+'\n🕐 '+nowStr();
-    return {text:t,headcount:b.recs.length,amount:0,
-      title:'團體調轉 Group Transfer — '+b.origDept+' → '+b.dests.join('/')+' ('+b.eff+')'};
+    t+='<pre>'+esc(mt.trimEnd())+'</pre>'+(cut?'\n… '+cut+' more / 其餘 '+cut+' 筆略':'')+'\n🕐 '+nowStr();
+    return {text:t,headcount:b.recs.length,amount:0,title:'團體調轉 Group Transfer — '+b.origDept+' → '+b.dests.join('/')+' ('+b.eff+')'};
   }
   if(scope==='ind'){
     var D=RECS.filter(function(r){return r.kind==='individual'&&tgDateInPeriod(r.effDate,ptype,key);});
@@ -2310,44 +2310,47 @@ function buildTgText(scope,key,recordId,ptype){
     if(!D.length)return {err:L('該期間無個人調職記錄','No individual transfers','គ្មានទិន្នន័យ')};
     var tot=D.reduce(function(s,r){return s+recDiff(r);},0), single=(D.length===1&&recordId);
     var t2=(single?'👤 <b>單人調職 Single Employee Transfer</b>\n':'👤 <b>個人調職 Individual Transfer</b>\n')+H
-     +(single?('📅 生效日 Effective：<b>'+esc(D[0].effDate)+'</b>\n'):
-               ('📅 期間 Period：<b>'+esc(tgPeriodLabel(ptype,key))+'</b>\n'))
-     +'👥 筆數 Records：<b>'+D.length+'</b>　💰 調薪合計 Total Adj.：<b>$'+fmtS(tot)+'</b>\n';
-    var acc2='',cut2=0;
+      +'<pre>'+row(['Period',single?D[0].effDate:tgPeriodLabel(ptype,key),'Records',D.length],[12,18,12,8])+'\n'
+      +row(['Total Adj.','$'+fmtS(tot),'Avg/Rec.',D.length?'$'+fmtS(tot/D.length):'$0.00'],[12,18,12,12])+'</pre>\n';
+    var acc='',cut2=0;
     D.forEach(function(r,i){
-      var blk='\n━━ '+(i+1)+'. <code>'+esc(r.empId)+'</code> '+esc(r.name)+' ━━\n'
-       +'　異動 Movement：'+esc(r.origDept)+'/'+esc(r.origPos||'—')+' → <b>'+esc(r.newDept)+'/'+esc(r.newPos||'—')+'</b>\n'
-       +'　原因 Reason：'+esc(r.reason||'—')+'　生效 Eff.：'+esc(r.effDate)+'\n'
-       +SAL.filter(function(s){return N(r.before[s.k])||N(r.after[s.k]);})
-           .map(function(s){return '　'+s.zh+' '+s.en+'：'+fmt(N(r.before[s.k]))+' → '+fmt(N(r.after[s.k]))
-             +((N(r.after[s.k])-N(r.before[s.k]))?'　<b>'+fmtS(N(r.after[s.k])-N(r.before[s.k]))+'</b>':'');}).join('\n')
-       +'\n　<b>合計 Total：'+fmt(salTotal(r.before))+' → '+fmt(salTotal(r.after))+'　'+fmtS(recDiff(r))+'</b>\n';
-      if((t2+acc2+blk).length<TG_LIMIT)acc2+=blk; else cut2++;
+      var fields='';
+      fields+=row(['ID',r.empId||'','Name',r.name||''],[11,13,11,20])+'\n';
+      fields+=row(['From Dept',r.origDept||'—','From Pos',r.origPos||'—'],[11,18,11,22])+'\n';
+      fields+=row(['To Dept',r.newDept||'—','To Pos',r.newPos||'—'],[11,18,11,22])+'\n';
+      fields+=row(['Effective',r.effDate||'—','Reason',r.reason||'—'],[11,13,11,30])+'\n';
+      var sal=SAL.filter(function(x){return N(r.before[x.k])||N(r.after[x.k]);});
+      var sw=[18,10,10,10], st=row(['Salary Item','Before','After','Diff'],sw)+'\n'+row(['------------------','----------','----------','----------'],sw)+'\n';
+      sal.forEach(function(x){var bef=N(r.before[x.k]),aft=N(r.after[x.k]);st+=row([x.en||x.zh,bef.toFixed(2),aft.toFixed(2),fmtS(aft-bef)],sw)+'\n';});
+      st+=row(['TOTAL',fmt(salTotal(r.before)),fmt(salTotal(r.after)),fmtS(recDiff(r))],sw);
+      var blk='\n<b>— '+(i+1)+'. '+esc(r.empId)+' '+esc(r.name)+' —</b>\n<pre>'+esc(fields.trimEnd())+'</pre>\n<pre>'+esc(st)+'</pre>\n';
+      if((t2+acc+blk).length<TG_LIMIT-120)acc+=blk; else cut2++;
     });
-    t2+=acc2+(cut2?'\n　…（其餘 '+cut2+' 筆略 and '+cut2+' more）\n':'')+'\n🕐 '+nowStr();
-    return {text:t2,headcount:D.length,amount:tot,
-      title:(single?'單人調職 Single Employee Transfer — '+D[0].empId+' '+D[0].name+' ('+D[0].effDate+')'
-                   :'個人調職 Individual Transfer — '+tgPeriodLabel(ptype,key))};
+    t2+=acc+(cut2?'\n… '+cut2+' more / 其餘 '+cut2+' 筆略\n':'')+'\n🕐 '+nowStr();
+    return {text:t2,headcount:D.length,amount:tot,title:(single?'單人調職 Single Employee Transfer — '+D[0].empId+' '+D[0].name+' ('+D[0].effDate+')':'個人調職 Individual Transfer — '+tgPeriodLabel(ptype,key))};
   }
   var D2=RECS.filter(function(r){return tgDateInPeriod(r.effDate,ptype,key);});
   if(!D2.length)return {err:L('該期間無資料','No data','គ្មានទិន្នន័យ')};
   var g=D2.filter(function(r){return r.kind==='group';}), i2=D2.filter(function(r){return r.kind==='individual';});
   var bks={}; g.forEach(function(r){if(r._bk)bks[r._bk]=1;});
   var em={}; D2.forEach(function(r){em[_norm(r.empId).toUpperCase()]=1;});
-  var tot2=i2.reduce(function(s,r){return s+recDiff(r);},0);
-  var dep={}; D2.forEach(function(r){var k2=(r.origDept||'—')+' → '+(r.newDept||'—');dep[k2]=(dep[k2]||0)+1;});
+  var tot2=i2.reduce(function(s,r){return s+recDiff(r);},0), dep={};
+  D2.forEach(function(r){var k2=(r.origDept||'—')+' → '+(r.newDept||'—');dep[k2]=(dep[k2]||0)+1;});
+  var W3=[32,7,8], rt=row(['Route','Staff','%'],W3)+'\n'+row(['--------------------------------','-------','--------'],W3)+'\n';
+  Object.keys(dep).sort(function(a,b2){return dep[b2]-dep[a];}).slice(0,10).forEach(function(k2){rt+=row([k2,dep[k2],(dep[k2]/D2.length*100).toFixed(1)],W3)+'\n';});
+  rt+=row(['TOTAL',D2.length,'100.0'],W3);
   var t3='📊 <b>人事異動期間報告 Period Transfer Report</b>\n'+H
-   +'📅 期間 Period：<b>'+esc(tgPeriodLabel(ptype,key))+'</b>\n\n'
-   +'👥 異動人次 Movements：<b>'+D2.length+'</b>　（涉及員工 Employees：'+Object.keys(em).length+'）\n'
-   +'📦 團體調轉 Group：'+g.length+' 人 ppl（'+Object.keys(bks).length+' 批 batches）\n'
-   +'👤 個人調職 Individual：'+i2.length+' 人 ppl\n'
-   +'💰 調薪合計 Total Adj.：<b>$'+fmtS(tot2)+'</b>'+(i2.length?'　人均 avg $'+fmtS(tot2/i2.length):'')+'\n\n'
-   +'<b>調動路線 Top 10 Routes</b>\n'
-   +Object.keys(dep).sort(function(a,b2){return dep[b2]-dep[a];}).slice(0,10)
-     .map(function(k2){return '　• '+esc(k2)+'　'+dep[k2]+' 人 ppl';}).join('\n')
-   +'\n\n🕐 '+nowStr();
+    +'<pre>'+row(['Period',tgPeriodLabel(ptype,key),'Movements',D2.length],[12,18,12,8])+'\n'
+    +row(['Employees',Object.keys(em).length,'Group',g.length+' / '+Object.keys(bks).length+' batches'],[12,18,12,20])+'\n'
+    +row(['Individual',i2.length,'Total Adj.','$'+fmtS(tot2)],[12,18,12,20])+'\n'
+    +row(['Avg Adj.',i2.length?'$'+fmtS(tot2/i2.length):'$0.00',' ',' '],[12,18,12,20])+'</pre>\n'
+    +'<b>調動路線 Top 10 Routes</b>\n<pre>'+esc(rt)+'</pre>\n🕐 '+nowStr();
   return {text:t3,headcount:D2.length,amount:tot2,title:'人事異動期間報告 Transfer Report — '+tgPeriodLabel(ptype,key)};
 }
+
+/* v3.9.2：Summary / Approval 共用完整欄位式正文；資料、核可 key、期間與送審流程不變。 */
+function buildTgSummaryTable(scope,key,recordId,ptype){ return buildTgText(scope,key,recordId,ptype); }
+
 function openTg(){ buildTgPeriodSelect(); hrpSyncPersonField(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
 function openTgFor(scope,key,recordId){
   _tgScope=scope; _tgRecordId=recordId||'';
@@ -2363,9 +2366,9 @@ function openTgFor(scope,key,recordId){
 function previewTg(){
   syncTgMode();
   var key=val('tg-period'), rid=tgSelectedRecordId();
-  var r=buildTgText(_tgScope,key,rid,_tgPType), pv=el('tg-preview'), btn=el('tg-send');
+  var r=(_tgMode==='summary'?buildTgSummaryTable:buildTgText)(_tgScope,key,rid,_tgPType), pv=el('tg-preview'), btn=el('tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='btn flex-1 bg-slate-200 text-slate-400'; }
-  else{ pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|code)>/g,''); btn.disabled=false;
+  else{ pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|code|pre)>/g,''); btn.disabled=false;
     btn.className='btn flex-1 bg-violet-600 text-white hover:bg-violet-700'; }
 }
 async function sendTG(text){
@@ -2402,7 +2405,7 @@ function tgItems(scope,key,recordId,ptype){
   return rows;
 }
 async function confirmSendTg(){
-  var key=val('tg-period'), rid=tgSelectedRecordId(), r=buildTgText(_tgScope,key,rid,_tgPType);
+  var key=val('tg-period'), rid=tgSelectedRecordId(), r=(_tgMode==='summary'?buildTgSummaryTable:buildTgText)(_tgScope,key,rid,_tgPType);
   if(r.err){toast(r.err,'error');return;}
   var items=tgItems(_tgScope,key,rid,_tgPType);
   var approvalPeriod=tgApprovalPeriod(_tgScope,key,rid,_tgPType);

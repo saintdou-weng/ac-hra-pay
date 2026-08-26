@@ -2537,6 +2537,25 @@ function buildSummaryText(which, key){
   return {text:t};
 }
 
+
+/* v3.9.2：Summary / Approval 共用同一份欄位式正文；只改 Telegram 文字排列，不改資料、核可 key 或流程。 */
+function buildSummaryTableText(which,key){
+  const entry=STORE[key];
+  if(!entry)return{err:'查無此期間資料'};
+  const P=labelFromKey(key), src=which==='adv'?(entry.advanceRecords||[]): (entry.payrollRecords||[]);
+  if(!src.length)return{err:which==='adv'?`${P} 尚未上傳預付薪資檔`:`${P} 尚未上傳正式薪資檔`};
+  const dm={};
+  src.forEach(r=>{const d=r.dept||'Other';if(!dm[d])dm[d]={n:0,amt:0};dm[d].n++;dm[d].amt+=Math.abs(N(r.totalSalary));});
+  const list=Object.entries(dm).sort((a,b)=>b[1].amt-a[1].amt), total=list.reduce((s,[,v])=>s+v.amt,0), avg=src.length?total/src.length:0;
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '), W=[20,6,6,11,10];
+  let tb=row(['Dept','Staff','%','Amount','Avg/Staff'],W)+'\n'+row(['--------------------','------','------','-----------','----------'],W)+'\n';
+  list.forEach(([d,v])=>tb+=row([d,int(v.n),((v.n/src.length)*100).toFixed(1),fmt(v.amt),v.n?fmt(v.amt/v.n):'0.00'],W)+'\n');
+  tb+=row(['TOTAL',src.length,'100.0',fmt(total),fmt(avg)],W);
+  const head=which==='adv'?'💰 <b>預付薪資發放 Advance Pay</b>':'💵 <b>正式薪資發放 Payroll</b>';
+  return{text:head+'\n📅 期間 Period：'+esc(P)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Headcount',src.length,'Depts',list.length],[12,8,10,8])+'\n'+row(['Total','$'+fmt(total),'Avg/Staff','$'+fmt(avg)],[12,12,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>'};
+}
+
+
 let _tgWhich='pay';
 function sendSummaryTG(which){
   _tgWhich=which;
@@ -2568,13 +2587,13 @@ function sendSummaryTG(which){
 function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function previewTg(){
   syncTgMode();
-  const r=buildSummaryText(_tgWhich, qs('#tg-period').value);
+  const r=buildSummaryTableText(_tgWhich, qs('#tg-period').value);
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){
     pv.textContent='⚠️ '+r.err;
     btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';
   }else{
-    pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?b>/g,'');
+    pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'');
     btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
   }
 }
@@ -2640,7 +2659,7 @@ function approvalItems(period,which){
 }
 async function confirmSendTg(){
   const period=qs('#tg-period').value;
-  const r=buildSummaryText(_tgWhich, period);
+  const r=buildSummaryTableText(_tgWhich, period);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent='傳送中…';
   let ok;

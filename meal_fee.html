@@ -1363,6 +1363,25 @@ function buildTgText(key){
   if(!e.meal) t+=`\n\n⚠️ ${T('註：本期僅有考勤表，金額為考勤推算值','Note: attendance-only estimate')}`;
   return {text:t};
 }
+
+
+/* v3.9.2：Summary / Approval 共用欄位式正文；保留原期間、人數、Meal-days、匯率、總額、各部門全部內容。 */
+function buildTgSummaryTable(key){
+  const e=STORE[key]; if(!e)return{err:T('查無此期間','Period not found')};
+  const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]); if(!rows.length)return{err:T('此期間無資料','No data for this period')};
+  const rate=rateOf(rows), dl=(e.meal?e.meal.dayList:e.att.dayList)||[], dm={};
+  rows.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={n:0,usd:0,riel:0,md:0});v.n++;v.usd+=N(r.usd);v.riel+=N(r.riel);(r.days||[]).forEach(x=>{if(x.present>0)v.md++;});});
+  const list=Object.entries(dm).sort((a,b)=>b[1].usd-a[1].usd), total=list.reduce((s,[,v])=>s+v.usd,0), riel=list.reduce((s,[,v])=>s+v.riel,0), md=list.reduce((s,[,v])=>s+v.md,0), avg=rows.length?total/rows.length:0;
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '), W=[19,6,6,8,11,9];
+  let tb=row(['Dept','Staff','%','MealDay','Amount','Avg'],W)+'\n'+row(['-------------------','------','------','--------','-----------','---------'],W)+'\n';
+  list.forEach(([d,v])=>tb+=row([d,v.n,((v.n/rows.length)*100).toFixed(1),v.md,fmt(v.usd),v.n?fmt(v.usd/v.n):'0.00'],W)+'\n');
+  tb+=row(['TOTAL',rows.length,'100.0',md,fmt(total),fmt(avg)],W);
+  let t='🍱 <b>餐費發放 Meal Fee</b>\n📅 期間 Period：'+esc(bLabel(key))+(dl.length?'（'+e.month+'/'+Math.min(...dl)+'–'+e.month+'/'+Math.max(...dl)+'）':'')
+    +'\n<b>摘要 Summary</b>\n<pre>'+row(['Headcount',rows.length,'Depts',list.length],[12,8,10,8])+'\n'+row(['Meal-days',md,'Total','$'+fmt(total)],[12,8,10,12])+'\n'+row(['Rate',int(rate),'Riel',int(riel)],[12,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+  if(!e.meal)t+='\n⚠️ '+T('本期僅有考勤表，金額為考勤推算值','Attendance-only estimate');
+  return{text:t};
+}
+
 function openTgModal(){
   const ks=sortedKeys().reverse();
   if(!ks.length){toast(T('尚無資料','No data yet'),'error');return;}
@@ -1381,11 +1400,11 @@ function openTgModal(){
 function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function previewTg(){
   syncTgMode();
-  const r=buildTgText(qs('#tg-period').value);
+  const r=buildTgSummaryTable(qs('#tg-period').value);
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed'; }
-  else { pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?b>/g,'').replace(/<\/?i>/g,''); btn.disabled=false;
+  else { pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,''); btn.disabled=false;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition'; }
 }
 
@@ -1456,7 +1475,7 @@ function approvalItems(key){
 }
 async function confirmSendTg(){
   const key=qs('#tg-period').value;
-  const r=buildTgText(key);
+  const r=buildTgSummaryTable(key);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   const period=key.split(':')[0];

@@ -965,6 +965,25 @@ function buildTgText(type,period){
   if(dept) t+=`\n\n🔎 ${T('已篩選部門','Filtered dept')}：${esc(dept)}`;
   return {text:t};
 }
+
+
+/* v3.9.2：Summary / Approval 共用欄位式正文；保留原部門、人次、時數、金額等資料。 */
+function buildTgSummaryTable(type,period){
+  const dept=qs('#sel-dept')?qs('#sel-dept').value:'', [y,m]=period.split('-');
+  const recs=RECS.filter(r=>(type==='both'||r.type===type)&&`${r.year}-${pad(r.month)}`===period&&(!dept||r.dept===dept));
+  if(!recs.length)return{err:T('此期間無資料','No data for this period')};
+  const dm={}; recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,hour:0,exp:0});v.ppl+=N(r.ppl);v.hour+=N(r.hour);v.exp+=N(r.expense);});
+  const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp), tP=list.reduce((s,[,v])=>s+v.ppl,0),tH=list.reduce((s,[,v])=>s+v.hour,0),tE=list.reduce((s,[,v])=>s+v.exp,0),avg=tP?tE/tP:0;
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[19,6,6,8,10,9];
+  let tb=row(['Dept','Staff','%','Hours','Amount','Avg'],W)+'\n'+row(['-------------------','------','------','--------','----------','---------'],W)+'\n';
+  list.forEach(([d,v])=>tb+=row([d,int(v.ppl),tP?((v.ppl/tP)*100).toFixed(1):'0.0',int(v.hour),fmt(v.exp),v.ppl?fmt(v.exp/v.ppl):'0.00'],W)+'\n');
+  tb+=row(['TOTAL',int(tP),'100.0',int(tH),fmt(tE),fmt(avg)],W);
+  const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>':type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>':'📊 <b>加班＋獎金 OT + Bonus</b>';
+  let t=head+'\n📅 期間 Period：'+MS[+m-1]+' '+y+'\n<b>摘要 Summary</b>\n<pre>'+row(['Depts',list.length,'Headcount',int(tP)],[10,8,10,8])+'\n'+row(['Hours',int(tH),'Total','$'+fmt(tE)],[10,8,10,12])+'\n'+row(['$/Hour',tH?fmt(tE/tH):'—','Avg/Staff',fmt(avg)],[10,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+  if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
+  return{text:t};
+}
+
 function openTgModal(){
   const ps=allPeriods().reverse();
   if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
@@ -980,11 +999,11 @@ function openTgModal(){
 function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function previewTg(){
   syncTgMode();
-  const r=buildTgText(qs('#tg-type').value,qs('#tg-period').value);
+  const r=buildTgSummaryTable(qs('#tg-type').value,qs('#tg-period').value);
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');btn.disabled=false;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition';}
 }
 
@@ -1034,7 +1053,7 @@ async function sendApprovalRequest(period,title,text,amount,headcount){
 }
 async function confirmSendTg(){
   const type=qs('#tg-type').value, period=qs('#tg-period').value;
-  const r=buildTgText(type,period);
+  const r=buildTgSummaryTable(type,period);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   let ok;
