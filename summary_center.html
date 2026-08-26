@@ -167,8 +167,9 @@ function loadLocal(){
   }catch(e){console.warn('meal',e);}
 }
 
-async function pullCloud(){
-  const btn=$('#btn-pull');btn.disabled=true;btn.textContent='☁ 拉取中…';
+async function pullCloud(silent){
+  const btn=$('#btn-pull');
+  if(btn&&!silent){btn.disabled=true;btn.textContent='☁ 拉取中…';}
   let got=0, mealCloudProjection=false;
   for(const m of ['payroll','advance','meal']){
     try{
@@ -194,8 +195,8 @@ async function pullCloud(){
       }
     }catch(e){console.warn('pull raw meal',e);}
   }
-  btn.disabled=false;btn.textContent='☁ 從雲端拉取';
-  toast(got?('已取得 '+got+' 個模組資料（Meal 舊資料也會自動轉換）'):'雲端尚無可用資料');
+  if(btn&&!silent){btn.disabled=false;btn.textContent='☁ 從雲端拉取';}
+  if(!silent)toast(got?('已取得 '+got+' 個模組資料（Meal 舊資料也會自動轉換）'):'雲端尚無可用資料');
   render();
 }
 
@@ -372,6 +373,16 @@ document.querySelectorAll('[data-cost]').forEach(x=>x.addEventListener('change',
   localStorage.setItem('summary_cost_opts',JSON.stringify(o));render();
 }));
 loadLocal();applyCostChecks();render();
+// Full payroll projection can exceed browser localStorage quota. If local cache is absent/marked cloud-only,
+// silently recover the latest Projection from GAS Drive; manual Cloud Pull remains available unchanged.
+setTimeout(function(){
+  try{
+    const needCloud = !MOD.payroll || !MOD.advance ||
+      !!localStorage.getItem('hrpay:projection:cloudOnly:payroll') ||
+      !!localStorage.getItem('hrpay:projection:cloudOnly:advance');
+    if(needCloud && navigator.onLine!==false) pullCloud(true);
+  }catch(e){console.warn('auto projection pull',e);}
+},350);
 </script>
 </body>
 </html>
