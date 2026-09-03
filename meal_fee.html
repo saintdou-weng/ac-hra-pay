@@ -57,6 +57,8 @@
         class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
         ✈️ <span data-en="Telegram">傳送</span>
       </button>
+      <button onclick="openMealMaint()" title="線上新增／修改／刪除"
+        class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">✏️ <span class="hidden sm:inline" data-en="Maintain">線上維護</span></button>
       <button onclick="clearAllData()" title="清除所有資料"
         class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
         🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span>
@@ -703,20 +705,28 @@ async function smartImport(input){
 
 // 多份考勤檔合併（依工號 + 日期）
 function mergeAttendance(att,d){
+  // v3.9.8 SAFE：同一工號+日期是覆蓋，不累加；USD 以「匯入日期區段」分段記錄。
   const idx={}; att.rows.forEach(r=>idx[r.id]=r);
+  att.usdSegments=att.usdSegments||{};
+  const segKey='d:'+[...d.dayList].sort((a,b)=>a-b).join(',');
+  // 舊資料若只有一個相同日期範圍，第一次重匯時把舊總額視為該區段，避免再次加總。
+  if(!Object.keys(att.usdSegments).length && (att.dayList||[]).length){
+    const oldKey='d:'+[...att.dayList].sort((a,b)=>a-b).join(',');
+    att.usdSegments[oldKey]={}; att.rows.forEach(r=>att.usdSegments[oldKey][String(r.id)]=N(r.usd));
+  }
+  att.usdSegments[segKey]={};
   d.rows.forEach(nr=>{
     let r=idx[nr.id];
-    if(!r){ r={id:nr.id,name:nr.name,dept:nr.dept,division:nr.division||'',group:nr.group,days:[],riel:0,usd:0};
-            att.rows.push(r); idx[nr.id]=r; }
+    if(!r){ r={id:nr.id,name:nr.name,dept:nr.dept,division:nr.division||'',group:nr.group,days:[],riel:0,usd:0};att.rows.push(r);idx[nr.id]=r; }
+    r.name=nr.name||r.name;r.dept=nr.dept||r.dept;r.division=nr.division||r.division||'';r.group=nr.group||r.group||'';
     const dmap={}; r.days.forEach(x=>dmap[x.d]=x);
     nr.days.forEach(x=>{ dmap[x.d] ? (dmap[x.d].present=x.present,dmap[x.d].ot=x.ot) : r.days.push({...x}); });
-    r.days.sort((a,b)=>a.d-b.d);
-    r.riel=r.days.reduce((s,x)=>s+x.present+x.ot,0);
-    r.usd=(r.usd||0)+ (nr.usd||0);
+    r.days.sort((a,b)=>a.d-b.d); r.riel=r.days.reduce((s,x)=>s+N(x.present)+N(x.ot),0);
+    att.usdSegments[segKey][String(nr.id)]=N(nr.usd);
   });
+  att.rows.forEach(r=>{r.usd=Object.values(att.usdSegments).reduce((s,m)=>s+N((m||{})[String(r.id)]),0);});
   att.dayList=[...new Set([...att.dayList,...d.dayList])].sort((a,b)=>a-b);
-  att.startDay=Math.min(att.startDay??d.startDay,d.startDay);
-  att.endDay  =Math.max(att.endDay??d.endDay,d.endDay);
+  att.startDay=Math.min(att.startDay??d.startDay,d.startDay); att.endDay=Math.max(att.endDay??d.endDay,d.endDay);
 }
 
 // ━━━━━━━━━━━━ 資料存取 ━━━━━━━━━━━━
@@ -1486,11 +1496,11 @@ async function confirmSendTg(){
     const usd=(rows||[]).reduce((s2,x)=>s2+N(x.usd),0);
     ok=await sendApprovalRequest(key,T('餐費 Meal Fee','Meal Fee')+' — '+bLabel(key),
       r.text,usd,(rows||[]).length,'review',approvalItems(key));
-  }else ok=await sendTG(r.text);
+  }else ok=await sendTG(r.text,{module:'meal',period:key,periods:[String(key).slice(0,7)]});
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){ closeTgModal(); scheduleAutoCloudSync('telegram',key); }
 }
-async function sendTG(text){
+async function sendTG(text,meta){
   const checker=hrpPersonValue('checker',true);
   if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
@@ -1498,7 +1508,7 @@ async function sendTG(text){
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text,checker})});
+      body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
     if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No response from GAS deployment'),'error');return false;}
     if(d.ok===false){toast(T('Telegram 發送失敗：','Telegram send failed: ')+(d.error||'GAS error'),'error');return false;}
@@ -1551,7 +1561,7 @@ function mealBatchToSync(e){const out=[],key=e.key||'',period=key.split(':')[0],
 function mealCloudRecords(){return sortedKeys().reduce(function(a,k){return a.concat(mealBatchToSync(STORE[k]||{}));},[]);}
 function mealCloudMeta(){return{periods:Array.from(new Set(sortedKeys().map(function(k){return k.split(':')[0];})))};}
 function mealLegacyRows(env){const D=(env&&env.data)||env||{};return(D.batches||[]).reduce(function(a,e){return a.concat(mealBatchToSync(e));},[]);}
-async function mealApplyCloud(rows){const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,att:[],meal:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='att')z.att.push(x.row||{});else if(x.kind==='meal')z.meal.push(x.row||{});});for(const key of Object.keys(g)){const z=g[key],e=Object.assign({key:key},z.meta||{});if(e.att||z.att.length)e.att=Object.assign({},e.att||{},{rows:z.att});if(e.meal||z.meal.length)e.meal=Object.assign({},e.meal||{},{rows:z.meal});STORE[key]=e;await idbSave(e);}const ks=sortedKeys();if(ks.length)ACTIVE=STORE[ks[ks.length-1]];cacheMealProjectionLocal();renderAll();}
+async function mealApplyCloud(rows){const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,att:[],meal:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='att')z.att.push(x.row||{});else if(x.kind==='meal')z.meal.push(x.row||{});});const uniq=a=>{const m=new Map();(a||[]).forEach((r,i)=>m.set(String(r.id||r.employeeId||i),r));return Array.from(m.values());};for(const key of Object.keys(g)){const z=g[key],e=Object.assign({key:key},z.meta||{});if(e.att||z.att.length)e.att=Object.assign({},e.att||{},{rows:uniq(z.att)});if(e.meal||z.meal.length)e.meal=Object.assign({},e.meal||{},{rows:uniq(z.meal)});STORE[key]=e;await idbSave(e);}const ks=sortedKeys();if(ks.length)ACTIVE=STORE[ks[ks.length-1]];cacheMealProjectionLocal();renderAll();}
 function mealSyncStatus(msg,type){console.log('[Meal smart sync]',msg);}
 function scheduleAutoCloudSync(reason,key){
   if(!key){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');key=x.key||'';}catch(e){}}
@@ -1579,6 +1589,18 @@ function exportJSON(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=`meal_fee_backup_${_nowISO().slice(0,10)}.json`; a.click();
 }
+async function importMealJSON(input){const f=input.files&&input.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!data||typeof data!=='object')throw new Error('Invalid JSON');for(const [key,inc] of Object.entries(data)){const cur=STORE[key]||{key,year:inc.year,month:inc.month,batch:inc.batch};const mergeRows=(a,b)=>{const m=new Map();(a||[]).forEach((r,i)=>m.set(String(r.id||i),r));(b||[]).forEach((r,i)=>m.set(String(r.id||i),r));return Array.from(m.values());};const e={...cur,...inc};if(cur.att||inc.att)e.att={...(cur.att||{}),...(inc.att||{}),rows:mergeRows(cur.att&&cur.att.rows,inc.att&&inc.att.rows)};if(cur.meal||inc.meal)e.meal={...(cur.meal||{}),...(inc.meal||{}),rows:mergeRows(cur.meal&&cur.meal.rows,inc.meal&&inc.meal.rows)};e.updatedAt=_nowISO();STORE[key]=e;await idbSave(e);}const ks=sortedKeys();if(ks.length)ACTIVE=STORE[ks[ks.length-1]];cacheMealProjectionLocal();renderAll();scheduleAutoCloudSync('restore',ACTIVE&&ACTIVE.key);toast(T('JSON 已合併匯入','JSON merged successfully'),'success');}catch(e){toast(T('匯入失敗：','Import failed: ')+e.message,'error');}finally{input.value='';}}
+let MEAL_MAINT_ID='';
+function ensureMealMaint(){if(qs('#meal-maint-modal'))return;const d=document.createElement('div');d.id='meal-maint-modal';d.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';d.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"><div class="px-5 py-4 border-b flex"><div class="flex-1"><b>✏️ Meal Fee 線上維護</b><p class="text-[11px] text-slate-400">唯一鍵：Batch + Source + Employee ID；同一人再次儲存為更新，不累加。</p></div><button onclick="closeMealMaint()" class="text-xl">×</button></div><div class="p-5 space-y-3"><div class="grid grid-cols-2 gap-2"><select id="mm-key" onchange="mealMaintRefresh()" class="border rounded-lg p-2"></select><select id="mm-source" onchange="mealMaintRefresh()" class="border rounded-lg p-2"><option value="meal">Meal Fee</option><option value="att">Attendance</option></select></div><select id="mm-record" onchange="mealMaintLoad()" class="w-full border rounded-lg p-2 text-sm"></select><div class="grid grid-cols-2 gap-2"><input id="mm-id" placeholder="Employee ID" class="border rounded-lg p-2"><input id="mm-name" placeholder="Name" class="border rounded-lg p-2"><input id="mm-dept" placeholder="Department" class="border rounded-lg p-2"><input id="mm-usd" type="number" step="0.01" placeholder="USD Amount" class="border rounded-lg p-2"><input id="mm-riel" type="number" step="1" placeholder="Riel / units" class="border rounded-lg p-2"></div><p class="text-[11px] text-slate-400">新增 Online row 不會自行捏造日別出勤；若需要日別 Present/OT，仍以 Excel 匯入為準。</p><div class="flex gap-2"><button onclick="mealMaintNew()" class="px-3 py-2 border rounded-lg text-xs">＋ New</button><button onclick="mealMaintDelete()" class="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-lg text-xs">🗑 Delete</button><label class="px-3 py-2 border rounded-lg text-xs cursor-pointer">⬆ JSON Restore<input type="file" accept=".json" class="hidden" onchange="importMealJSON(this)"></label><span class="flex-1"></span><button onclick="mealMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save</button></div></div></div>`;document.body.appendChild(d);}
+function openMealMaint(){ensureMealMaint();const ks=sortedKeys().slice().reverse();if(!ks.length){toast(T('請先建立或匯入一個期間','Import a period first'),'warning');return;}qs('#mm-key').innerHTML=ks.map(k=>`<option value="${k}">${bLabel(k)}</option>`).join('');qs('#mm-key').value=(ACTIVE&&ACTIVE.key)||ks[0];mealMaintRefresh();const m=qs('#meal-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
+function closeMealMaint(){const m=qs('#meal-maint-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function mealMaintRows(){const e=STORE[qs('#mm-key').value]||{},src=qs('#mm-source').value;return (e[src]&&e[src].rows)||[];}
+function mealMaintRefresh(){const s=qs('#mm-record'),rows=mealMaintRows();s.innerHTML='<option value="">＋ New / 新增</option>'+rows.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true})).map(r=>`<option value="${esc(String(r.id))}">${esc(String(r.id))} · ${esc(r.name||'')} · ${esc(r.dept||'')}</option>`).join('');mealMaintNew();}
+function mealMaintNew(){MEAL_MAINT_ID='';qs('#mm-record').value='';['id','name','dept','usd','riel'].forEach(k=>qs('#mm-'+k).value='');}
+function mealMaintLoad(){const id=qs('#mm-record').value,r=mealMaintRows().find(x=>String(x.id)===id);if(!r){mealMaintNew();return;}MEAL_MAINT_ID=id;['id','name','dept','usd','riel'].forEach(k=>qs('#mm-'+k).value=r[k]!=null?r[k]:'');}
+async function mealMaintSave(){const key=qs('#mm-key').value,src=qs('#mm-source').value,e=STORE[key],id=qs('#mm-id').value.trim();if(!e||!id){toast(T('期間與工號必填','Period and ID required'),'error');return;}if(!e[src])e[src]={dayList:[],rows:[],startDay:e.batch===1?1:16,endDay:e.batch===1?15:new Date(e.year,e.month,0).getDate(),source:'Online'};const rows=e[src].rows||(e[src].rows=[]);if(id!==MEAL_MAINT_ID&&rows.some(r=>String(r.id)===id)){toast(T('此期間已有此工號','This ID already exists'),'error');return;}let i=MEAL_MAINT_ID?rows.findIndex(r=>String(r.id)===MEAL_MAINT_ID):-1,old=i>=0?rows[i]:{};const r={...old,id,name:qs('#mm-name').value.trim(),dept:qs('#mm-dept').value.trim()||'Other',usd:N(qs('#mm-usd').value),riel:N(qs('#mm-riel').value),days:old.days||[]};if(i>=0)rows[i]=r;else rows.push(r);e.updatedAt=_nowISO();await idbSave(e);ACTIVE=e;cacheMealProjectionLocal();renderAll();pushProjection(e);scheduleAutoCloudSync(i>=0?'edit':'add',key);mealMaintRefresh();qs('#mm-record').value=id;MEAL_MAINT_ID=id;toast(T('已儲存','Saved'),'success');}
+async function mealMaintDelete(){const key=qs('#mm-key').value,src=qs('#mm-source').value,e=STORE[key],id=MEAL_MAINT_ID||qs('#mm-record').value;if(!e||!id)return;if(!confirm(T('確定刪除此筆？','Delete this record?')))return;e[src].rows=(e[src].rows||[]).filter(r=>String(r.id)!==String(id));e.updatedAt=_nowISO();await idbSave(e);ACTIVE=e;cacheMealProjectionLocal();renderAll();pushProjection(e);scheduleAutoCloudSync('delete',key);mealMaintRefresh();toast(T('已刪除','Deleted'),'success');}
+
 async function clearAllData(){
   if(!confirm(T('確定清除所有已匯入的餐費與考勤資料？','Clear all imported meal-fee and attendance data?')))return;
   STORE={}; ACTIVE=null; await idbClear();

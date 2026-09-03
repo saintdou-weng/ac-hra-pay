@@ -119,6 +119,10 @@ body{font-family:'DM Sans',sans-serif;}
         <button onclick="sendSummaryTG('pay')" title="傳送正式薪資摘要至 Telegram"
           class="text-xs font-medium px-2.5 py-1.5 text-emerald-700 hover:bg-indigo-100 transition">✈️ 正式</button>
       </div>
+      <button onclick="openPayMaint()" title="線上新增／修改／刪除 Online maintenance"
+        class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">
+        ✏️ <span class="hidden sm:inline">線上維護</span>
+      </button>
       <button onclick="clearAllData()" title="清除所有資料 Clear all data"
         class="no-print flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -1165,6 +1169,27 @@ function parseSheet(ws){
   return recs;
 }
 
+// v3.9.8 SAFE：同一月份/薪資階段內，Employee ID 為唯一鍵。
+// 同一 Excel 若重複列出同一工號，以最後一列為準，不做金額累加。
+function payDedupeRows(rows){
+  const map=new Map(), order=[]; let dup=0;
+  (rows||[]).forEach((r,i)=>{
+    const id=String(r&&r.id!=null?r.id:(r&&r.employeeId!=null?r.employeeId:'')).trim();
+    const k=id||('__row__'+i);
+    if(map.has(k)) dup++; else order.push(k);
+    map.set(k,r);
+  });
+  return {rows:order.map(k=>map.get(k)),duplicates:dup};
+}
+function payRebuildEntry(entry){
+  if(!entry)return;
+  entry.advanceRecords=payDedupeRows(entry.advanceRecords||[]).rows;
+  entry.payrollRecords=payDedupeRows(entry.payrollRecords||[]).rows;
+  if(entry.payrollRecords.length){entry.mergedRecords=runAudit(entry.advanceRecords||[],entry.payrollRecords);entry.stage='full';}
+  else{entry.mergedRecords=runAudit([],entry.advanceRecords||[]);entry.stage='adv';}
+  entry.updatedAt=_nowISO();
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AC-HRA-PAY PROJECTION（hrpay:result:* + 雲端）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1407,7 +1432,8 @@ async function smartImport(input){
 
       const shName = wb.SheetNames.find(s=>/payroll\s*list/i.test(s))
                   || wb.SheetNames.find(s=>/payroll/i.test(s)) || wb.SheetNames[0];
-      const recs=parseSheet(wb.Sheets[shName]);
+      const parsed=parseSheet(wb.Sheets[shName]);
+      const dd=payDedupeRows(parsed), recs=dd.rows;
       if(!recs.length){ log.push({ok:false,f:file.name,msg:'未找到員工記錄，請確認工作表格式'}); continue; }
 
       if(!STORE[pKey]) STORE[pKey]={periodKey:pKey,label:labelFromKey(pKey)};
@@ -1424,7 +1450,7 @@ async function smartImport(input){
         entry.mergedRecords=runAudit([], entry.advanceRecords||[]); entry.stage='adv';
       }
       await idbSave(entry); touched.add(pKey);
-      log.push({ok:true,f:file.name,type:det.type,why:det.why,pKey,n:recs.length,replaced});
+      log.push({ok:true,f:file.name,type:det.type,why:det.why,pKey,n:recs.length,replaced,duplicates:dd.duplicates});
     }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
   }
 
@@ -1454,7 +1480,7 @@ async function smartImport(input){
          <span class="flex-1"><b>${l.f}</b> → 判定為
          <span class="${l.type==='advance'?'text-amber-700':'text-emerald-700'} font-semibold">${l.type==='advance'?'預付薪資':'正式薪資'}</span>
          · ${labelFromKey(l.pKey)} · ${l.n} 人
-         <span class="text-slate-400">（依${l.why}判定${l.replaced?'，已覆蓋原有資料':''}）</span></span></div>`
+         <span class="text-slate-400">（依${l.why}判定${l.replaced?'，已覆蓋原有資料':''}${l.duplicates?`，重複工號略過 ${l.duplicates} 筆`:''}）</span></span></div>`
       : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span>
          <span class="flex-1"><b>${l.f}</b> — ${l.msg}</span></div>`
     ).join('')
@@ -1497,7 +1523,7 @@ async function handleUpload(type, input){
       pKey=manual;
     }
 
-    const recs=parseSheet(ws);
+    const dd=payDedupeRows(parseSheet(ws)), recs=dd.rows;
     if(!recs.length)throw new Error('未找到員工記錄 No records found — check sheet format.');
 
     // Ensure entry exists
@@ -1528,7 +1554,7 @@ async function handleUpload(type, input){
     await idbSave(entry);
 
     // Update UI
-    statusEl.textContent=`✓ ${recs.length} employees · ${labelFromKey(pKey)}`;
+    statusEl.textContent=`✓ ${recs.length} employees · ${labelFromKey(pKey)}${dd.duplicates?` · duplicate IDs skipped ${dd.duplicates}`:''}`;
     statusEl.style.color='#16a34a';
     dzEl.classList.add('!border-emerald-400','!bg-emerald-50/30');
     clearBtn.classList.remove('hidden');
@@ -2734,7 +2760,7 @@ function payrollCloudRecords(){
 }
 function payrollCloudMeta(){const pp=[],ap=[];Object.keys(STORE).sort().forEach(function(k){const e=STORE[k]||{};if((e.payrollRecords||[]).length)pp.push(k);if((e.advanceRecords||[]).length)ap.push(k);});return{periods:Array.from(new Set(pp.concat(ap))),payrollPeriods:pp,advancePeriods:ap};}
 function payrollLegacyRows(env){const D=(env&&env.data)||env||{},out=[];if(!D.period)return out;const k=D.period;out.push({_syncId:'meta:'+k,_syncPeriod:k,_syncBucket:'m:'+k+':meta',kind:'meta',period:k,stage:D.stage||'full'});(D.advance||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'advance:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':a'+payShard(id),kind:'advance',period:k,row:r});});(D.payroll||[]).forEach(function(r,i){const id=String(r.id||r.employeeId||i);out.push({_syncId:'payroll:'+k+':'+id,_syncPeriod:k,_syncBucket:'m:'+k+':p'+payShard(id),kind:'payroll',period:k,row:r});});return out;}
-async function payrollApplyCloud(rows){const by={};(rows||[]).forEach(function(x){const k=x.period||x._syncPeriod;if(!k)return;const g=by[k]||(by[k]={stage:'full',advance:[],payroll:[]});if(x.kind==='meta')g.stage=x.stage||g.stage;else if(x.kind==='advance')g.advance.push(x.row||{});else if(x.kind==='payroll')g.payroll.push(x.row||{});});for(const k of Object.keys(by)){const g=by[k],e={periodKey:k,label:labelFromKey(k),stage:g.stage||'full',advanceRecords:g.advance,payrollRecords:g.payroll};e.mergedRecords=e.payrollRecords.length?runAudit(e.advanceRecords,e.payrollRecords):runAudit([],e.advanceRecords);STORE[k]=e;await idbSave(e);}const ks=Object.keys(STORE).sort();if(ks.length){ACTIVE=STORE[ks[ks.length-1]];buildPeriodSelect();renderAll();}}
+async function payrollApplyCloud(rows){const by={};(rows||[]).forEach(function(x){const k=x.period||x._syncPeriod;if(!k)return;const g=by[k]||(by[k]={stage:'full',advance:[],payroll:[]});if(x.kind==='meta')g.stage=x.stage||g.stage;else if(x.kind==='advance')g.advance.push(x.row||{});else if(x.kind==='payroll')g.payroll.push(x.row||{});});for(const k of Object.keys(by)){const g=by[k],e={periodKey:k,label:labelFromKey(k),stage:g.stage||'full',advanceRecords:payDedupeRows(g.advance).rows,payrollRecords:payDedupeRows(g.payroll).rows};payRebuildEntry(e);STORE[k]=e;await idbSave(e);}const ks=Object.keys(STORE).sort();if(ks.length){ACTIVE=STORE[ks[ks.length-1]];buildPeriodSelect();renderAll();}}
 function payrollSyncStatus(msg,type){console.log('[PAY smart sync]',msg);}
 function scheduleAutoCloudSync(reason,period){
   if(!period){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');period=x.period||'';}catch(e){}}
@@ -2938,11 +2964,8 @@ async function importJSON(input){
       if(typeof d!=='object')throw new Error('格式錯誤 Invalid format');
       let count=0;
       for(const[k,entry] of Object.entries(d)){
-        // Recompute mergedRecords on import
-        if(entry.payrollRecords&&entry.payrollRecords.length)
-          entry.mergedRecords=runAudit(entry.advanceRecords||[], entry.payrollRecords);
-        else if(entry.advanceRecords&&entry.advanceRecords.length)
-          entry.mergedRecords=runAudit([], entry.advanceRecords);
+        // Recompute + dedupe on restore; never append duplicated employee IDs.
+        payRebuildEntry(entry);
         STORE[k]=entry;
         await idbSave(entry);
         count++;
@@ -2954,6 +2977,45 @@ async function importJSON(input){
   };
   fr.readAsText(f); input.value='';
 }
+
+// ━━━━━━━━━ v3.9.8 線上資料維護：Payroll / Advance ━━━━━━━━━
+let PAY_MAINT_ORIG_ID='';
+const PAY_MAINT_NUM=[
+ ['basicPay','Basic'],['seniority','Seniority'],['skill','Skill'],['position','Position'],['language','Language'],
+ ['incentive','Incentive'],['bonus','Bonus'],['travel','Travel'],['otTotal','OT'],['annualLeavePaid','Annual Leave'],
+ ['suspend','Shutdown 50%'],['leaveHour','Hourly Leave'],['leavePersonal','Personal Leave'],
+ ['advDeduction','Advance Deduction'],['nssf','NSSF'],['union','Union'],['tax','Tax'],['totalSalary','Net Pay']
+];
+function ensurePayMaintModal(){
+ if(qs('#pay-maint-modal'))return;
+ const box=document.createElement('div'); box.id='pay-maint-modal'; box.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';
+ box.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
+  <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2"><span class="text-xl">✏️</span><div class="flex-1"><p class="text-sm font-bold">Payroll / Advance 線上維護</p><p class="text-[11px] text-slate-400">唯一鍵：Period + Pay Type + Employee ID；儲存為 Upsert，不會重複累加。</p></div><button onclick="closePayMaint()" class="text-xl text-slate-400">×</button></div>
+  <div class="px-5 py-4 max-h-[70vh] overflow-y-auto space-y-3">
+   <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <div><label class="text-[11px] font-semibold text-slate-500">Period</label><select id="pm-period" onchange="payMaintRefreshRecords()" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"></select></div>
+    <div><label class="text-[11px] font-semibold text-slate-500">Pay Type</label><select id="pm-type" onchange="payMaintRefreshRecords()" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"><option value="payroll">Payroll 正式</option><option value="advance">Advance 預支</option></select></div>
+    <div class="col-span-2"><label class="text-[11px] font-semibold text-slate-500">Existing record</label><select id="pm-record" onchange="payMaintLoadRecord()" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"></select></div>
+   </div>
+   <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <div><label class="text-[11px] font-semibold text-slate-500">Employee ID</label><input id="pm-id" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"></div>
+    <div><label class="text-[11px] font-semibold text-slate-500">Name</label><input id="pm-name" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"></div>
+    <div class="col-span-2"><label class="text-[11px] font-semibold text-slate-500">Department</label><input id="pm-dept" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm"></div>
+   </div>
+   <div id="pm-num" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+  </div>
+  <div class="px-5 py-3 bg-slate-50 border-t flex flex-wrap gap-2"><button onclick="payMaintNew()" class="px-3 py-2 rounded-lg border bg-white text-xs font-semibold">＋ New</button><button onclick="payMaintDelete()" class="px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-xs font-semibold">🗑 Delete</button><span class="flex-1"></span><button onclick="closePayMaint()" class="px-4 py-2 rounded-lg border bg-white text-xs">Cancel</button><button onclick="payMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save / Upsert</button></div>
+ </div>`; document.body.appendChild(box);
+ qs('#pm-num').innerHTML=PAY_MAINT_NUM.map(([k,l])=>`<div><label class="text-[11px] font-semibold text-slate-500">${l}</label><input id="pm-${k}" type="number" step="0.01" class="mt-1 w-full border rounded-lg px-2 py-2 text-sm jmono"></div>`).join('');
+}
+function openPayMaint(){ensurePayMaintModal();const ps=Object.keys(STORE).sort().reverse();if(!ps.length){toast('請先匯入至少一個月份 / Import a period first','warning');return;}qs('#pm-period').innerHTML=ps.map(k=>`<option value="${k}">${labelFromKey(k)}</option>`).join('');qs('#pm-period').value=(ACTIVE&&ACTIVE.periodKey)||ps[0];payMaintRefreshRecords();const m=qs('#pay-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
+function closePayMaint(){const m=qs('#pay-maint-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}}
+function payMaintRows(){const k=qs('#pm-period').value,e=STORE[k]||{},type=qs('#pm-type').value;return type==='advance'?(e.advanceRecords||[]):(e.payrollRecords||[]);}
+function payMaintRefreshRecords(){const rows=payMaintRows(),sel=qs('#pm-record');sel.innerHTML='<option value="">＋ New / 新增</option>'+rows.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true})).map(r=>`<option value="${esc(String(r.id))}">${esc(String(r.id))} · ${esc(r.nameLat||r.nameKh||'')} · ${esc(r.dept||'')}</option>`).join('');payMaintNew();}
+function payMaintNew(){PAY_MAINT_ORIG_ID='';if(qs('#pm-record'))qs('#pm-record').value='';['id','name','dept'].forEach(k=>qs('#pm-'+k).value='');PAY_MAINT_NUM.forEach(([k])=>qs('#pm-'+k).value='');}
+function payMaintLoadRecord(){const id=qs('#pm-record').value;if(!id){payMaintNew();return;}const r=payMaintRows().find(x=>String(x.id)===String(id));if(!r)return;PAY_MAINT_ORIG_ID=String(r.id);qs('#pm-id').value=r.id||'';qs('#pm-name').value=r.nameLat||r.nameKh||'';qs('#pm-dept').value=r.dept||'';PAY_MAINT_NUM.forEach(([k])=>qs('#pm-'+k).value=N(r[k]));}
+async function payMaintSave(){const k=qs('#pm-period').value,type=qs('#pm-type').value,e=STORE[k];if(!e)return;const id=qs('#pm-id').value.trim();if(!id){toast('Employee ID 必填','error');return;}const rows=type==='advance'?(e.advanceRecords||(e.advanceRecords=[])):(e.payrollRecords||(e.payrollRecords=[]));if(id!==PAY_MAINT_ORIG_ID&&rows.some(r=>String(r.id)===id)){toast('同月份/類型已有此 Employee ID，不可重複','error');return;}let i=PAY_MAINT_ORIG_ID?rows.findIndex(r=>String(r.id)===PAY_MAINT_ORIG_ID):-1;const old=i>=0?rows[i]:{};const rec={...old,id:id,nameLat:qs('#pm-name').value.trim(),dept:qs('#pm-dept').value.trim()||'Other'};PAY_MAINT_NUM.forEach(([x])=>rec[x]=N(qs('#pm-'+x).value));if(!rec.nameKh)rec.nameKh='';rec.baseTotal=N(rec.basicPay)+N(rec.seniority)+N(rec.skill)+N(rec.position)+N(rec.language);if(i>=0)rows[i]=rec;else rows.push(rec);payRebuildEntry(e);await idbSave(e);ACTIVE=e;buildPeriodSelect();renderAll();refreshHistory();pushProjection(e);scheduleAutoCloudSync(i>=0?'edit':'add',k);payMaintRefreshRecords();qs('#pm-record').value=id;PAY_MAINT_ORIG_ID=id;toast(i>=0?'已更新 / Updated':'已新增 / Added','success');}
+async function payMaintDelete(){const k=qs('#pm-period').value,type=qs('#pm-type').value,e=STORE[k],id=PAY_MAINT_ORIG_ID||qs('#pm-record').value;if(!e||!id){toast('請先選擇一筆資料','warning');return;}if(!confirm(`刪除 ${id}？\nDelete this record?`))return;const key=type==='advance'?'advanceRecords':'payrollRecords';e[key]=(e[key]||[]).filter(r=>String(r.id)!==String(id));payRebuildEntry(e);await idbSave(e);ACTIVE=e;renderAll();refreshHistory();pushProjection(e);scheduleAutoCloudSync('delete',k);payMaintRefreshRecords();toast('已刪除 / Deleted','success');}
 
 // ── TABS ─────────────────────────────────
 const TABS=['dashboard','cost','audit','history','compare','breakdown'];

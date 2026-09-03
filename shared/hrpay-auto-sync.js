@@ -19,7 +19,7 @@
   'use strict';
   if(g.HRPayAutoSync)return;
 
-  var VERSION='1.2', C={};
+  var VERSION='1.3', C={};
   var PFX='hrpay:auto2:';
 
   function online(){try{return !('onLine' in navigator)||navigator.onLine;}catch(_){return true;}}
@@ -33,7 +33,7 @@
     var r=String(reason||'').toLowerCase();
     var d=(requested==null?900:Number(requested));if(!isFinite(d)||d<0)d=900;
     // User-facing commits should begin before a mobile tab/app can be suspended.
-    if(/^(import|telegram|telegram-summary|telegram-review|approval|review|restore|file-change|file-delete)$/.test(r))return Math.min(d,60);
+    if(/^(import|telegram|telegram-summary|telegram-review|approval|review|restore|file-change|file-delete|delete)$/.test(r))return Math.min(d,60);
     if(/^(batch-save|batch-delete)$/.test(r))return Math.min(d,250);
     return d;
   }
@@ -97,7 +97,10 @@
       }
       s.busy=true;s.lastRun=Date.now();setState(s,'syncing');
       try{
-        if(typeof s.opts.pull==='function'){
+        // Deletion must push the local removal first. Pull-first would re-create the just-deleted cloud record.
+        // Normal add/edit/import remains pull-first to preserve cloud-only/newer data.
+        var isDelete=/delete/i.test(String(reason||''));
+        if(!isDelete && typeof s.opts.pull==='function'){
           try{await s.opts.pull({silent:true,auto:true,reason:reason});}
           catch(e){if(s.opts.log!==false)console.warn('[HRPayAutoSync pull '+key+']',e);}
         }

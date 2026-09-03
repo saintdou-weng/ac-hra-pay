@@ -266,6 +266,9 @@
     </div>
     <div class="px-5 py-4 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto" id="ed-form"></div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button id="ed-delete" onclick="deleteEdit()" data-en="Delete" class="hidden text-xs font-bold px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600">刪除</button>
+      <button onclick="exportEmployeeJSON()" class="text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">⬇ Backup</button>
+      <label class="text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 cursor-pointer">⬆ Restore<input type="file" accept=".json" class="hidden" onchange="importEmployeeJSON(this)"></label>
       <button onclick="closeEdit()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
       <button onclick="saveEdit()" data-en="Save" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">儲存</button>
     </div>
@@ -595,13 +598,16 @@ async function smartImport(input){
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
       const d=parseRoster(wb,file.name);
       if(!d){ log.push({ok:false,f:file.name,msg:T('無法辨識名冊格式（需有 Join Date 與 Factory ID 表頭）','Unrecognised roster format')}); continue; }
+      const seen=new Map(), order=[]; let dup=0;
+      d.rows.forEach((r,i)=>{const id=String(r.id||'').trim()||('__row__'+i);if(seen.has(id))dup++;else order.push(id);seen.set(id,r);});
+      d.rows=order.map(id=>seen.get(id));
       const sk=snapKeyOf(file.name,d.rows);
       SNAPS[sk.key]={key:sk.key,label:sk.label,format:d.format,sheet:d.sheet,
         rows:d.rows,src:file.name,updatedAt:_nowISO()};
       await idbSave(SNAPS[sk.key]);
       const f=d.rows.filter(r=>r.gender==='F').length;
       log.push({ok:true,f:file.name,key:sk.key,label:sk.label,n:d.rows.length,
-        fmt:d.format,fem:f,depts:new Set(d.rows.map(r=>r.dept)).size,sheet:d.sheet});
+        fmt:d.format,fem:f,depts:new Set(d.rows.map(r=>r.dept)).size,sheet:d.sheet,duplicates:dup});
     }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
   }
   const ks=snapKeys(); if(ks.length)ACTIVE=ks[ks.length-1];
@@ -618,7 +624,7 @@ async function smartImport(input){
       :l.fmt==='classic'?`<span class="text-amber-700 font-semibold">${T('早期格式 (2014-16，含學歷)','Classic (2014-16, incl. education)')}</span>`
       :`<span class="text-sky-700 font-semibold">${T('舊版格式 (2017-19)','Legacy (2017-19)')}</span>`
       } · ${l.label} · ${l.n} ${T('人','staff')} · ${T('女性','female')} ${l.fem} · ${l.depts} ${T('部門','depts')}
-      <span class="text-slate-400">（${T('工作表','sheet')}：${esc(l.sheet)}）</span></span></div>`
+      <span class="text-slate-400">（${T('工作表','sheet')}：${esc(l.sheet)}${l.duplicates?`；${T('重複工號略過','duplicate IDs skipped')} ${l.duplicates}`:''}）</span></span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('');
   rep.classList.remove('hidden');
@@ -1181,6 +1187,7 @@ function openEdit(id){
       <input id="ed-${k}" type="${type}" value="${esc(v)}" ${k==='id'&&id?'readonly':''}
         class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-violet-200 ${k==='id'&&id?'bg-slate-50':''}"></div>`;
   }).join('');
+  const db=qs('#ed-delete');if(db)db.classList.toggle('hidden',!id);
   const m=qs('#ed-modal');m.classList.remove('hidden');m.classList.add('flex');
 }
 function closeEdit(){const m=qs('#ed-modal');m.classList.add('hidden');m.classList.remove('flex');}
@@ -1189,6 +1196,7 @@ async function saveEdit(){
   ED_FIELDS.forEach(([k])=>{const el=qs('#ed-'+k);if(el)o[k]=el.value.trim();});
   if(!o.id){toast(T('工號必填','Factory ID is required'),'error');return;}
   const snap=SNAPS[ACTIVE];
+  if(EDIT_ID && o.id!==EDIT_ID && snap.rows.some(x=>x.id===o.id)){toast(T('此工號已存在','This ID already exists'),'error');return;}
   const i=snap.rows.findIndex(x=>x.id===(EDIT_ID||o.id));
   if(i>=0) snap.rows[i]={...snap.rows[i],...o};
   else{
@@ -1200,6 +1208,32 @@ async function saveEdit(){
   closeEdit(); renderAll(); pushProjection();
   scheduleAutoCloudSync(i>=0?'edit':'add');
   toast(i>=0?T('已更新','Updated'):T('已新增','Added'),'success');
+}
+function exportEmployeeJSON(){
+  const blob=new Blob([JSON.stringify(SNAPS,null,2)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=`employee_hr_backup_${_nowISO().slice(0,10)}.json`;a.click();
+}
+async function importEmployeeJSON(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  try{
+    const data=JSON.parse(await f.text()); if(!data||typeof data!=='object')throw new Error('Invalid JSON');
+    for(const [k,s0] of Object.entries(data)){
+      const s={...s0,key:s0.key||k}; const map=new Map(),order=[];
+      (s.rows||[]).forEach((r,i)=>{const id=String(r.id||'').trim()||('__row__'+i);if(!map.has(id))order.push(id);map.set(id,r);});
+      s.rows=order.map(id=>map.get(id)); s.updatedAt=_nowISO(); SNAPS[k]=s; await idbSave(s);
+    }
+    const ks=snapKeys();if(ks.length)ACTIVE=ks[ks.length-1];renderAll();pushProjection();scheduleAutoCloudSync('restore');toast(T('備份已合併匯入','Backup merged successfully'),'success');
+  }catch(e){toast(T('匯入失敗：','Import failed: ')+e.message,'error');}
+  finally{input.value='';}
+}
+async function deleteEdit(){
+  if(!ACTIVE||!EDIT_ID)return;
+  const snap=SNAPS[ACTIVE]; const r=snap.rows.find(x=>x.id===EDIT_ID);
+  if(!r)return;
+  if(!confirm(T(`確定刪除 ${EDIT_ID} ${r.name||''}？`,`Delete ${EDIT_ID} ${r.name||''}?`)))return;
+  snap.rows=snap.rows.filter(x=>x.id!==EDIT_ID); snap.updatedAt=_nowISO();
+  await idbSave(snap); closeEdit(); renderAll(); pushProjection(); scheduleAutoCloudSync('delete');
+  toast(T('已刪除','Deleted'),'success');
 }
 
 
@@ -1320,18 +1354,19 @@ async function confirmSendTg(){
   const r=buildTgText(qs('#tg-snap').value,qs('#tg-dept').value);
   if(r.err){toast(r.err,'error');return;}
   const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
-  const ok=await sendTG(r.text);
+  const snapKey=qs('#tg-snap').value;
+  const ok=await sendTG(r.text,{module:'employee',period:snapKey,periods:[String(snapKey).slice(0,7)]});
   b.disabled=false;b.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
-async function sendTG(text){
+async function sendTG(text,meta){
   const checker=hrpPersonValue('checker',true);
   if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!text||!text.trim()){toast(T('訊息內容是空的','Message empty'),'error');return false;}
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text,checker})});
+      body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
     if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出','Not sent'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;

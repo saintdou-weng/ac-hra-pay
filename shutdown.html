@@ -46,6 +46,7 @@
       </div>
       <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
         ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="openShutdownMaint()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">✏️ <span class="hidden sm:inline" data-en="Maintain">線上維護</span></button>
       <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
         🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
       <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
@@ -470,11 +471,15 @@ function parseWorkbook(wb,fileName){
   let all=[];
   Object.keys(byYearSheet).sort().forEach(y=>all=all.concat(byYearSheet[y]));
   all=all.concat(fromMaster.filter(x=>!covered.has(x.year)));
-  // 再以「起始日＋結束日」保險去重
-  const seen=new Set();
-  all=all.filter(x=>{const k=x.start+'|'+x.end;if(seen.has(k))return false;seen.add(k);return true;});
+  // 精準去重：同日可有多個事件，保留不同 seq；完全相同事件只留一筆。
+  all=shutdownDedupe(all);
   return all.length?all:null;
 }
+
+// v3.9.8 SAFE：Shutdown 唯一鍵 = Year + Start + End + Seq。
+function shutdownKey(e){return String(e.year||String(e.start||'').slice(0,4))+'|'+String(e.start||'')+'|'+String(e.end||e.start||'')+'|'+String(e.seq||'');}
+function shutdownUpsert(list,incoming){const map=new Map(),order=[];let replaced=0;(list||[]).forEach(e=>{const k=shutdownKey(e);if(!map.has(k))order.push(k);map.set(k,e);});(incoming||[]).forEach(e=>{const k=shutdownKey(e);if(map.has(k))replaced++;else order.push(k);map.set(k,e);});return{rows:order.map(k=>map.get(k)),replaced};}
+function shutdownDedupe(list){return shutdownUpsert([],list||[]).rows;}
 
 // ━━━━ 智慧匯入 ━━━━
 async function smartImport(input){
@@ -490,12 +495,10 @@ async function smartImport(input){
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
       const recs=parseWorkbook(wb,file.name);
       if(!recs){ log.push({ok:false,f:file.name,msg:T('找不到停工資料（需含 Date / Shutdown Line 表頭）','No shutdown data found')}); continue; }
-      // 以「年度＋起始日」為鍵去重，重覆匯入會覆蓋
-      const keys=new Set(recs.map(r=>r.year+'|'+r.start));
-      EVENTS=EVENTS.filter(e=>!keys.has(e.year+'|'+e.start));
-      EVENTS=EVENTS.concat(recs);
+      // 精準 Upsert；不會因同一天另一事件而被誤刪。
+      const up=shutdownUpsert(EVENTS,recs); EVENTS=up.rows;
       const sheets=[...new Set(recs.map(r=>r.sheet))];
-      log.push({ok:true,f:file.name,n:recs.length,sheets,
+      log.push({ok:true,f:file.name,n:recs.length,replaced:up.replaced,sheets,
         years:[...new Set(recs.map(r=>r.year))].sort(),
         pd:recs.reduce((s,r)=>s+r.personDays,0),
         skipped:wb.SheetNames.length-sheets.length});
@@ -514,7 +517,7 @@ async function smartImport(input){
 
   rep.innerHTML=log.map(l=>l.ok
     ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${l.n} ${T('筆停工事件','shutdown events')} · ${T('年度','years')} ${l.years.join(', ')} · ${T('停工人日','person-days')} ${int(l.pd)}
-       <span class="text-slate-400">（${T('採用工作表','sheets used')}：${l.sheets.join('、')}${l.skipped?T(`；另略過 ${l.skipped} 張無關工作表`,`; ${l.skipped} unrelated sheets skipped`):''}）</span></span></div>`
+       <span class="text-slate-400">（${T('採用工作表','sheets used')}：${l.sheets.join('、')}${l.replaced?T(`；更新 ${l.replaced} 筆`,`; updated ${l.replaced}`):''}${l.skipped?T(`；另略過 ${l.skipped} 張無關工作表`,`; ${l.skipped} unrelated sheets skipped`):''}）</span></span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('');
   rep.classList.remove('hidden');
@@ -906,6 +909,17 @@ function buildTgText(scope,period){
   return{text:'🛑 <b>停工記錄 Shutdown Report</b>\n📅 期間 Period：'+esc(label)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Events',evs.length,'Full',full,'Partial',partial],[10,6,8,6,10,6])+'\n'+row(['Days',int(days),'PersonDays',int(pd),'Avg PPL',evs.length?int(ppl/evs.length):0],[10,6,10,8,10,6])+'</pre>\n<b>各次明細 Event Breakdown</b>\n<pre>'+esc(tb)+'</pre>'};
 }
 
+function tgCoveredMonths(scope,period){
+  const out={};
+  const evs=filtered().filter(e=> scope==='year' ? e.start.slice(0,4)===period.slice(0,4) : e.start.slice(0,7)===period);
+  evs.forEach(function(e){
+    const a=String(e.start||'').slice(0,7), b=String(e.end||e.start||'').slice(0,7);
+    if(!/^20\d{2}-\d{2}$/.test(a))return;
+    let d=new Date(+a.slice(0,4),+a.slice(5,7)-1,1), end=/^20\d{2}-\d{2}$/.test(b)?new Date(+b.slice(0,4),+b.slice(5,7)-1,1):new Date(d);
+    let guard=0; while(d<=end&&guard++<120){out[d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')]=1;d.setMonth(d.getMonth()+1);}
+  });
+  return Object.keys(out).sort();
+}
 function openTgModal(){
   const ps=allPeriods().reverse();
   if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
@@ -950,11 +964,12 @@ async function confirmSendTg(){
   const r=buildTgText(qs('#tg-scope').value,qs('#tg-period').value);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
-  const ok=await sendTG(r.text);
+  const tgScope=qs('#tg-scope').value,tgPeriod=qs('#tg-period').value;
+  const ok=await sendTG(r.text,{module:'shutdown',period:tgPeriod,periods:tgCoveredMonths(tgScope,tgPeriod)});
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
-async function sendTG(text){
+async function sendTG(text,meta){
   const checker=hrpPersonValue('checker',true);
   if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
@@ -962,7 +977,7 @@ async function sendTG(text){
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text,checker})});
+      body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
     if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
@@ -986,7 +1001,7 @@ function shutdownSyncId(e){return 'shutdown:'+String(e.year||'')+':'+String(e.st
 function shutdownCloudRecords(){return EVENTS.map(function(e){return Object.assign({_syncId:shutdownSyncId(e),_syncPeriod:(e.start||'').slice(0,7)},e);});}
 function shutdownCloudMeta(){return{periods:Array.from(new Set(EVENTS.map(function(e){return(e.start||'').slice(0,7);}).filter(Boolean))).sort()};}
 function shutdownLegacyRows(env){const D=(env&&env.data)||env||{};return(D.events||[]).map(function(e){return Object.assign({_syncId:shutdownSyncId(e),_syncPeriod:(e.start||'').slice(0,7)},e);});}
-async function shutdownApplyCloud(rows){EVENTS=(rows||[]).map(function(x){const e=Object.assign({},x);delete e._syncId;delete e._syncPeriod;return e;});await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
+async function shutdownApplyCloud(rows){EVENTS=shutdownDedupe((rows||[]).map(function(x){const e=Object.assign({},x);delete e._syncId;delete e._syncPeriod;return e;}));await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
 function shutdownSyncStatus(msg,type){console.log('[Shutdown smart sync]',msg);}
 function scheduleAutoCloudSync(reason){
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('shutdown',reason||'change',{},900);return;}
@@ -1013,6 +1028,18 @@ function exportJSON(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`shutdown_backup_${_nowISO().slice(0,10)}.json`;a.click();
 }
+async function importShutdownJSON(input){const f=input.files&&input.files[0];if(!f)return;try{const arr=JSON.parse(await f.text());if(!Array.isArray(arr))throw new Error('JSON must be an array');EVENTS=shutdownUpsert(EVENTS,arr).rows;await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||ACTIVE;renderAll();scheduleAutoCloudSync('restore');toast(T(`已匯入/更新 ${arr.length} 筆`,`Imported/updated ${arr.length} rows`),'success');}catch(e){toast(T('匯入失敗：','Import failed: ')+e.message,'error');}finally{input.value='';}}
+let SHUT_MAINT_KEY='';
+function ensureShutdownMaint(){if(qs('#shutdown-maint-modal'))return;const d=document.createElement('div');d.id='shutdown-maint-modal';d.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';d.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"><div class="px-5 py-4 border-b flex"><div class="flex-1"><b>✏️ Shutdown 線上維護</b><p class="text-[11px] text-slate-400">唯一鍵：Start + End + Seq；同一天不同事件可並存。</p></div><button onclick="closeShutdownMaint()" class="text-xl">×</button></div><div class="p-5 space-y-3"><select id="sm-record" onchange="shutdownMaintLoad()" class="w-full border rounded-lg p-2 text-sm"></select><div class="grid grid-cols-2 gap-2"><input id="sm-start" type="date" class="border rounded-lg p-2"><input id="sm-end" type="date" class="border rounded-lg p-2"><input id="sm-seq" type="number" min="1" placeholder="Seq" class="border rounded-lg p-2"><input id="sm-ttlLine" type="number" placeholder="Total Lines" class="border rounded-lg p-2"><input id="sm-shutLine" type="number" placeholder="Shutdown Lines" class="border rounded-lg p-2"><input id="sm-shutPPL" type="number" placeholder="Shutdown PPL" class="border rounded-lg p-2"><input id="sm-remainPPL" type="number" placeholder="Remain PPL" class="border rounded-lg p-2"><input id="sm-ttlPPL" type="number" placeholder="Total PPL" class="border rounded-lg p-2"></div><div class="flex gap-2 pt-2"><button onclick="shutdownMaintNew()" class="px-3 py-2 border rounded-lg text-xs">＋ New</button><button onclick="shutdownMaintDelete()" class="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-lg text-xs">🗑 Delete</button><label class="px-3 py-2 border rounded-lg text-xs cursor-pointer">⬆ JSON Restore<input type="file" accept=".json" class="hidden" onchange="importShutdownJSON(this)"></label><span class="flex-1"></span><button onclick="shutdownMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save</button></div></div></div>`;document.body.appendChild(d);}
+function openShutdownMaint(){ensureShutdownMaint();shutdownMaintRefresh();const m=qs('#shutdown-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
+function closeShutdownMaint(){const m=qs('#shutdown-maint-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function shutdownMaintRefresh(){const s=qs('#sm-record');s.innerHTML='<option value="">＋ New / 新增</option>'+EVENTS.slice().sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(e=>`<option value="${esc(shutdownKey(e))}">${e.start}${e.end&&e.end!==e.start?'~'+e.end:''} · #${e.seq} · ${int(e.shutPPL)} ppl</option>`).join('');shutdownMaintNew();}
+function shutdownMaintNew(){SHUT_MAINT_KEY='';qs('#sm-record').value='';const d=new Date(),ds=dStr(d);qs('#sm-start').value=ACTIVE?ACTIVE+'-01':ds;qs('#sm-end').value=qs('#sm-start').value;['seq','ttlLine','shutLine','shutPPL','remainPPL','ttlPPL'].forEach(k=>qs('#sm-'+k).value='');}
+function shutdownMaintLoad(){const k=qs('#sm-record').value,e=EVENTS.find(x=>shutdownKey(x)===k);if(!e){shutdownMaintNew();return;}SHUT_MAINT_KEY=k;['start','end','seq','ttlLine','shutLine','shutPPL','remainPPL','ttlPPL'].forEach(x=>qs('#sm-'+x).value=e[x]!=null?e[x]:'');}
+function shutdownBuildOnline(){const s=qs('#sm-start').value,e=qs('#sm-end').value||s;if(!s)return null;const sd=toDate(s),ed=toDate(e);if(!sd||!ed||ed<sd)return null;const days=Math.round((ed-sd)/86400000)+1,ttlLine=N(qs('#sm-ttlLine').value),shutLine=N(qs('#sm-shutLine').value),shutPPL=N(qs('#sm-shutPPL').value),remain=N(qs('#sm-remainPPL').value),ttlPPL=N(qs('#sm-ttlPPL').value)||(shutPPL+remain);return{year:+s.slice(0,4),seq:N(qs('#sm-seq').value)||1,start:s,end:e,wdStart:wdName(sd),wdEnd:wdName(ed),days,spanDays:days,ttlLine,shutLine,lineRatio:ttlLine?shutLine/ttlLine:0,shutPPL,remainPPL:remain,ttlPPL,personDays:days*shutPPL,sheet:'Online',src:'Online'};}
+async function shutdownMaintSave(){const e=shutdownBuildOnline();if(!e){toast(T('日期不正確','Invalid date range'),'error');return;}const nk=shutdownKey(e);if(SHUT_MAINT_KEY&&SHUT_MAINT_KEY!==nk)EVENTS=EVENTS.filter(x=>shutdownKey(x)!==SHUT_MAINT_KEY);EVENTS=shutdownUpsert(EVENTS,[e]).rows;EVENTS.sort((a,b)=>a.start<b.start?-1:1);await idbSaveAll();ACTIVE=e.start.slice(0,7);await pushProjection();renderAll();scheduleAutoCloudSync(SHUT_MAINT_KEY?'edit':'add');shutdownMaintRefresh();qs('#sm-record').value=nk;SHUT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');}
+async function shutdownMaintDelete(){const k=SHUT_MAINT_KEY||qs('#sm-record').value;if(!k)return;if(!confirm(T('確定刪除此事件？','Delete this event?')))return;EVENTS=EVENTS.filter(e=>shutdownKey(e)!==k);await idbSaveAll();await pushProjection();renderAll();scheduleAutoCloudSync('delete');shutdownMaintRefresh();toast(T('已刪除','Deleted'),'success');}
+
 async function clearAllData(){
   if(!confirm(T('確定清除所有已匯入的停工記錄？','Clear all imported shutdown records?')))return;
   EVENTS=[];ACTIVE=null;await idbClear();

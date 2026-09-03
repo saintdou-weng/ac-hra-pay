@@ -53,6 +53,8 @@ padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:n
 @media(max-width:560px){.kpis{grid-template-columns:1fr 1fr;}}
 
 .comp-table{width:100%;border-collapse:collapse;font-size:12px}.comp-table th,.comp-table td{padding:8px 9px;border-bottom:1px solid var(--line);text-align:right}.comp-table th:first-child,.comp-table td:first-child{text-align:left}.comp-table th{color:var(--mut);background:#f8fafc;font-weight:700}.comp-table .neg{color:#dc2626}.comp-table .strong{font-weight:800;color:var(--navy)}
+
+.topctl{max-width:1080px;margin:12px auto 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.topctl .lab{font-size:.72rem;opacity:.72}.topctl select{min-height:38px}.navbtn{width:38px;height:38px;padding:0;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.12);color:#fff;font-size:1rem;font-weight:800;cursor:pointer}.navbtn:disabled{opacity:.35}.syncpill{font-size:.7rem;padding:6px 10px;border-radius:18px;background:rgba(255,255,255,.12);color:#fff;white-space:nowrap}.syncpill.ok{background:#dcfce7;color:#166534}.syncpill.busy{background:#fef3c7;color:#92400e}.syncpill.warn{background:#fee2e2;color:#991b1b}.scale-sel{min-width:118px}.period-sel{min-width:155px}@media(max-width:560px){header{padding:14px 12px}.topctl{margin-top:10px;gap:6px}.topctl .lab{width:100%}.scale-sel{min-width:108px;flex:0 0 auto}.period-sel{min-width:0;flex:1}.hbtns{width:100%}.hbtns .btn{flex:1}.syncpill{order:9;width:100%;text-align:center}}
 </style>
 </head>
 <body>
@@ -60,9 +62,22 @@ padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:n
   <div class="hw">
     <div><h1>📊 Summary Center 總覽核對中心</h1><p>跨模組 Projection 交叉核對 · AC-HRA-PAY</p></div>
     <div class="hbtns">
-      <button class="btn ghost" id="btn-pull">☁ 從雲端拉取</button>
+      <button class="btn ghost" id="btn-pull">☁ 檢查雲端</button>
       <button class="btn gold" id="btn-run">▶ 執行交叉核對</button>
     </div>
+  </div>
+  <div class="topctl">
+    <span class="lab">期間 Period</span>
+    <select id="sel-scale" class="scale-sel" title="時間尺度 Time scale">
+      <option value="day">日 Day</option>
+      <option value="week">週 Week</option>
+      <option value="month" selected>月 Month</option>
+      <option value="year">年 Year</option>
+    </select>
+    <button class="navbtn" id="btn-prev" title="上一期 Previous">‹</button>
+    <select id="sel-period" class="period-sel"><option value="">（載入中…）</option></select>
+    <button class="navbtn" id="btn-next" title="下一期 Next">›</button>
+    <span class="syncpill" id="sync-state">☁ 尚未檢查</span>
   </div>
 </header>
 
@@ -89,18 +104,12 @@ padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:n
     <div class="note">這裡直接加總 Payroll Projection 的逐人欄位，不用總額反推。若舊 Projection 沒有分項欄位，會明示要求重新開啟 Payroll 產生新版 Projection，不把缺欄位當作 0。</div>
   </div>
 
-  <div class="panel">
-    <div class="ph"><h2>核對期間 Period</h2>
-      <select id="sel-period"><option value="">（載入中…）</option></select>
-    </div>
-  </div>
-
   <div id="results"></div>
 
   <div class="panel">
     <div class="ph"><h2>📦 Projection 資料來源狀態</h2></div>
     <div class="pb" id="src-list"></div>
-    <div class="note">本頁只做交叉核對，不重新計算薪資。資料來源：各模組輸出的 hrpay:result:*（localStorage）；按「從雲端拉取」可同步 GAS Drive 上的 hrpay_result_*.json。</div>
+    <div class="note">本頁只做交叉核對，不重新計算薪資，也不會上傳任何資料。開頁／按「檢查雲端」會先比對小型雲端版本資訊；只有版本變更才下載完整 Projection，避免重複下載。</div>
   </div>
 </main>
 
@@ -167,37 +176,77 @@ function loadLocal(){
   }catch(e){console.warn('meal',e);}
 }
 
+let _pullPromise=null;
+const PROJ_STAMP_KEY='hrpay:summary:projectionStamp:';
+function setSyncState(text,cls){const e=$('#sync-state');if(!e)return;e.textContent=text;e.className='syncpill'+(cls?' '+cls:'');}
+function projStamp(m){try{return localStorage.getItem(PROJ_STAMP_KEY+m)||'';}catch(e){return '';}}
+function saveProjStamp(m,v){try{if(v)localStorage.setItem(PROJ_STAMP_KEY+m,v);}catch(e){}}
+async function projectionMeta(m){
+  const r=await fetch(GAS_URL+'?action=pullProjectionMeta&module='+encodeURIComponent(m),{cache:'no-store'});
+  const d=await r.json();
+  const x=(d&&d.data)||d||{};
+  return {exists:!!x.exists,updatedAt:x.updatedAt||'',itemCount:Number(x.itemCount)||0,keys:x.keys||[]};
+}
+function mergeProjectionItems(localItems,cloudItems){
+  const out=Object.assign({},localItems||{});
+  Object.entries(cloudItems||{}).forEach(([k,v])=>{
+    const old=out[k];
+    if(!old||String(v.updatedAt||'')>=String(old.updatedAt||''))out[k]=v;
+  });
+  return out;
+}
 async function pullCloud(silent){
-  const btn=$('#btn-pull');
-  if(btn&&!silent){btn.disabled=true;btn.textContent='☁ 拉取中…';}
-  let got=0, mealCloudProjection=false;
-  for(const m of ['payroll','advance','meal']){
-    try{
-      const r=await fetch(GAS_URL+'?action=pullProjection&module='+m);
-      const d=await r.json();
-      const store=unwrapProjectionResponse(d);
-      if(store&&store.items&&Object.keys(store.items).length){
-        MOD[m]={src:'cloud',items:store.items};got++;
-        if(m==='meal') mealCloudProjection=true;
-      }
-    }catch(e){console.warn('pull projection',m,e);}
-  }
-  // 舊版 Meal Fee 可能只有 hrpay_meal.json，沒有 hrpay_result_meal.json；直接從原始雲端資料重建 Projection
-  if(!mealCloudProjection){
-    try{
-      const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_meal');
-      const d=await r.json();
-      const rawStore=d&&d.data;
-      const items=mealItemsFromBatches((rawStore&&rawStore.batches)||[]);
-      if(Object.keys(items).length){
-        MOD.meal={src:'cloud',items};got++;
-        localStorage.setItem('hrpay:result:meal',JSON.stringify({module:'meal',updatedAt:new Date().toISOString(),batches:Object.values(items)}));
-      }
-    }catch(e){console.warn('pull raw meal',e);}
-  }
-  if(btn&&!silent){btn.disabled=false;btn.textContent='☁ 從雲端拉取';}
-  if(!silent)toast(got?('已取得 '+got+' 個模組資料（Meal 舊資料也會自動轉換）'):'雲端尚無可用資料');
-  render();
+  if(_pullPromise)return _pullPromise; // 同一時間只允許一個讀取，避免重複下載
+  _pullPromise=(async()=>{
+    const btn=$('#btn-pull');
+    if(btn&&!silent){btn.disabled=true;btn.textContent='☁ 檢查中…';}
+    setSyncState('☁ 比對雲端版本…','busy');
+    let got=0,skipped=0,mealCloudProjection=false,failed=0;
+    for(const m of ['payroll','advance','meal']){
+      try{
+        let meta=null;
+        try{meta=await projectionMeta(m);}catch(e){console.warn('projection meta',m,e);}
+        if(meta&&meta.exists){
+          if(m==='meal')mealCloudProjection=true;
+          const same=!!MOD[m] && !!meta.updatedAt && projStamp(m)===meta.updatedAt;
+          if(same){skipped++;continue;}
+          const r=await fetch(GAS_URL+'?action=pullProjection&module='+encodeURIComponent(m),{cache:'no-store'});
+          const d=await r.json();
+          const store=unwrapProjectionResponse(d);
+          if(store&&store.items&&Object.keys(store.items).length){
+            const localItems=MOD[m]&&MOD[m].items;
+            MOD[m]={src:'cloud',items:mergeProjectionItems(localItems,store.items)};got++;
+            saveProjStamp(m,meta.updatedAt||store.updatedAt||new Date().toISOString());
+          }
+        }else if(meta&& !meta.exists){
+          if(MOD[m])skipped++;
+        }else{
+          // 舊 GAS 無 meta action 時才相容性回退一次完整讀取
+          const r=await fetch(GAS_URL+'?action=pullProjection&module='+encodeURIComponent(m),{cache:'no-store'});
+          const d=await r.json(); const store=unwrapProjectionResponse(d);
+          if(store&&store.items&&Object.keys(store.items).length){MOD[m]={src:'cloud',items:mergeProjectionItems(MOD[m]&&MOD[m].items,store.items)};got++;if(m==='meal')mealCloudProjection=true;}
+        }
+      }catch(e){failed++;console.warn('pull projection',m,e);}
+    }
+    // 舊版 Meal Fee fallback：同一頁工作階段只做一次，避免每次重抓
+    if(!mealCloudProjection && !MOD.meal && !sessionStorage.getItem('hrpay:summary:mealRawChecked')){
+      try{
+        sessionStorage.setItem('hrpay:summary:mealRawChecked','1');
+        const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_meal',{cache:'no-store'});
+        const d=await r.json(); const rawStore=d&&d.data;
+        const items=mealItemsFromBatches((rawStore&&rawStore.batches)||[]);
+        if(Object.keys(items).length){MOD.meal={src:'cloud',items};got++;}
+      }catch(e){failed++;console.warn('pull raw meal',e);}
+    }
+    if(btn&&!silent){btn.disabled=false;btn.textContent='☁ 檢查雲端';}
+    if(failed)setSyncState('⚠ 部分雲端檢查失敗','warn');
+    else if(got)setSyncState('✅ 已更新 '+got+' · 略過 '+skipped,'ok');
+    else setSyncState('✅ 雲端已是最新 · 無重複下載','ok');
+    if(!silent)toast(got?('已下載 '+got+' 個有變更模組；'+skipped+' 個未變更已略過'):('雲端無變更，未重複下載'));
+    render();
+    return {got,skipped,failed};
+  })().finally(()=>{_pullPromise=null;});
+  return _pullPromise;
 }
 
 /* ── 期間選單：以 payroll(final) 的期間為主 ── */
@@ -205,6 +254,43 @@ function periods(){
   const set=new Set();
   Object.values(MOD).forEach(m=>{if(m)Object.values(m.items).forEach(it=>{if(it.period)set.add(it.period);});});
   return [...set].sort().reverse();
+}
+function periodKind(p){
+  p=String(p||'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(p))return 'day';
+  if(/^\d{4}-\d{2}-\d{2}~\d{4}-\d{2}-\d{2}$/.test(p))return 'week';
+  if(/^\d{4}-\d{2}$/.test(p))return 'month';
+  if(/^\d{4}$/.test(p))return 'year';
+  return 'other';
+}
+function scalePeriods(scale){
+  const ps=periods();
+  if(scale==='month')return ps.filter(p=>periodKind(p)==='month');
+  if(scale==='day')return ps.filter(p=>periodKind(p)==='day');
+  if(scale==='week')return ps.filter(p=>periodKind(p)==='week');
+  if(scale==='year')return [...new Set(ps.map(p=>String(p).slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();
+  return ps;
+}
+function actualPeriodForView(){
+  const scale=$('#sel-scale')?.value||'month', val=$('#sel-period')?.value||'';
+  if(scale!=='year')return val;
+  const candidates=periods().filter(p=>periodKind(p)==='month'&&p.startsWith(val+'-')).sort().reverse();
+  return candidates[0]||''; // 年模式目前以該年最新月做核對，不假造日/週資料
+}
+function fillTopPeriodSelect(keep){
+  const scale=$('#sel-scale')?.value||'month',sel=$('#sel-period');
+  const ps=scalePeriods(scale);const cur=keep||sel.value;
+  sel.innerHTML=ps.length?ps.map(p=>`<option value="${p}">${p}</option>`).join(''):'<option value="">（此尺度無來源資料）</option>';
+  if(cur&&ps.includes(cur))sel.value=cur;
+  $('#btn-prev').disabled=!ps.length||sel.selectedIndex>=ps.length-1;
+  $('#btn-next').disabled=!ps.length||sel.selectedIndex<=0;
+  const run=$('#btn-run'); if(run){run.disabled=(scale!=='month');run.title=scale==='month'?'執行本月交叉核對':'交叉核對以月結 Projection 為準；切回 Month 執行';}
+}
+function stepPeriod(dir){
+  const sel=$('#sel-period');if(!sel||!sel.options.length)return;
+  const i=sel.selectedIndex+(dir>0?-1:1);
+  if(i<0||i>=sel.options.length)return;
+  sel.selectedIndex=i;fillTopPeriodSelect(sel.value);render();
 }
 function pick(module,period,phase,batch){
   const m=MOD[module];if(!m)return null;
@@ -268,11 +354,9 @@ function renderPayComponents(pay){
 }
 
 function render(){
-  const ps=periods();
-  const sel=$('#sel-period');const cur=sel.value;
-  sel.innerHTML=ps.length?ps.map(p=>`<option value="${p}">${p}</option>`).join(''):'<option value="">（無資料）</option>';
-  if(cur&&ps.includes(cur))sel.value=cur;
-  const P=sel.value;
+  const sel=$('#sel-period');
+  fillTopPeriodSelect(sel.value);
+  const P=actualPeriodForView();
 
   const pay=pick('payroll',P,'final'), adv=pick('advance',P,'advance'),
         m1=pick('meal',P,null,1), m2=pick('meal',P,null,2);
@@ -301,8 +385,9 @@ function render(){
 
 /* ── 交叉核對 ── */
 function runAudit(){
-  const P=$('#sel-period').value;
-  if(!P){toast('請先選擇期間');return;}
+  const P=actualPeriodForView();
+  if(!P){toast('請先選擇有月結資料的期間');return;}
+  if(($('#sel-scale')?.value||'month')!=='month'){toast('交叉核對以月結 Projection 為準，請切換到 Month');return;}
   const pay=pick('payroll',P,'final'), adv=pick('advance',P,'advance'),
         m1=pick('meal',P,null,1), m2=pick('meal',P,null,2);
   const R=$('#results');R.innerHTML='';
@@ -365,14 +450,17 @@ function runAudit(){
   toast('核對完成');
 }
 
-$('#btn-pull').onclick=pullCloud;
+$('#btn-pull').onclick=()=>pullCloud(false);
 $('#btn-run').onclick=runAudit;
-$('#sel-period').onchange=render;
+$('#sel-scale').onchange=()=>{fillTopPeriodSelect('');render();};
+$('#sel-period').onchange=()=>{fillTopPeriodSelect($('#sel-period').value);render();};
+$('#btn-prev').onclick=()=>stepPeriod(-1);
+$('#btn-next').onclick=()=>stepPeriod(1);
 document.querySelectorAll('[data-cost]').forEach(x=>x.addEventListener('change',()=>{
   const o={};document.querySelectorAll('[data-cost]').forEach(c=>o[c.dataset.cost]=c.checked);
   localStorage.setItem('summary_cost_opts',JSON.stringify(o));render();
 }));
-loadLocal();applyCostChecks();render();
+loadLocal();applyCostChecks();fillTopPeriodSelect('');render();
 // Full payroll projection can exceed browser localStorage quota. If local cache is absent/marked cloud-only,
 // silently recover the latest Projection from GAS Drive; manual Cloud Pull remains available unchanged.
 setTimeout(function(){

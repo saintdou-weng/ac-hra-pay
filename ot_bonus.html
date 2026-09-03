@@ -46,6 +46,7 @@
       </div>
       <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
         ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="openOtMaint()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">✏️ <span class="hidden sm:inline" data-en="Maintain">線上維護</span></button>
       <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
         🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
       <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
@@ -458,6 +459,11 @@ function parseWorkbook(wb,fileName){
   return all;
 }
 
+// v3.9.8 SAFE：OT/Bonus 唯一鍵 = Type + Year + Month + Department。
+function otKey(r){return String(r.type||'')+'|'+String(r.year||'')+'|'+pad(r.month)+'|'+String(r.dept||'').trim().toLowerCase();}
+function otUpsert(list,incoming){const map=new Map(),order=[];let replaced=0;(list||[]).forEach(r=>{const k=otKey(r);if(!map.has(k))order.push(k);map.set(k,r);});(incoming||[]).forEach(r=>{const k=otKey(r);if(map.has(k))replaced++;else order.push(k);map.set(k,r);});return{rows:order.map(k=>map.get(k)),replaced};}
+function otDedupe(list){return otUpsert([],list||[]).rows;}
+
 // ━━━━━━━━━ 智慧匯入 ━━━━━━━━━
 async function smartImport(input){
   const files=[...input.files]; input.value='';
@@ -472,13 +478,12 @@ async function smartImport(input){
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true});
       const recs=parseWorkbook(wb,file.name);
       if(!recs){ log.push({ok:false,f:file.name,msg:T('無法辨識格式（找不到 PPl / Expense 欄）','Unrecognised format')}); continue; }
-      // 覆蓋同類型同年度的舊資料
+      // 精準 Upsert：只更新 Excel 真正包含的 Type+Month+Dept，不刪其他月份。
       const years=[...new Set(recs.map(r=>r.year))];
       const type=recs[0].type;
-      RECS=RECS.filter(r=>!(r.type===type&&years.includes(r.year)));
-      RECS=RECS.concat(recs);
+      const up=otUpsert(RECS,recs); RECS=up.rows;
       const exp=recs.reduce((s,r)=>s+r.expense,0);
-      log.push({ok:true,f:file.name,type,years,n:recs.length,exp,
+      log.push({ok:true,f:file.name,type,years,n:recs.length,exp,replaced:up.replaced,
                 depts:new Set(recs.map(r=>r.dept)).size});
     }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
   }
@@ -502,7 +507,7 @@ async function smartImport(input){
     ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${
         l.type==='ot'?`<span class="text-teal-700 font-semibold">${T('加班 Overtime','Overtime')}</span>`
                      :`<span class="text-amber-700 font-semibold">${T('獎金 Bonus','Bonus')}</span>`
-      } · ${l.years.join(', ')} · ${l.n} ${T('筆','rows')} · ${l.depts} ${T('部門','depts')} · $${fmt(l.exp)}</span></div>`
+      } · ${l.years.join(', ')} · ${l.n} ${T('筆','rows')} · ${l.depts} ${T('部門','depts')} · $${fmt(l.exp)} <span class="text-slate-400">${l.replaced?`· ${T('更新','updated')} ${l.replaced}`:''}</span></span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('')
   + (gaps.length
@@ -1064,11 +1069,11 @@ async function confirmSendTg(){
     const tz=type==='ot'?T('加班 Overtime','Overtime'):type==='bonus'?T('獎金 Bonus','Bonus'):T('加班＋獎金','OT + Bonus');
     const [y,m]=period.split('-');
     ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl);
-  }else ok=await sendTG(r.text);
+  }else ok=await sendTG(r.text,{module:'otbonus',period:period,periods:[String(period).slice(0,7)]});
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
-async function sendTG(text){
+async function sendTG(text,meta){
   const checker=hrpPersonValue('checker',true);
   if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
   if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
@@ -1076,7 +1081,7 @@ async function sendTG(text){
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'notify',text,checker})});
+      body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
     if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
@@ -1106,7 +1111,7 @@ function otSyncId(r){return 'otb:'+String(r.type||'')+':'+String(r.year||'')+'-'
 function otCloudRecords(){return RECS.map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
 function otCloudMeta(){return{periods:Array.from(new Set(RECS.map(function(r){return String(r.year||'')+'-'+pad(r.month);}))).sort()};}
 function otLegacyRows(env){const D=(env&&env.data)||env||{};return(D.records||[]).map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
-async function otApplyCloud(rows){RECS=(rows||[]).map(function(x){const r=Object.assign({},x);delete r._syncId;delete r._syncPeriod;return r;});await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
+async function otApplyCloud(rows){RECS=otDedupe((rows||[]).map(function(x){const r=Object.assign({},x);delete r._syncId;delete r._syncPeriod;return r;}));await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||null;renderAll();}
 function otSyncStatus(msg,type){console.log('[OT smart sync]',msg);}
 function scheduleAutoCloudSync(reason){
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('otbonus',reason||'change',{},900);return;}
@@ -1133,6 +1138,17 @@ function exportJSON(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`ot_bonus_backup_${_nowISO().slice(0,10)}.json`;a.click();
 }
+async function importOtJSON(input){const f=input.files&&input.files[0];if(!f)return;try{const arr=JSON.parse(await f.text());if(!Array.isArray(arr))throw new Error('JSON must be an array');const up=otUpsert(RECS,arr);RECS=up.rows;await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||ACTIVE;renderAll();scheduleAutoCloudSync('restore');toast(T(`已匯入/更新 ${arr.length} 筆`,`Imported/updated ${arr.length} rows`),'success');}catch(e){toast(T('匯入失敗：','Import failed: ')+e.message,'error');}finally{input.value='';}}
+let OT_MAINT_KEY='';
+function ensureOtMaint(){if(qs('#ot-maint-modal'))return;const d=document.createElement('div');d.id='ot-maint-modal';d.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';d.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"><div class="px-5 py-4 border-b flex"><div class="flex-1"><b>✏️ OT / Bonus 線上維護</b><p class="text-[11px] text-slate-400">唯一鍵 Type + Month + Department；儲存為 Upsert。</p></div><button onclick="closeOtMaint()" class="text-xl">×</button></div><div class="p-5 space-y-3"><select id="om-record" onchange="otMaintLoad()" class="w-full border rounded-lg p-2 text-sm"></select><div class="grid grid-cols-2 gap-2"><select id="om-type" class="border rounded-lg p-2"><option value="ot">OT 加班</option><option value="bonus">Bonus 獎金</option></select><input id="om-period" type="month" class="border rounded-lg p-2"><input id="om-dept" placeholder="Department" class="border rounded-lg p-2"><input id="om-ppl" type="number" step="1" placeholder="PPL" class="border rounded-lg p-2"><input id="om-hour" type="number" step="0.01" placeholder="Hours" class="border rounded-lg p-2"><input id="om-exp" type="number" step="0.01" placeholder="Expense" class="border rounded-lg p-2"></div><div class="flex gap-2 pt-2"><button onclick="otMaintNew()" class="px-3 py-2 border rounded-lg text-xs">＋ New</button><button onclick="otMaintDelete()" class="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-lg text-xs">🗑 Delete</button><label class="px-3 py-2 border rounded-lg text-xs cursor-pointer">⬆ JSON Restore<input type="file" accept=".json" class="hidden" onchange="importOtJSON(this)"></label><span class="flex-1"></span><button onclick="otMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save</button></div></div></div>`;document.body.appendChild(d);}
+function openOtMaint(){ensureOtMaint();otMaintRefresh();const m=qs('#ot-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
+function closeOtMaint(){const m=qs('#ot-maint-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function otMaintRefresh(){const s=qs('#om-record');s.innerHTML='<option value="">＋ New / 新增</option>'+RECS.slice().sort((a,b)=>otKey(a).localeCompare(otKey(b))).map(r=>`<option value="${esc(otKey(r))}">${r.type.toUpperCase()} · ${r.year}-${pad(r.month)} · ${esc(r.dept)}</option>`).join('');otMaintNew();}
+function otMaintNew(){OT_MAINT_KEY='';qs('#om-record').value='';qs('#om-type').value='ot';qs('#om-period').value=ACTIVE||new Date().toISOString().slice(0,7);['dept','ppl','hour','exp'].forEach(k=>qs('#om-'+k).value='');}
+function otMaintLoad(){const k=qs('#om-record').value,r=RECS.find(x=>otKey(x)===k);if(!r){otMaintNew();return;}OT_MAINT_KEY=k;qs('#om-type').value=r.type;qs('#om-period').value=`${r.year}-${pad(r.month)}`;qs('#om-dept').value=r.dept||'';qs('#om-ppl').value=N(r.ppl);qs('#om-hour').value=N(r.hour);qs('#om-exp').value=N(r.expense);}
+async function otMaintSave(){const p=qs('#om-period').value,dept=qs('#om-dept').value.trim();if(!/^20\d{2}-\d{2}$/.test(p)||!dept){toast(T('期間與部門必填','Period and department required'),'error');return;}const r={type:qs('#om-type').value,year:+p.slice(0,4),month:+p.slice(5,7),dept,ppl:N(qs('#om-ppl').value),hour:N(qs('#om-hour').value),expense:N(qs('#om-exp').value),src:'Online'};const nk=otKey(r);if(OT_MAINT_KEY&&OT_MAINT_KEY!==nk)RECS=RECS.filter(x=>otKey(x)!==OT_MAINT_KEY);const up=otUpsert(RECS,[r]);RECS=up.rows;await idbSaveAll();ACTIVE=p;await pushProjection();renderAll();scheduleAutoCloudSync(OT_MAINT_KEY?'edit':'add');otMaintRefresh();qs('#om-record').value=nk;OT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');}
+async function otMaintDelete(){const k=OT_MAINT_KEY||qs('#om-record').value;if(!k)return;if(!confirm(T('確定刪除此筆？','Delete this record?')))return;RECS=RECS.filter(r=>otKey(r)!==k);await idbSaveAll();await pushProjection();renderAll();scheduleAutoCloudSync('delete');otMaintRefresh();toast(T('已刪除','Deleted'),'success');}
+
 async function clearAllData(){
   if(!confirm(T('確定清除所有已匯入的加班與獎金資料？','Clear all imported OT and Bonus data?')))return;
   RECS=[];ACTIVE=null;await idbClear();
