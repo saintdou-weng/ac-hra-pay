@@ -66,7 +66,7 @@ footer a{color:var(--sub);}
     <a class="card" href="./payroll.html"><div class="ic">💵</div><div class="ci"><h3 data-i="m1">薪資 Payroll</h3><p data-i="m1d">預支＋月結雙檔匯入、交叉稽核、Projection 輸出</p></div></a>
     <a class="card" href="./advance_pay.html"><div class="ic">💰</div><div class="ci"><h3 data-i="m2">預支 Advance</h3><p data-i="m2d">首期發放清冊（整合於 Payroll Stage 1）</p></div></a>
     <a class="card" href="./meal_fee.html"><div class="ic">🍱</div><div class="ci"><h3 data-i="m3">餐費 Meal Fee</h3><p data-i="m3d">上／下半月雙批發放、匯率換算、異常偵測</p></div></a>
-    <a class="card" href="./ot_bonus.html"><div class="ic">⏱</div><div class="ci"><h3 data-i="m4">OT &amp; Bonus</h3><p data-i="m4d">部門級加班與獎金歷年追蹤（2020–2026）</p></div></a>
+    <a class="card" href="./ot_bonus.html"><div class="ic">⏱</div><div class="ci"><h3 data-i="m4">OT / Bonus / Special OT</h3><p data-i="m4d">一般加班、獎金與周日／假日現金 Special OT 分開管理</p></div></a>
   </div>
 
   <div class="sect" data-i="s2">人事管理 HR Management</div>
@@ -94,19 +94,19 @@ const GAS_URL = localStorage.getItem('hrpay_gas_url') || 'https://script.google.
 const I18N={
  tc:{sub:'人資薪資分析平台 · Vantage River Textiles Co., Ltd.',s1:'薪資核心 Payroll Core',s2:'人事管理 HR Management',s3:'總覽 Overview',
   m1:'薪資 Payroll',m1d:'預支＋月結雙檔匯入、交叉稽核、Projection 輸出',m2:'預支 Advance',m2d:'首期發放清冊（整合於 Payroll Stage 1）',
-  m3:'餐費 Meal Fee',m3d:'上／下半月雙批發放、匯率換算、異常偵測',m4:'OT & Bonus',m4d:'部門級加班與獎金歷年追蹤（2020–2026）',
+  m3:'餐費 Meal Fee',m3d:'上／下半月雙批發放、匯率換算、異常偵測',m4:'OT / Bonus / Special OT',m4d:'一般加班、獎金與周日／假日現金 Special OT 分開管理',
   m5:'員工 HR',m5d:'員工主檔、工號／姓名／部門對照',m6:'職位異動 Transfer',m6d:'調職／調薪申請與核可流程（Telegram 通知）',
   m7:'警告 Warning',m7d:'警告信登錄、失效追蹤、核可／退件',m8:'停工 Shutdown',m8d:'停工事件登錄與年度統計',
   m9:'總覽 Summary Center',m9d:'跨模組 Projection 交叉核對與異常清單'},
  en:{sub:'HR & Payroll Analytics Platform · Vantage River Textiles Co., Ltd.',s1:'Payroll Core',s2:'HR Management',s3:'Overview',
   m1:'Payroll',m1d:'Advance + monthly import, cross-audit, projection export',m2:'Advance Pay',m2d:'First-phase payment (inside Payroll Stage 1)',
-  m3:'Meal Fee',m3d:'Semi-monthly batches, FX conversion, anomaly detection',m4:'OT & Bonus',m4d:'Department-level OT & bonus history (2020–2026)',
+  m3:'Meal Fee',m3d:'Semi-monthly batches, FX conversion, anomaly detection',m4:'OT / Bonus / Special OT',m4d:'Separate normal OT, bonus and Sunday/holiday cash Special OT',
   m5:'Employee HR',m5d:'Employee master: ID / name / department',m6:'Transfer',m6d:'Position & salary change approval (Telegram notify)',
   m7:'Warning',m7d:'Warning letters, expiry tracking, approval flow',m8:'Shutdown',m8d:'Shutdown events & yearly statistics',
   m9:'Summary Center',m9d:'Cross-module projection reconciliation'},
  km:{sub:'វេទិកាវិភាគប្រាក់ខែ · Vantage River Textiles Co., Ltd.',s1:'ស្នូលប្រាក់ខែ',s2:'ការគ្រប់គ្រងធនធានមនុស្ស',s3:'ទិដ្ឋភាពរួម',
   m1:'ប្រាក់ខែ Payroll',m1d:'នាំចូលឯកសារ បុរេប្រទាន+ប្រចាំខែ និងសវនកម្ម',m2:'បុរេប្រទាន Advance',m2d:'ការទូទាត់ដំណាក់កាលទី១ (ក្នុង Payroll)',
-  m3:'ថ្លៃអាហារ Meal Fee',m3d:'ការទូទាត់ពីរដងក្នុងមួយខែ និងអត្រាប្តូរប្រាក់',m4:'OT & Bonus',m4d:'ម៉ោងបន្ថែម និងប្រាក់រង្វាន់តាមផ្នែក',
+  m3:'ថ្លៃអាហារ Meal Fee',m3d:'ការទូទាត់ពីរដងក្នុងមួយខែ និងអត្រាប្តូរប្រាក់',m4:'OT / Bonus / Special OT',m4d:'គ្រប់គ្រង OT, Bonus និង Special OT ដាច់ដោយឡែក',
   m5:'បុគ្គលិក HR',m5d:'ទិន្នន័យបុគ្គលិក: លេខ / ឈ្មោះ / ផ្នែក',m6:'ផ្លាស់ប្តូរតំណែង',m6d:'ការស្នើសុំ និងអនុម័ត (ជូនដំណឹង Telegram)',
   m7:'ការព្រមាន Warning',m7d:'លិខិតព្រមាន និងការតាមដាន',m8:'ការផ្អាកការងារ',m8d:'ព្រឹត្តិការណ៍ផ្អាក និងស្ថិតិប្រចាំឆ្នាំ',
   m9:'មជ្ឈមណ្ឌលសង្ខេប',m9d:'ការផ្ទៀងផ្ទាត់ទិន្នន័យឆ្លងម៉ូឌុល'}

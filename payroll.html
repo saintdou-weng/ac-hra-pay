@@ -392,6 +392,12 @@ body{font-family:'DM Sans',sans-serif;}
           <button id="cs-adv" onclick="setCostSrc('adv')" data-en="💰 Advance" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">💰 預付薪資</button>
           <button id="cs-both" onclick="setCostSrc('both')" data-en="Σ Combined" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 合計</button>
         </div>
+        <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-xs font-semibold cursor-pointer" title="Special OT 為周日／假日另行現金發放，預設不併入薪資；勾選後只在成本分析中外加，不改 Payroll 原始實領。">
+          <input id="cost-special-toggle" type="checkbox" onchange="toggleSpecialCost(this.checked)" class="accent-orange-600">
+          🌞 <span data-en="Include Special OT Cash">計入 Special OT 現金</span>
+          <span id="cost-special-badge" class="font-mono text-[10px]">—</span>
+        </label>
+        <button onclick="loadSpecialOtCost(false)" class="text-[11px] px-2 py-1.5 rounded-lg border border-orange-200 text-orange-700 hover:bg-orange-50" title="Refresh Special OT from cloud">↻ Special OT</button>
         <select id="cost-dept" onchange="renderCost()"
           class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-sky-200 outline-none min-w-[180px]">
           <option value="">全廠 All Departments</option>
@@ -514,7 +520,8 @@ body{font-family:'DM Sans',sans-serif;}
             <tr class="bg-slate-50 border-b border-slate-100">
               <th class="px-3 py-2 text-left font-semibold text-slate-500">部門 Dept</th>
               <th class="px-3 py-2 text-right font-semibold text-slate-500">人數</th>
-              <th class="px-3 py-2 text-right font-semibold text-slate-500">月薪資 Monthly $</th>
+              <th class="px-3 py-2 text-right font-semibold text-orange-600">Special OT Cash</th>
+              <th class="px-3 py-2 text-right font-semibold text-slate-500">月成本 Monthly $</th>
               <th class="px-3 py-2 text-right font-semibold text-slate-500">週 Weekly $</th>
               <th class="px-3 py-2 text-right font-semibold text-slate-500">日 Daily $</th>
               <th class="px-3 py-2 text-right font-semibold text-slate-500">時 Hourly $</th>
@@ -1930,6 +1937,30 @@ function setReportMode(m){
   qs('#rp-year').className =_cbtn(m==='year','sky');
   renderReport();
 }
+// ━━━━━━━━━ Special OT 現金成本（獨立來源，不修改 Payroll 原始實領）━━━━━━━━━
+let SPECIAL_OT_COST={};
+let INCLUDE_SPECIAL_OT=false;
+try{INCLUDE_SPECIAL_OT=localStorage.getItem('hrpay:cost:includeSpecialOT')==='1';}catch(e){}
+function specialFromGroups_(groups){
+  const out={};(groups||[]).filter(g=>g&&g.type==='special').forEach(g=>{const p=String(g.period||'');if(!p)return;out[p]={rows:(g.rows||[]),updatedAt:g.updatedAt||''};});return out;
+}
+function loadSpecialFromLocal_(){
+  try{const d=JSON.parse(localStorage.getItem('hrpay:result:ot_bonus')||'{}');const x=specialFromGroups_(d.groups||[]);Object.keys(x).forEach(k=>SPECIAL_OT_COST[k]=x[k]);}catch(e){}
+}
+async function loadSpecialOtCost(silent){
+  loadSpecialFromLocal_();
+  if(GAS_URL){
+    try{const r=await fetch(GAS_URL+'?action=pullProjection&module=ot_bonus',{cache:'no-store'});const d=await r.json();const store=(d&&d.data)||{};const items=store.items||{};Object.keys(items).forEach(k=>{const it=items[k];if(it&&it.payPhase==='special'&&it.period)SPECIAL_OT_COST[it.period]={rows:it.rows||[],updatedAt:it.updatedAt||store.updatedAt||''};});}
+    catch(e){if(!silent)toast('Special OT 雲端讀取失敗：'+e.message,'warning');}
+  }
+  const cb=qs('#cost-special-toggle');if(cb)cb.checked=INCLUDE_SPECIAL_OT;updateSpecialBadge_();if(ACTIVE)renderCost();
+}
+function specialStats_(period,dept){
+  const x=SPECIAL_OT_COST[String(period||'')]||{rows:[]};let rows=x.rows||[];if(dept)rows=rows.filter(r=>String(r.dept||'')===dept);return{rows,total:rows.reduce((a,r)=>a+N(r.expense),0),staff:new Set(rows.map(r=>String(r.empId||r.name||''))).size,missing:rows.filter(r=>N(r.expense)<=0).length};
+}
+function updateSpecialBadge_(){const b=qs('#cost-special-badge');if(!b)return;const st=ACTIVE?specialStats_(ACTIVE.periodKey,''):{total:0,staff:0};b.textContent=st.staff?('$'+fmt(st.total)+' / '+st.staff+'人'):'無資料';}
+function toggleSpecialCost(on){INCLUDE_SPECIAL_OT=!!on;try{localStorage.setItem('hrpay:cost:includeSpecialOT',on?'1':'0');}catch(e){}renderCost();renderReport();}
+
 // 取某期間在目前來源設定下的統計
 function periodStats(entry){
   const pay=entry.payrollRecords||[], adv=entry.advanceRecords||[];
@@ -1940,8 +1971,9 @@ function periodStats(entry){
   const dept=qs('#cost-dept')?qs('#cost-dept').value:'';
   if(dept) rows=rows.filter(r=>r.dept===dept);
   const head = COST_SRC==='both' ? new Set(rows.map(r=>String(r.id))).size : rows.length;
-  const total= rows.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
-  return {head, total, hasAdv:!!adv.length, hasPay:!!pay.length,
+  let total= rows.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+  const sp=specialStats_(entry.periodKey,''); if(INCLUDE_SPECIAL_OT)total+=sp.total;
+  return {head, total, special:sp.total, hasAdv:!!adv.length, hasPay:!!pay.length,
           nAdv:adv.length, nPay:pay.length};
 }
 function renderReport(){
@@ -2067,6 +2099,7 @@ function renderCost(){
 
   const data = pickDept ? all.filter(r=>r.dept===pickDept) : all;
   if(!data.length){qs('#cost-scope').textContent='此部門無資料';return;}
+  const sp=specialStats_(ACTIVE.periodKey,pickDept);updateSpecialBadge_();
   // ⚠ 合計模式會把同一人的「正式」與「預付」兩筆併在一起，
   //    人均必須以不重複工號計算，否則會被除以兩倍而腰斬。
   const headcount = COST_SRC==='both'
@@ -2077,10 +2110,11 @@ function renderCost(){
                : COST_SRC==='both'?'實際總支出（正式實發＋預支發放）':'正式薪資';
 
   qs('#cost-scope').textContent =
-    `${srcZh} · ${pickDept||'全廠'} · ${headcount} 人 · ${perCap?'每人平均':'總額'} · 基準 ${UNIT_ZH[COST_UNIT]}`;
+    `${srcZh} · ${pickDept||'全廠'} · ${headcount} 人 · ${perCap?'每人平均':'總額'} · 基準 ${UNIT_ZH[COST_UNIT]}`+(INCLUDE_SPECIAL_OT?` · + Special OT $${fmt(sp.total)}`:'');
 
   // 月基數 → 各時間單位
-  const monthlyTotal = data.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+  let monthlyTotal = data.reduce((s,r)=>s+Math.abs(N(r.totalSalary)),0);
+  if(INCLUDE_SPECIAL_OT)monthlyTotal+=sp.total;
   const base = perCap ? monthlyTotal/headcount : monthlyTotal;
 
   qs('#cost-monthly').textContent='$'+fmt(base);
@@ -2099,6 +2133,9 @@ function renderCost(){
 
   const F = UNIT_DIV[COST_UNIT];   // 月 → 選定單位的換算係數
   const dm=buildDeptMap(data);
+  Object.keys(dm).forEach(d=>dm[d].special=0);
+  const spRows=(SPECIAL_OT_COST[ACTIVE.periodKey]&&SPECIAL_OT_COST[ACTIVE.periodKey].rows)||[];
+  spRows.forEach(r=>{const d=String(r.dept||'Other'),amt=N(r.expense);if(!dm[d])dm[d]={count:0,total:0,basic:0,incentive:0,ot:0,nssf:0,anoms:0,special:0};dm[d].special=(dm[d].special||0)+amt;if(INCLUDE_SPECIAL_OT)dm[d].total+=amt;});
   if(COST_SRC==='both'){   // 合計模式：部門人數改為不重複工號
     const uniq={};
     data.forEach(r=>{(uniq[r.dept]=uniq[r.dept]||new Set()).add(String(r.id));});
@@ -2149,6 +2186,7 @@ function renderCost(){
     <tr class="border-b border-slate-50 hover:bg-slate-50">
       <td class="px-3 py-2 font-medium text-slate-700 text-xs">${d}</td>
       <td class="px-3 py-2 text-right jmono text-xs">${v.count}</td>
+      <td class="px-3 py-2 text-right jmono text-xs text-orange-600">$${fmt(v.special||0)}</td>
       <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='month'?hi:'font-semibold text-sky-700'}">$${fmt(b)}</td>
       <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='week'?hi:''}">$${fmt(b/4.33)}</td>
       <td class="px-3 py-2 text-right jmono text-xs ${COST_UNIT==='day'?hi:''}">$${fmt(b/WORK_DAYS)}</td>
@@ -3270,6 +3308,8 @@ async function init(){
     console.warn('IndexedDB not available, data will not persist:',err);
   }
   applyLang();
+  loadSpecialFromLocal_();
+  const spcb=qs('#cost-special-toggle');if(spcb)spcb.checked=INCLUDE_SPECIAL_OT;
   buildPeriodSelect();
   refreshHistory();
   // Load most recent
@@ -3281,6 +3321,7 @@ async function init(){
     renderAll();
     syncUploadZoneUI();
   }
+  await loadSpecialOtCost(true);
 }
 init();
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⏱ OT &amp; Bonus Analytics | AC-HRA-PAY</title>
+<title>⏱ OT, Bonus &amp; Special OT Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -28,9 +28,9 @@
   <div class="max-w-screen-2xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-3">
     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-700 flex items-center justify-center text-white font-bold text-lg shrink-0">⏱</div>
     <div class="mr-2">
-      <h1 class="text-base font-bold leading-tight">OT &amp; Bonus Analytics</h1>
+      <h1 class="text-base font-bold leading-tight">OT / Bonus / Special OT Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.3</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.4</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -63,8 +63,8 @@
       <div class="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center shrink-0 group-hover:bg-teal-200 transition"><span class="text-xl">🪄</span></div>
       <div class="flex-1 min-w-[220px]">
         <p class="text-sm font-bold text-teal-800" data-en="Smart Import — just drop any files here">智慧匯入 — 檔案直接丟進來就好</p>
-        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Overtime and Bonus workbooks, any number at once. Type and years are detected automatically.">
-          加班表、獎金表都可以，一次選多個檔。系統自動辨識類型與年度，不必分開上傳。</p>
+        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Overtime, Bonus and Special OT workbooks, any number at once. Type and years are detected automatically.">
+          加班表、獎金表、Special OT（周日／假日現金加班）都可以，一次選多個檔。系統自動辨識類型與年度，不必分開上傳。</p>
         <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
       </div>
       <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-teal-600 text-white shrink-0 group-hover:bg-teal-700 transition" data-en="Choose files">選擇檔案</span>
@@ -80,7 +80,7 @@
     <button id="tab-dash"   onclick="goTab('dash')"   class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
     <button id="tab-time"   onclick="goTab('time')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
     <button id="tab-dept"   onclick="goTab('dept')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
-    <button id="tab-cmp"    onclick="goTab('cmp')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="⚖️ OT vs Bonus">⚖️ 加班 vs 獎金</button>
+    <button id="tab-cmp"    onclick="goTab('cmp')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="⚖️ OT / Bonus / Special">⚖️ 加班 / 獎金 / Special</button>
     <button id="tab-report" onclick="goTab('report')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📋 Period Report">📋 期間報表</button>
   </div>
 </div>
@@ -89,8 +89,8 @@
 
 <div id="empty-state" class="flex flex-col items-center justify-center py-28 text-center">
   <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">⏱</span></div>
-  <p class="text-slate-400 font-medium" data-en="Upload Overtime or Bonus workbooks to begin">上傳加班表或獎金表後開始分析</p>
-  <p class="text-slate-300 text-xs mt-2" data-en="Both file types are auto-detected — no need to sort them yourself.">兩種檔案都會自動辨識，不用自己分類</p>
+  <p class="text-slate-400 font-medium" data-en="Upload Overtime, Bonus or Special OT workbooks to begin">上傳加班表、獎金表或 Special OT 表後開始分析</p>
+  <p class="text-slate-300 text-xs mt-2" data-en="All supported file types are auto-detected — no need to sort them yourself.">加班、獎金與 Special OT 都會自動辨識，不用自己分類</p>
 </div>
 
 <div id="app" class="hidden">
@@ -115,9 +115,11 @@
     <div class="flex flex-wrap items-center gap-2.5">
       <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14" data-en="Type">類型</span>
       <div class="flex bg-slate-100 rounded-lg p-0.5">
-        <button id="ct-ot"    onclick="setType('ot')"    data-en="⏱ Overtime" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-teal-700 transition">⏱ 加班</button>
-        <button id="ct-bonus" onclick="setType('bonus')" data-en="🎁 Bonus"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">🎁 獎金</button>
-        <button id="ct-both"  onclick="setType('both')"  data-en="Σ Combined"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 合計</button>
+        <button id="ct-ot"      onclick="setType('ot')"      data-en="⏱ Overtime" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-teal-700 transition">⏱ 加班</button>
+        <button id="ct-bonus"   onclick="setType('bonus')"   data-en="🎁 Bonus" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">🎁 獎金</button>
+        <button id="ct-special" onclick="setType('special')" data-en="🌞 Special OT" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">🌞 特殊加班</button>
+        <button id="ct-both"    onclick="setType('both')"    data-en="Σ OT + Bonus" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 加班＋獎金</button>
+        <button id="ct-all"     onclick="setType('all')"     data-en="Σ All Variable Cost" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">Σ 全部變動成本</button>
       </div>
       <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider ml-2" data-en="Time">時間</span>
       <div class="flex bg-slate-100 rounded-lg p-0.5">
@@ -147,7 +149,7 @@
         <p id="k-ppl" class="text-2xl font-bold jmono mt-1">—</p>
         <p id="k-ppl-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
-        <p class="text-[11px] text-slate-400 font-medium" data-en="OT HOURS">加班時數 HOURS</p>
+        <p id="k-hr-label" class="text-[11px] text-slate-400 font-medium" data-en="OT HOURS">加班時數 HOURS</p>
         <p id="k-hr" class="text-2xl font-bold jmono mt-1 text-sky-600">—</p>
         <p id="k-hr-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
@@ -237,7 +239,7 @@
       <span class="text-xl">✈️</span>
       <div class="flex-1">
         <p class="text-sm font-bold text-slate-800" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
-        <p class="text-[11px] text-slate-400 mt-0.5" data-en="OT / Bonus Summary">加班 / 獎金摘要</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" data-en="OT / Bonus / Special OT Summary">加班 / 獎金 / Special OT 摘要</p>
       </div>
       <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
@@ -247,7 +249,9 @@
         <select id="tg-type" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-teal-200">
           <option value="ot" data-en="⏱ Overtime">⏱ 加班 Overtime</option>
           <option value="bonus" data-en="🎁 Bonus">🎁 獎金 Bonus</option>
-          <option value="both" data-en="Σ Combined">Σ 合計 Combined</option>
+          <option value="special" data-en="🌞 Special OT / Sunday & Holiday Cash">🌞 特殊加班 Special OT／周日假日現金</option>
+          <option value="both" data-en="Σ OT + Bonus">Σ 加班＋獎金 OT + Bonus</option>
+          <option value="all" data-en="Σ All Variable Cost (Summary only)">Σ 全部變動成本（僅摘要）</option>
         </select>
       </div>
       <div>
@@ -288,7 +292,7 @@
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════
-//  AC-HRA-PAY · OT & Bonus Analytics v2.0
+//  AC-HRA-PAY · OT / Bonus / Special OT Analytics v2.4
 //  資料粒度：部門 × 月（PPl / Hour / Expense），非員工級
 // ═══════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
@@ -300,7 +304,7 @@ const PALETTE=['#0d9488','#0ea5e9','#f59e0b','#8b5cf6','#f43f5e','#84cc16','#14b
 const WORK_DAYS=26, WEEKS=4.33;
 
 let LANG='zh';
-let RECS=[];            // {type:'ot'|'bonus', year, month, dept, ppl, hour, expense, src}
+let RECS=[];            // ot/bonus: 部門×月；special: 員工×月，另含 sundayDays/holidayHours/empId/name/position
 let ACTIVE=null;        // 'YYYY-MM'
 let TYPE='ot', UNIT='month', MODE='total', REPORT_MODE='month';
 let charts={};
@@ -314,6 +318,20 @@ const T=(zh,en)=>LANG==='en'?en:zh;
 const pad=n=>String(n).padStart(2,'0');
 function _nowISO(){const d=new Date();
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+function typeMatch(r,t){
+  if(t==='both') return r.type==='ot'||r.type==='bonus';
+  if(t==='all') return r.type==='ot'||r.type==='bonus'||r.type==='special';
+  return r.type===t;
+}
+function typeLabel(t){
+  if(t==='ot')return T('加班','Overtime');
+  if(t==='bonus')return T('獎金','Bonus');
+  if(t==='special')return T('特殊加班／周日假日現金','Special OT / Sunday & Holiday Cash');
+  if(t==='both')return T('加班＋獎金','OT + Bonus');
+  return T('全部變動成本','All Variable Cost');
+}
+function specialEqHours(r){return N(r.hour)||(N(r.sundayDays)*8+N(r.holidayHours));}
 
 function toast(msg,kind){
   const t=qs('#toast');
@@ -444,23 +462,88 @@ function parseOtBonusSheet(ws, sheetName){
   }
   return out.length?out:null;
 }
+function _sheetYM(v){
+  try{
+    if(typeof v==='number'&&v>30000){const d=XLSX.SSF.parse_date_code(v);if(d&&d.y&&d.m)return{year:+d.y,month:+d.m};}
+    const x=String(v||'').trim();
+    let m=x.match(/\b(20\d{2})[-\/.](0?[1-9]|1[0-2])\b/);if(m)return{year:+m[1],month:+m[2]};
+    const mn={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+    m=x.toLowerCase().match(/\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)[-\s,]*(20\d{2})\b/);
+    if(m)return{year:+m[2],month:mn[m[1]]};
+  }catch(e){}
+  return null;
+}
+
+/* v3.9.9：Admin Special OT 格式。
+   只把 Sunday Overtime (Day) + Holiday Overtime (Hours) 納入 Special OT；
+   Normal Overtime (Hours) 不混入，避免與一般 OT 重複計算。
+   原始檔若沒有 Cash/Amount 欄，expense 保持 0，需在線上維護補現金金額後才可送核。 */
+function parseSpecialOtSheet(ws,sheetName,fileName){
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  if(!raw.length)return null;
+  let hr=-1,cId=-1,cName=-1,cDept=-1,cPos=-1,cSun=-1,cHol=-1,cCash=-1;
+  for(let i=0;i<Math.min(raw.length,20);i++){
+    const r=raw[i]||[];
+    const ss=r.map(x=>String(x==null?'':x).trim());
+    const fi=ss.findIndex(x=>/^factory\s*id$/i.test(x));
+    const fs=ss.findIndex(x=>/sunday\s*overtime\s*\(day\)/i.test(x));
+    const fh=ss.findIndex(x=>/holiday\s*overtime\s*\(hours?\)/i.test(x));
+    if(fi>=0&&fs>=0&&fh>=0){
+      hr=i;cId=fi;cSun=fs;cHol=fh;
+      cName=ss.findIndex(x=>/^name$/i.test(x));
+      cDept=ss.findIndex(x=>/^(section|department|dept)$/i.test(x));
+      cPos=ss.findIndex(x=>/^position$/i.test(x));
+      cCash=ss.findIndex(x=>/(cash|paid|payment|amount).*(usd|\$)?/i.test(x)&&!/overtime/i.test(x));
+      break;
+    }
+  }
+  if(hr<0)return null;
+  let ym=null;
+  const hdr=raw[hr]||[];
+  for(let c=0;c<Math.min(cSun,hdr.length);c++){const z=_sheetYM(hdr[c]);if(z){ym=z;break;}}
+  if(!ym){
+    for(let i=0;i<=hr;i++)for(const v of (raw[i]||[])){const z=_sheetYM(v);if(z){ym=z;break;}};
+  }
+  if(!ym)ym=_sheetYM(fileName)||_sheetYM(sheetName);
+  if(!ym)return null;
+  const out=[];
+  for(let i=hr+1;i<raw.length;i++){
+    const r=raw[i]||[];
+    const id=String(r[cId]==null?'':r[cId]).trim();
+    const name=cName>=0?String(r[cName]||'').trim():'';
+    const dept=cDept>=0?String(r[cDept]||'').trim():'Other';
+    if(!id||/^(total|grand\s*total|ttl)$/i.test(id)||!dept)continue;
+    const sundayDays=N(r[cSun]),holidayHours=N(r[cHol]);
+    if(!sundayDays&&!holidayHours)continue;
+    const expense=cCash>=0?N(r[cCash]):0;
+    out.push({type:'special',year:ym.year,month:ym.month,dept:dept||'Other',ppl:1,
+      hour:sundayDays*8+holidayHours,expense,
+      sundayDays,holidayHours,empId:id,name,position:cPos>=0?String(r[cPos]||'').trim():'',src:fileName||sheetName||''});
+  }
+  return out.length?out:null;
+}
+
 function parseWorkbook(wb,fileName){
   let all=[];
   wb.SheetNames.forEach(sn=>{
-    const r=parseOtBonusSheet(wb.Sheets[sn],sn);
-    if(r)all=all.concat(r);
+    const sp=parseSpecialOtSheet(wb.Sheets[sn],sn,fileName);
+    if(sp) all=all.concat(sp);
+    else{
+      const r=parseOtBonusSheet(wb.Sheets[sn],sn);
+      if(r)all=all.concat(r);
+    }
   });
   if(!all.length)return null;
-  // 檔名可覆寫類型判定
+  // 檔名只覆寫一般 OT/Bonus；Special OT 永遠維持獨立類型。
   const n=String(fileName||'').toLowerCase();
-  if(/bonus|獎金/.test(n)) all.forEach(r=>r.type='bonus');
-  else if(/overtime|\bot\b|加班/.test(n)) all.forEach(r=>r.type='ot');
-  all.forEach(r=>r.src=fileName||'');
+  if(/bonus|獎金/.test(n)) all.forEach(r=>{if(r.type!=='special')r.type='bonus';});
+  else if(/overtime|\bot\b|加班/.test(n)) all.forEach(r=>{if(r.type!=='special')r.type='ot';});
+  all.forEach(r=>r.src=fileName||r.src||'');
   return all;
 }
 
-// v3.9.8 SAFE：OT/Bonus 唯一鍵 = Type + Year + Month + Department。
-function otKey(r){return String(r.type||'')+'|'+String(r.year||'')+'|'+pad(r.month)+'|'+String(r.dept||'').trim().toLowerCase();}
+// v3.9.9 SAFE：一般 OT/Bonus = Type+Month+Dept；Special OT 再加 Employee ID，避免同部門多人互相覆蓋。
+function otKey(r){const b=String(r.type||'')+'|'+String(r.year||'')+'|'+pad(r.month)+'|'+String(r.dept||'').trim().toLowerCase();return r.type==='special'?b+'|'+String(r.empId||'').trim():b;}
 function otUpsert(list,incoming){const map=new Map(),order=[];let replaced=0;(list||[]).forEach(r=>{const k=otKey(r);if(!map.has(k))order.push(k);map.set(k,r);});(incoming||[]).forEach(r=>{const k=otKey(r);if(map.has(k))replaced++;else order.push(k);map.set(k,r);});return{rows:order.map(k=>map.get(k)),replaced};}
 function otDedupe(list){return otUpsert([],list||[]).rows;}
 
@@ -477,7 +560,7 @@ async function smartImport(input){
     try{
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true});
       const recs=parseWorkbook(wb,file.name);
-      if(!recs){ log.push({ok:false,f:file.name,msg:T('無法辨識格式（找不到 PPl / Expense 欄）','Unrecognised format')}); continue; }
+      if(!recs){ log.push({ok:false,f:file.name,msg:T('無法辨識格式（找不到 OT/Bonus 或 Special OT 欄位）','Unrecognised OT/Bonus/Special OT format')}); continue; }
       // 精準 Upsert：只更新 Excel 真正包含的 Type+Month+Dept，不刪其他月份。
       const years=[...new Set(recs.map(r=>r.year))];
       const type=recs[0].type;
@@ -488,6 +571,7 @@ async function smartImport(input){
     }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
   }
   await idbSaveAll();
+  if(!RECS.some(r=>typeMatch(r,TYPE))){const first=log.find(x=>x.ok);if(first&&['ot','bonus','special'].includes(first.type))TYPE=first.type;}
   const ps=periods();
   if(ps.length) ACTIVE=ps[ps.length-1];
   showApp(); renderAll(); pushProjection();
@@ -498,21 +582,23 @@ async function smartImport(input){
     : T(`⚠ ${okN}/${log.length} 個成功`,`⚠ ${okN}/${log.length} succeeded`);
   st.style.color = okN===log.length?'#059669':'#b45309';
 
-  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus');
+  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus'), hasSp=RECS.some(r=>r.type==='special');
   const gaps=[];
   if(!hasOt)gaps.push(T('尚無加班表','no Overtime file'));
   if(!hasBn)gaps.push(T('尚無獎金表','no Bonus file'));
+  if(!hasSp)gaps.push(T('尚無 Special OT 表（非必要）','no Special OT file (optional)'));
 
   rep.innerHTML=log.map(l=>l.ok
     ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${
         l.type==='ot'?`<span class="text-teal-700 font-semibold">${T('加班 Overtime','Overtime')}</span>`
+        :l.type==='special'?`<span class="text-orange-700 font-semibold">${T('特殊加班 Special OT','Special OT')}</span>`
                      :`<span class="text-amber-700 font-semibold">${T('獎金 Bonus','Bonus')}</span>`
       } · ${l.years.join(', ')} · ${l.n} ${T('筆','rows')} · ${l.depts} ${T('部門','depts')} · $${fmt(l.exp)} <span class="text-slate-400">${l.replaced?`· ${T('更新','updated')} ${l.replaced}`:''}</span></span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('')
   + (gaps.length
     ? `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-amber-700">📌 <b>${T('備註','Note')}</b>：${gaps.join('；')}。<span class="text-slate-500">${T('缺檔不影響已匯入的部分。','Missing files do not affect imported data.')}</span></div>`
-    : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('加班表與獎金表皆已載入。','Both Overtime and Bonus files loaded.')}</div>`);
+    : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('主要加班表與獎金表皆已載入；Special OT 為獨立可選來源。','Overtime and Bonus loaded; Special OT is an optional separate source.')}</div>`);
   rep.classList.remove('hidden');
   applyLang();
   if(okN>0) scheduleAutoCloudSync('import');
@@ -521,7 +607,7 @@ async function smartImport(input){
 // ━━━━━━━━━ 篩選與彙總 ━━━━━━━━━
 function typedRecs(){
   const d=qs('#sel-dept')?qs('#sel-dept').value:'';
-  return RECS.filter(r=>(TYPE==='both'||r.type===TYPE)&&(!d||r.dept===d));
+  return RECS.filter(r=>typeMatch(r,TYPE)&&(!d||r.dept===d));
 }
 function periods(){
   return [...new Set(typedRecs().map(r=>`${r.year}-${pad(r.month)}`))].sort();
@@ -543,7 +629,9 @@ function setType(t){
   TYPE=t;
   qs('#ct-ot').className=_btn(t==='ot','teal');
   qs('#ct-bonus').className=_btn(t==='bonus','amber');
+  qs('#ct-special').className=_btn(t==='special','orange');
   qs('#ct-both').className=_btn(t==='both','sky');
+  qs('#ct-all').className=_btn(t==='all','violet');
   renderAll();
 }
 function setUnit(u){
@@ -601,7 +689,7 @@ function renderAll(){
 }
 function buildDeptSelect(){
   const sel=qs('#sel-dept'), keep=sel.value;
-  const ds=[...new Set(RECS.filter(r=>TYPE==='both'||r.type===TYPE).map(r=>r.dept))].sort();
+  const ds=[...new Set(RECS.filter(r=>typeMatch(r,TYPE)).map(r=>r.dept))].sort();
   sel.innerHTML=`<option value="">${T('全廠 All Departments','All Departments')}</option>`
     +ds.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
   if(keep&&ds.includes(keep))sel.value=keep;
@@ -614,11 +702,11 @@ function renderNav(){
   }).join('');
   if(ACTIVE)sel.value=ACTIVE;
   const i=ps.indexOf(ACTIVE);
-  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus');
+  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus'), hasSp=RECS.some(r=>r.type==='special');
   qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span> `
     +(hasOt?`<span class="text-teal-600">✓ ${T('加班','OT')}</span>`:`<span class="text-slate-400">— ${T('無加班表','no OT')}</span>`)
-    +' · '
-    +(hasBn?`<span class="text-amber-600">✓ ${T('獎金','Bonus')}</span>`:`<span class="text-slate-400">— ${T('無獎金表','no Bonus')}</span>`);
+    +' · '+(hasBn?`<span class="text-amber-600">✓ ${T('獎金','Bonus')}</span>`:`<span class="text-slate-400">— ${T('無獎金表','no Bonus')}</span>`)
+    +' · '+(hasSp?`<span class="text-orange-600">✓ ${T('特殊加班','Special OT')}</span>`:`<span class="text-slate-400">— ${T('無 Special OT','no Special OT')}</span>`);
 }
 
 // 依目前時間單位，取出「包含 ACTIVE 的整個區間」的記錄
@@ -648,14 +736,15 @@ function renderDash(){
   const hr =recs.reduce((s,r)=>s+r.hour,0);
   const div=perCap?(ppl||1):1;
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
-  const tZh=TYPE==='ot'?T('加班','Overtime'):TYPE==='bonus'?T('獎金','Bonus'):T('加班＋獎金','OT + Bonus');
+  const tZh=typeLabel(TYPE);
 
   qs('#k-exp').textContent='$'+fmt(exp*F/div);
   qs('#k-exp-s').textContent=`${tZh} · ${uZh}`+(perCap?T(' · 每人',' · per person'):'');
   qs('#k-ppl').textContent=int(ppl);
   qs('#k-ppl-s').textContent=T(`${recs.length} 筆部門記錄`,`${recs.length} dept rows`);
+  const hLab=qs('#k-hr-label');if(hLab)hLab.textContent=TYPE==='special'?T('等值時數 EQ. HOURS','EQUIV. HOURS'):T('加班時數 HOURS','OT HOURS');
   qs('#k-hr').textContent=hr?int(hr*F):'—';
-  qs('#k-hr-s').textContent=hr?T(`人均 ${(hr/(ppl||1)).toFixed(1)} 小時`,`${(hr/(ppl||1)).toFixed(1)} hr/person`):T('獎金無時數','Bonus has no hours');
+  qs('#k-hr-s').textContent=TYPE==='special'?T('Sunday Days × 8 + Holiday Hours','Sunday Days × 8 + Holiday Hours'):(hr?T(`人均 ${(hr/(ppl||1)).toFixed(1)} 小時`,`${(hr/(ppl||1)).toFixed(1)} hr/person`):T('獎金無時數','Bonus has no hours'));
   qs('#k-rate').textContent=hr?'$'+fmt(exp/hr):'—';
   qs('#k-rate-s').textContent=hr?T('每加班小時成本','per OT hour'):'—';
   qs('#k-avg').textContent='$'+fmt(exp/(ppl||1)*F);
@@ -723,12 +812,12 @@ function renderTime(){
   const series=timeSeries();
   const F=UNIT_F[UNIT], perCap=(MODE==='cap');
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
-  const tZh=TYPE==='ot'?T('加班','Overtime'):TYPE==='bonus'?T('獎金','Bonus'):T('加班＋獎金','OT + Bonus');
+  const tZh=typeLabel(TYPE);
   const titleMap={day:T('📅 每日明細','📅 Daily'),week:T('📅 每週明細','📅 Weekly'),
     month:T('📅 每月明細','📅 Monthly'),quarter:T('📅 每季明細','📅 Quarterly'),year:T('📅 每年明細','📅 Yearly')};
   qs('#time-title').textContent=titleMap[UNIT];
   const b=qs('#time-src');
-  b.className='text-[11px] px-2 py-0.5 rounded-full '+(TYPE==='ot'?'bg-teal-50 text-teal-700':TYPE==='bonus'?'bg-amber-50 text-amber-700':'bg-sky-50 text-sky-700');
+  b.className='text-[11px] px-2 py-0.5 rounded-full '+(TYPE==='ot'?'bg-teal-50 text-teal-700':TYPE==='bonus'?'bg-amber-50 text-amber-700':TYPE==='special'?'bg-orange-50 text-orange-700':TYPE==='all'?'bg-violet-50 text-violet-700':'bg-sky-50 text-sky-700');
   b.textContent=tZh;
   qs('#time-note').textContent = (UNIT==='day'||UNIT==='week')
     ? T(`原始資料為「月」粒度，${uZh}數字由當月金額換算（${WORK_DAYS} 工作天/月、${WEEKS} 週/月）。`,
@@ -802,58 +891,36 @@ function renderDept(){
 // ── 加班 vs 獎金 ──
 function renderCmp(){
   const box=qs('#cmp-body');
-  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus');
-  if(!hasOt||!hasBn){
-    box.innerHTML=`<div class="bg-white border border-slate-100 rounded-xl p-10 text-center">
-      <p class="text-4xl mb-3">⚖️</p>
-      <p class="text-slate-500 font-medium">${T('需同時載入「加班表」與「獎金表」才能對比','Both Overtime and Bonus files are required')}</p>
-      <p class="text-[12px] text-slate-400 mt-2">
-        ${hasOt?'<span class="text-emerald-600">✓ '+T('加班表','Overtime')+'</span>':'<span class="text-rose-500">✕ '+T('加班表','Overtime')+'</span>'} ·
-        ${hasBn?'<span class="text-emerald-600">✓ '+T('獎金表','Bonus')+'</span>':'<span class="text-rose-500">✕ '+T('獎金表','Bonus')+'</span>'}
-      </p></div>`;
-    return;
-  }
-  const dept=qs('#sel-dept').value;
-  // 依年度彙總比較
-  const yr={};
+  const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus'), hasSp=RECS.some(r=>r.type==='special');
+  if(!hasOt&&!hasBn&&!hasSp){box.innerHTML='';return;}
+  const dept=qs('#sel-dept').value,yr={};
   RECS.filter(r=>!dept||r.dept===dept).forEach(r=>{
-    const y=yr[r.year]||(yr[r.year]={ot:{ppl:0,hour:0,exp:0},bonus:{ppl:0,exp:0}});
-    if(r.type==='ot'){y.ot.ppl+=r.ppl;y.ot.hour+=r.hour;y.ot.exp+=r.expense;}
-    else{y.bonus.ppl+=r.ppl;y.bonus.exp+=r.expense;}
+    const y=yr[r.year]||(yr[r.year]={ot:{ppl:0,hour:0,exp:0},bonus:{ppl:0,exp:0},special:{ppl:0,hour:0,exp:0,sun:0,hol:0}});
+    if(r.type==='ot'){y.ot.ppl+=N(r.ppl);y.ot.hour+=N(r.hour);y.ot.exp+=N(r.expense);}
+    else if(r.type==='bonus'){y.bonus.ppl+=N(r.ppl);y.bonus.exp+=N(r.expense);}
+    else if(r.type==='special'){y.special.ppl+=1;y.special.hour+=specialEqHours(r);y.special.exp+=N(r.expense);y.special.sun+=N(r.sundayDays);y.special.hol+=N(r.holidayHours);}
   });
   const years=Object.keys(yr).sort().reverse();
-  const rows=years.map(y=>{
-    const v=yr[y], tot=v.ot.exp+v.bonus.exp;
-    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
-      <td class="px-3 py-2 font-semibold text-slate-700">${y}</td>
-      <td class="px-3 py-2 text-right jmono">${int(v.ot.ppl)}</td>
-      <td class="px-3 py-2 text-right jmono">${int(v.ot.hour)}</td>
-      <td class="px-3 py-2 text-right jmono font-semibold text-teal-700">$${fmt(v.ot.exp)}</td>
-      <td class="px-3 py-2 text-right jmono">${int(v.bonus.ppl)}</td>
-      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">$${fmt(v.bonus.exp)}</td>
-      <td class="px-3 py-2 text-right jmono font-bold">$${fmt(tot)}</td>
-      <td class="px-3 py-2 text-right jmono">${tot?((v.ot.exp/tot*100).toFixed(0)+'% / '+(v.bonus.exp/tot*100).toFixed(0)+'%'):'—'}</td></tr>`;
-  }).join('');
-  const tOt=years.reduce((s,y)=>s+yr[y].ot.exp,0), tBn=years.reduce((s,y)=>s+yr[y].bonus.exp,0);
-
+  const rows=years.map(y=>{const v=yr[y],tot=v.ot.exp+v.bonus.exp+v.special.exp;return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+    <td class="px-3 py-2 font-semibold text-slate-700">${y}</td>
+    <td class="px-3 py-2 text-right jmono">$${fmt(v.ot.exp)}</td>
+    <td class="px-3 py-2 text-right jmono">$${fmt(v.bonus.exp)}</td>
+    <td class="px-3 py-2 text-right jmono text-orange-700">${fmt(v.special.sun)} d / ${fmt(v.special.hol)} h</td>
+    <td class="px-3 py-2 text-right jmono font-semibold text-orange-700">$${fmt(v.special.exp)}</td>
+    <td class="px-3 py-2 text-right jmono font-bold">$${fmt(tot)}</td></tr>`;}).join('');
+  const tOt=years.reduce((a,y)=>a+yr[y].ot.exp,0),tBn=years.reduce((a,y)=>a+yr[y].bonus.exp,0),tSp=years.reduce((a,y)=>a+yr[y].special.exp,0),grand=tOt+tBn+tSp;
   box.innerHTML=`
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('⏱ 加班總支出','⏱ Total OT')}</p><p class="text-2xl font-bold jmono text-teal-600 mt-1">$${fmt(tOt)}</p></div>
-    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🎁 獎金總支出','🎁 Total Bonus')}</p><p class="text-2xl font-bold jmono text-amber-600 mt-1">$${fmt(tBn)}</p></div>
-    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('Σ 合計','Σ Combined')}</p><p class="text-2xl font-bold jmono mt-1">$${fmt(tOt+tBn)}</p></div>
-    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('加班 : 獎金','OT : Bonus')}</p><p class="text-2xl font-bold jmono text-sky-600 mt-1">${(tOt+tBn)?((tOt/(tOt+tBn)*100).toFixed(0)+' : '+(tBn/(tOt+tBn)*100).toFixed(0)):'—'}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('⏱ 一般加班','⏱ Normal OT')}</p><p class="text-2xl font-bold jmono text-teal-600 mt-1">$${fmt(tOt)}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🎁 獎金','🎁 Bonus')}</p><p class="text-2xl font-bold jmono text-amber-600 mt-1">$${fmt(tBn)}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('🌞 Special OT 現金','🌞 Special OT Cash')}</p><p class="text-2xl font-bold jmono text-orange-600 mt-1">$${fmt(tSp)}</p></div>
+    <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('Σ 全部變動人力成本','Σ All Variable Labour Cost')}</p><p class="text-2xl font-bold jmono text-violet-700 mt-1">$${fmt(grand)}</p></div>
   </div>
   <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
-    <div class="px-4 py-3 border-b border-slate-100 text-[11px] text-slate-500">
-      ${T('按年度比較加班與獎金支出。兩者為不同性質的變動人力成本，合計可觀察整體彈性支出趨勢。','Yearly comparison of overtime vs bonus — both are variable labour costs.')}
-      ${dept?`　<b>${esc(dept)}</b>`:''}
-    </div>
-    <div class="overflow-x-auto"><table class="w-full text-xs">
-      <thead class="bg-slate-50 text-slate-500"><tr>
-        ${[T('年度','Year'),T('加班人次','OT staff'),T('加班時數','OT hours'),T('加班支出','OT expense'),
-           T('獎金人次','Bonus staff'),T('獎金支出','Bonus expense'),T('合計','Total'),T('占比','OT / Bonus')]
-          .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
-      </tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="px-4 py-3 border-b border-slate-100 text-[11px] text-slate-500">${T('Special OT 維持獨立，不併入一般 OT；只有「全部變動成本」視圖才把三類支出相加。','Special OT stays separate from normal OT; only All Variable Cost adds OT + Bonus + Special OT.')}${dept?`　<b>${esc(dept)}</b>`:''}</div>
+    <div class="overflow-x-auto"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr>
+      ${[T('年度','Year'),T('一般 OT','Normal OT'),T('獎金','Bonus'),T('Special 數量','Special Qty'),T('Special 現金','Special Cash'),T('全部合計','All Total')].map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
+    </tr></thead><tbody>${rows}</tbody></table></div>
   </div>`;
 }
 
@@ -943,50 +1010,37 @@ function hrpPreviewText(text,kind){
 }
 
 // ━━━━━━━━━ TELEGRAM ━━━━━━━━━
-function buildTgText(type,period){
-  const dept=qs('#sel-dept')?qs('#sel-dept').value:'';
-  const [y,m]=period.split('-');
-  const recs=RECS.filter(r=>(type==='both'||r.type===type)
-    && `${r.year}-${pad(r.month)}`===period && (!dept||r.dept===dept));
-  if(!recs.length)return{err:T('此期間無資料','No data for this period')};
-  const dm={};
-  recs.forEach(r=>{(dm[r.dept]=dm[r.dept]||{ppl:0,hour:0,exp:0});
-    dm[r.dept].ppl+=r.ppl;dm[r.dept].hour+=r.hour;dm[r.dept].exp+=r.expense;});
-  const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp);
-  const tExp=list.reduce((s,[,v])=>s+v.exp,0);
-  const tPpl=list.reduce((s,[,v])=>s+v.ppl,0);
-  const tHr =list.reduce((s,[,v])=>s+v.hour,0);
-  const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>'
-           :type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>'
-           :'📊 <b>加班＋獎金合計 OT + Bonus</b>';
-  let t=`${head}\n📅 期間 Period：${MS[+m-1]} ${y}\n`
-   +`🏭 部門 Depts：${list.length}　👥 人次 Headcount：${int(tPpl)}\n`
-   +(tHr?`⏱ 加班時數 OT Hours：${int(tHr)}　（$${fmt(tExp/tHr)}/hr）\n`:'')
-   +`💵 <b>支出總額 Total：$${fmt(tExp)}</b>\n`
-   +`— — — — — — — — — —\n<b>各部門明細 By Department</b>\n`
-   +`<i>部門 Dept ｜ 人次 Staff ｜ 金額 Amount</i>\n`;
-  list.forEach(([d,v])=>{ t+=`${esc(d)}：${int(v.ppl)} 人次 · $${fmt(v.exp)}\n`; });
-  t+=`— — — — — — — — — —\n合計 TOTAL：${int(tPpl)} 人次 · <b>$${fmt(tExp)}</b>`;
-  if(dept) t+=`\n\n🔎 ${T('已篩選部門','Filtered dept')}：${esc(dept)}`;
-  return {text:t};
-}
-
+function buildTgText(type,period){return buildTgSummaryTable(type,period);}
 
 /* v3.9.2：Summary / Approval 共用欄位式正文；保留原部門、人次、時數、金額等資料。 */
 function buildTgSummaryTable(type,period){
   const dept=qs('#sel-dept')?qs('#sel-dept').value:'', [y,m]=period.split('-');
-  const recs=RECS.filter(r=>(type==='both'||r.type===type)&&`${r.year}-${pad(r.month)}`===period&&(!dept||r.dept===dept));
+  const recs=RECS.filter(r=>typeMatch(r,type)&&`${r.year}-${pad(r.month)}`===period&&(!dept||r.dept===dept));
   if(!recs.length)return{err:T('此期間無資料','No data for this period')};
+  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' ');
+  if(type==='special'){
+    const dm={};recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,sun:0,hol:0,hour:0,exp:0});v.ppl+=1;v.sun+=N(r.sundayDays);v.hol+=N(r.holidayHours);v.hour+=specialEqHours(r);v.exp+=N(r.expense);});
+    const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp||b[1].hour-a[1].hour),tP=list.reduce((s,[,v])=>s+v.ppl,0),tS=list.reduce((s,[,v])=>s+v.sun,0),tH=list.reduce((s,[,v])=>s+v.hol,0),tEq=list.reduce((s,[,v])=>s+v.hour,0),tE=list.reduce((s,[,v])=>s+v.exp,0),miss=recs.filter(r=>N(r.expense)<=0).length;
+    const W=[18,6,8,8,8,11];let tb=row(['Dept','Staff','SunDay','HolHr','EqHr','Cash USD'],W)+'\n'+row(['------------------','------','--------','--------','--------','-----------'],W)+'\n';
+    list.forEach(([d,v])=>tb+=row([d,int(v.ppl),fmt(v.sun),fmt(v.hol),fmt(v.hour),fmt(v.exp)],W)+'\n');
+    tb+=row(['TOTAL',int(tP),fmt(tS),fmt(tH),fmt(tEq),fmt(tE)],W);
+    let t='🌞 <b>特殊加班 Special OT</b>\n💵 <b>周日／假日現金發放 Sunday & Holiday Cash OT</b>\n📅 期間 Period：'+MS[+m-1]+' '+y+'\n'
+      +'<b>摘要 Summary</b>\n<pre>'+row(['Staff',int(tP),'Departments',list.length],[12,8,12,8])+'\n'+row(['Sunday Days',fmt(tS),'Holiday Hr',fmt(tH)],[12,8,12,8])+'\n'+row(['Eq. Hours',fmt(tEq),'Cash Total','$'+fmt(tE)],[12,8,12,12])+'</pre>\n'
+      +'<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+    if(miss)t+='\n⚠️ '+T(`${miss} 人尚未填現金發放金額；可發摘要，但送核前需補齊。`,`${miss} staff missing cash amount; summary is allowed, approval requires amounts.`);
+    if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
+    return{text:t,amount:tE,headcount:tP,missingCash:miss,items:recs.map(r=>({empId:r.empId||'',name:r.name||'',dept:r.dept||'',position:r.position||'',sundayDays:N(r.sundayDays),holidayHours:N(r.holidayHours),hours:specialEqHours(r),amount:N(r.expense),remark:'Special OT cash / Sunday & Holiday'}))};
+  }
   const dm={}; recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,hour:0,exp:0});v.ppl+=N(r.ppl);v.hour+=N(r.hour);v.exp+=N(r.expense);});
   const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp), tP=list.reduce((s,[,v])=>s+v.ppl,0),tH=list.reduce((s,[,v])=>s+v.hour,0),tE=list.reduce((s,[,v])=>s+v.exp,0),avg=tP?tE/tP:0;
-  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[19,6,6,8,10,9];
+  const W=[19,6,6,8,10,9];
   let tb=row(['Dept','Staff','%','Hours','Amount','Avg'],W)+'\n'+row(['-------------------','------','------','--------','----------','---------'],W)+'\n';
   list.forEach(([d,v])=>tb+=row([d,int(v.ppl),tP?((v.ppl/tP)*100).toFixed(1):'0.0',int(v.hour),fmt(v.exp),v.ppl?fmt(v.exp/v.ppl):'0.00'],W)+'\n');
   tb+=row(['TOTAL',int(tP),'100.0',int(tH),fmt(tE),fmt(avg)],W);
-  const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>':type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>':'📊 <b>加班＋獎金 OT + Bonus</b>';
+  const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>':type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>':type==='all'?'📊 <b>全部變動成本 All Variable Cost</b>':'📊 <b>加班＋獎金 OT + Bonus</b>';
   let t=head+'\n📅 期間 Period：'+MS[+m-1]+' '+y+'\n<b>摘要 Summary</b>\n<pre>'+row(['Depts',list.length,'Headcount',int(tP)],[10,8,10,8])+'\n'+row(['Hours',int(tH),'Total','$'+fmt(tE)],[10,8,10,12])+'\n'+row(['$/Hour',tH?fmt(tE/tH):'—','Avg/Staff',fmt(avg)],[10,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
   if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
-  return{text:t};
+  return{text:t,amount:tE,headcount:tP};
 }
 
 function openTgModal(){
@@ -1029,7 +1083,7 @@ function setTgMode(m){
   previewTg();
 }
 function syncTgMode(){
-  const p=_tgPeriodVal(), ok=needsApproval(p);
+  const p=_tgPeriodVal(), type=qs('#tg-type')?qs('#tg-type').value:TYPE, ok=needsApproval(p)&&type!=='all';
   const b=qs('#tgm-app'), note=qs('#tgm-note');
   if(!b)return;
   b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';
@@ -1038,19 +1092,19 @@ function syncTgMode(){
     b.className='flex-1 '+_btn(false,'teal');}
   hrpSyncPersonField();
   if(note)note.textContent=ok
-    ? T('核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。',
-        'Approval mode adds Approve / Reject buttons to the group message.')
+    ? T(type==='special'?'Special OT 送核前必須補齊每位員工的現金發放金額。':'核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。',
+        type==='special'?'Cash amount is required for every Special OT record before approval.':'Approval mode adds Approve / Reject buttons to the group message.')
     : T(APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。',
         'Periods before '+APPROVAL_FROM+' are closed — summary only.');
 }
-async function sendApprovalRequest(period,title,text,amount,headcount){
+async function sendApprovalRequest(period,title,text,amount,headcount,moduleName,items){
   const applicant=hrpPersonValue('applicant',true);
   if(!applicant){toast(T('請填申請人 Applicant','Enter applicant'),'error');return false;}
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'approvalRequest',module:'ot_bonus',period,title,text,
-        amount:amount||0,headcount:headcount||0,applicant,requestedBy:applicant})});
+      body:JSON.stringify({type:'approvalRequest',module:moduleName||'ot_bonus',period,title,text,
+        amount:amount||0,headcount:headcount||0,items:items||[],applicant,requestedBy:applicant})});
     let d=null;try{d=await r.json();}catch(e){}
     if(d&&d.ok!==false){toast(T('已送出，請在 Telegram 群組核可','Sent — approve in the group'),'success');return true;}
     toast(T('送出失敗','Send failed'),'error');return false;
@@ -1061,15 +1115,18 @@ async function confirmSendTg(){
   const r=buildTgSummaryTable(type,period);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
-  let ok;
-  if(TG_MODE==='approval'&&needsApproval(period)){
-    const recs=RECS.filter(x=>(type==='both'||x.type===type)&&`${x.year}-${pad(x.month)}`===period);
-    const exp=recs.reduce((s2,x)=>s2+x.expense,0);
-    const ppl=recs.reduce((s2,x)=>s2+x.ppl,0);
-    const tz=type==='ot'?T('加班 Overtime','Overtime'):type==='bonus'?T('獎金 Bonus','Bonus'):T('加班＋獎金','OT + Bonus');
+  let ok=false;
+  if(TG_MODE==='approval'&&needsApproval(period)&&type!=='all'){
+    if(type==='special'&&r.missingCash){btn.disabled=false;btn.textContent=T('確認傳送','Send');toast(T(`Special OT 尚有 ${r.missingCash} 人未填現金金額，不能送核。`,`Special OT has ${r.missingCash} staff without cash amount; approval blocked.`),'error');return;}
+    const recs=RECS.filter(x=>typeMatch(x,type)&&`${x.year}-${pad(x.month)}`===period);
+    const exp=r.amount!=null?r.amount:recs.reduce((s2,x)=>s2+N(x.expense),0);
+    const ppl=r.headcount!=null?r.headcount:recs.reduce((s2,x)=>s2+N(x.ppl),0);
+    const tz=type==='ot'?T('加班 Overtime','Overtime'):type==='bonus'?T('獎金 Bonus','Bonus'):type==='special'?T('特殊加班 Special OT','Special OT'):T('加班＋獎金','OT + Bonus');
     const [y,m]=period.split('-');
-    ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl);
-  }else ok=await sendTG(r.text,{module:'otbonus',period:period,periods:[String(period).slice(0,7)]});
+    ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl,type==='special'?'special_ot':'ot_bonus',r.items||[]);
+  }else{
+    ok=await sendTG(r.text,{module:type==='special'?'special_ot':'otbonus',period:period,periods:[String(period).slice(0,7)]});
+  }
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
@@ -1096,18 +1153,23 @@ async function pushProjection(){
     const byPeriod={};
     RECS.forEach(r=>{
       const k=`${r.year}-${pad(r.month)}:${r.type}`;
-      (byPeriod[k]=byPeriod[k]||{period:`${r.year}-${pad(r.month)}`,type:r.type,rows:[]})
-        .rows.push({dept:r.dept,ppl:r.ppl,hour:r.hour,expense:r.expense});
+      const g=byPeriod[k]||(byPeriod[k]={period:`${r.year}-${pad(r.month)}`,type:r.type,rows:[]});
+      g.rows.push({dept:r.dept,ppl:N(r.ppl),hour:r.type==='special'?specialEqHours(r):N(r.hour),expense:N(r.expense),
+        empId:r.empId||'',name:r.name||'',position:r.position||'',sundayDays:N(r.sundayDays),holidayHours:N(r.holidayHours)});
     });
-    localStorage.setItem('hrpay:result:ot_bonus',JSON.stringify({
-      module:'ot_bonus',updatedAt:_nowISO(),level:'department',
-      groups:Object.values(byPeriod)
-    }));
+    const groups=Object.values(byPeriod);
+    try{localStorage.setItem('hrpay:result:ot_bonus',JSON.stringify({module:'ot_bonus',updatedAt:_nowISO(),level:'department',groups}));}catch(e){console.warn('OT projection local cache skipped',e);}
+    if(GAS_URL){
+      for(const g of groups){
+        const totals={count:g.rows.length,headcount:g.rows.reduce((a,r)=>a+N(r.ppl),0),hours:g.rows.reduce((a,r)=>a+N(r.hour),0),expense:g.rows.reduce((a,r)=>a+N(r.expense),0),sundayDays:g.rows.reduce((a,r)=>a+N(r.sundayDays),0),holidayHours:g.rows.reduce((a,r)=>a+N(r.holidayHours),0)};
+        try{await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({type:'projection',module:'ot_bonus',period:g.period,payPhase:g.type,rows:g.rows,totals,sourceFile:'OT / Bonus / Special OT'})});}catch(e){console.warn('OT projection cloud push failed',g.period,g.type,e);}
+      }
+    }
   }catch(e){console.warn(e);}
 }
 
 const HRPAY_SYNC_TOOL='hrpay_ot_bonus', HRPAY_AUTO_KEY='hrpay:auto:otbonus';
-function otSyncId(r){return 'otb:'+String(r.type||'')+':'+String(r.year||'')+'-'+pad(r.month)+':'+String(r.dept||'');}
+function otSyncId(r){const b='otb:'+String(r.type||'')+':'+String(r.year||'')+'-'+pad(r.month)+':'+String(r.dept||'');return r.type==='special'?b+':'+String(r.empId||''):b;}
 function otCloudRecords(){return RECS.map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
 function otCloudMeta(){return{periods:Array.from(new Set(RECS.map(function(r){return String(r.year||'')+'-'+pad(r.month);}))).sort()};}
 function otLegacyRows(env){const D=(env&&env.data)||env||{};return(D.records||[]).map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
@@ -1140,13 +1202,27 @@ function exportJSON(){
 }
 async function importOtJSON(input){const f=input.files&&input.files[0];if(!f)return;try{const arr=JSON.parse(await f.text());if(!Array.isArray(arr))throw new Error('JSON must be an array');const up=otUpsert(RECS,arr);RECS=up.rows;await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps[ps.length-1]||ACTIVE;renderAll();scheduleAutoCloudSync('restore');toast(T(`已匯入/更新 ${arr.length} 筆`,`Imported/updated ${arr.length} rows`),'success');}catch(e){toast(T('匯入失敗：','Import failed: ')+e.message,'error');}finally{input.value='';}}
 let OT_MAINT_KEY='';
-function ensureOtMaint(){if(qs('#ot-maint-modal'))return;const d=document.createElement('div');d.id='ot-maint-modal';d.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';d.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"><div class="px-5 py-4 border-b flex"><div class="flex-1"><b>✏️ OT / Bonus 線上維護</b><p class="text-[11px] text-slate-400">唯一鍵 Type + Month + Department；儲存為 Upsert。</p></div><button onclick="closeOtMaint()" class="text-xl">×</button></div><div class="p-5 space-y-3"><select id="om-record" onchange="otMaintLoad()" class="w-full border rounded-lg p-2 text-sm"></select><div class="grid grid-cols-2 gap-2"><select id="om-type" class="border rounded-lg p-2"><option value="ot">OT 加班</option><option value="bonus">Bonus 獎金</option></select><input id="om-period" type="month" class="border rounded-lg p-2"><input id="om-dept" placeholder="Department" class="border rounded-lg p-2"><input id="om-ppl" type="number" step="1" placeholder="PPL" class="border rounded-lg p-2"><input id="om-hour" type="number" step="0.01" placeholder="Hours" class="border rounded-lg p-2"><input id="om-exp" type="number" step="0.01" placeholder="Expense" class="border rounded-lg p-2"></div><div class="flex gap-2 pt-2"><button onclick="otMaintNew()" class="px-3 py-2 border rounded-lg text-xs">＋ New</button><button onclick="otMaintDelete()" class="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-lg text-xs">🗑 Delete</button><label class="px-3 py-2 border rounded-lg text-xs cursor-pointer">⬆ JSON Restore<input type="file" accept=".json" class="hidden" onchange="importOtJSON(this)"></label><span class="flex-1"></span><button onclick="otMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save</button></div></div></div>`;document.body.appendChild(d);}
+function ensureOtMaint(){
+  if(qs('#ot-maint-modal'))return;
+  const d=document.createElement('div');d.id='ot-maint-modal';d.className='fixed inset-0 z-[1200] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4';
+  d.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"><div class="px-5 py-4 border-b flex"><div class="flex-1"><b>✏️ OT / Bonus / Special OT 線上維護</b><p class="text-[11px] text-slate-400">一般 OT/Bonus：Type + Month + Department；Special OT：再加 Employee ID，避免同部門多人互蓋。</p></div><button onclick="closeOtMaint()" class="text-xl">×</button></div><div class="p-5 space-y-3"><select id="om-record" onchange="otMaintLoad()" class="w-full border rounded-lg p-2 text-sm"></select><div class="grid grid-cols-2 gap-2"><select id="om-type" onchange="otMaintTypeChanged()" class="border rounded-lg p-2"><option value="ot">OT 加班</option><option value="bonus">Bonus 獎金</option><option value="special">Special OT 周日／假日現金</option></select><input id="om-period" type="month" class="border rounded-lg p-2"><input id="om-dept" placeholder="Department" class="border rounded-lg p-2"><input id="om-ppl" type="number" step="1" placeholder="PPL / Headcount" class="border rounded-lg p-2"><input id="om-hour" type="number" step="0.01" placeholder="Hours" class="border rounded-lg p-2"><input id="om-exp" type="number" step="0.01" placeholder="Expense / Cash Amount USD" class="border rounded-lg p-2"></div><div id="om-special" class="hidden mt-2 p-3 rounded-xl border border-orange-200 bg-orange-50/60"><p class="text-xs font-bold text-orange-800 mb-2">🌞 Special OT 明細（周日／假日現金）</p><div class="grid grid-cols-2 gap-2"><input id="om-empid" placeholder="Employee ID" class="border rounded-lg p-2"><input id="om-name" placeholder="Employee Name" class="border rounded-lg p-2"><input id="om-position" placeholder="Position" class="border rounded-lg p-2"><input id="om-sunday" type="number" step="0.25" oninput="otMaintTypeChanged()" placeholder="Sunday OT Days" class="border rounded-lg p-2"><input id="om-holiday" type="number" step="0.01" oninput="otMaintTypeChanged()" placeholder="Holiday OT Hours" class="border rounded-lg p-2"><div class="text-[11px] text-orange-700 flex items-center">Equivalent Hours = Sunday Days × 8 + Holiday Hours</div></div></div><div class="flex gap-2 pt-2"><button onclick="otMaintNew()" class="px-3 py-2 border rounded-lg text-xs">＋ New</button><button onclick="otMaintDelete()" class="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-lg text-xs">🗑 Delete</button><label class="px-3 py-2 border rounded-lg text-xs cursor-pointer">⬆ JSON Restore<input type="file" accept=".json" class="hidden" onchange="importOtJSON(this)"></label><span class="flex-1"></span><button onclick="otMaintSave()" class="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">💾 Save</button></div></div></div>`;
+  document.body.appendChild(d);
+}
 function openOtMaint(){ensureOtMaint();otMaintRefresh();const m=qs('#ot-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
 function closeOtMaint(){const m=qs('#ot-maint-modal');m.classList.add('hidden');m.classList.remove('flex');}
-function otMaintRefresh(){const s=qs('#om-record');s.innerHTML='<option value="">＋ New / 新增</option>'+RECS.slice().sort((a,b)=>otKey(a).localeCompare(otKey(b))).map(r=>`<option value="${esc(otKey(r))}">${r.type.toUpperCase()} · ${r.year}-${pad(r.month)} · ${esc(r.dept)}</option>`).join('');otMaintNew();}
-function otMaintNew(){OT_MAINT_KEY='';qs('#om-record').value='';qs('#om-type').value='ot';qs('#om-period').value=ACTIVE||new Date().toISOString().slice(0,7);['dept','ppl','hour','exp'].forEach(k=>qs('#om-'+k).value='');}
-function otMaintLoad(){const k=qs('#om-record').value,r=RECS.find(x=>otKey(x)===k);if(!r){otMaintNew();return;}OT_MAINT_KEY=k;qs('#om-type').value=r.type;qs('#om-period').value=`${r.year}-${pad(r.month)}`;qs('#om-dept').value=r.dept||'';qs('#om-ppl').value=N(r.ppl);qs('#om-hour').value=N(r.hour);qs('#om-exp').value=N(r.expense);}
-async function otMaintSave(){const p=qs('#om-period').value,dept=qs('#om-dept').value.trim();if(!/^20\d{2}-\d{2}$/.test(p)||!dept){toast(T('期間與部門必填','Period and department required'),'error');return;}const r={type:qs('#om-type').value,year:+p.slice(0,4),month:+p.slice(5,7),dept,ppl:N(qs('#om-ppl').value),hour:N(qs('#om-hour').value),expense:N(qs('#om-exp').value),src:'Online'};const nk=otKey(r);if(OT_MAINT_KEY&&OT_MAINT_KEY!==nk)RECS=RECS.filter(x=>otKey(x)!==OT_MAINT_KEY);const up=otUpsert(RECS,[r]);RECS=up.rows;await idbSaveAll();ACTIVE=p;await pushProjection();renderAll();scheduleAutoCloudSync(OT_MAINT_KEY?'edit':'add');otMaintRefresh();qs('#om-record').value=nk;OT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');}
+function otMaintTypeChanged(){const sp=qs('#om-type').value==='special';qs('#om-special').classList.toggle('hidden',!sp);qs('#om-ppl').disabled=sp;qs('#om-hour').disabled=sp;if(sp){qs('#om-ppl').value=1;const sun=N(qs('#om-sunday').value),hol=N(qs('#om-holiday').value);qs('#om-hour').value=sun*8+hol;}}
+function otMaintRefresh(){const s=qs('#om-record');s.innerHTML='<option value="">＋ New / 新增</option>'+RECS.slice().sort((a,b)=>otKey(a).localeCompare(otKey(b))).map(r=>`<option value="${esc(otKey(r))}">${r.type.toUpperCase()} · ${r.year}-${pad(r.month)} · ${esc(r.dept)}${r.type==='special'?' · '+esc(r.empId||'')+' '+esc(r.name||''):''}</option>`).join('');otMaintNew();}
+function otMaintNew(){OT_MAINT_KEY='';qs('#om-record').value='';qs('#om-type').value=TYPE==='special'?'special':(TYPE==='bonus'?'bonus':'ot');qs('#om-period').value=ACTIVE||new Date().toISOString().slice(0,7);['dept','ppl','hour','exp','empid','name','position','sunday','holiday'].forEach(k=>{const e=qs('#om-'+k);if(e)e.value='';});otMaintTypeChanged();}
+function otMaintLoad(){const k=qs('#om-record').value,r=RECS.find(x=>otKey(x)===k);if(!r){otMaintNew();return;}OT_MAINT_KEY=k;qs('#om-type').value=r.type;qs('#om-period').value=`${r.year}-${pad(r.month)}`;qs('#om-dept').value=r.dept||'';qs('#om-ppl').value=N(r.ppl);qs('#om-hour').value=N(r.hour);qs('#om-exp').value=N(r.expense);qs('#om-empid').value=r.empId||'';qs('#om-name').value=r.name||'';qs('#om-position').value=r.position||'';qs('#om-sunday').value=N(r.sundayDays);qs('#om-holiday').value=N(r.holidayHours);otMaintTypeChanged();}
+async function otMaintSave(){
+  const p=qs('#om-period').value,dept=qs('#om-dept').value.trim(),type=qs('#om-type').value;if(!/^20\d{2}-\d{2}$/.test(p)||!dept){toast(T('期間與部門必填','Period and department required'),'error');return;}
+  let r={type,year:+p.slice(0,4),month:+p.slice(5,7),dept,src:'Online'};
+  if(type==='special'){
+    const empId=qs('#om-empid').value.trim(),sun=N(qs('#om-sunday').value),hol=N(qs('#om-holiday').value);if(!empId){toast(T('Special OT 必須填 Employee ID','Employee ID is required for Special OT'),'error');return;}if(!sun&&!hol){toast(T('Sunday Days 或 Holiday Hours 至少要有一項','Enter Sunday Days or Holiday Hours'),'error');return;}
+    r=Object.assign(r,{empId,name:qs('#om-name').value.trim(),position:qs('#om-position').value.trim(),ppl:1,sundayDays:sun,holidayHours:hol,hour:sun*8+hol,expense:N(qs('#om-exp').value)});
+  }else r=Object.assign(r,{ppl:N(qs('#om-ppl').value),hour:N(qs('#om-hour').value),expense:N(qs('#om-exp').value)});
+  const nk=otKey(r);if(OT_MAINT_KEY&&OT_MAINT_KEY!==nk)RECS=RECS.filter(x=>otKey(x)!==OT_MAINT_KEY);const up=otUpsert(RECS,[r]);RECS=up.rows;await idbSaveAll();ACTIVE=p;await pushProjection();renderAll();scheduleAutoCloudSync(OT_MAINT_KEY?'edit':'add');otMaintRefresh();qs('#om-record').value=nk;OT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');
+}
 async function otMaintDelete(){const k=OT_MAINT_KEY||qs('#om-record').value;if(!k)return;if(!confirm(T('確定刪除此筆？','Delete this record?')))return;RECS=RECS.filter(r=>otKey(r)!==k);await idbSaveAll();await pushProjection();renderAll();scheduleAutoCloudSync('delete');otMaintRefresh();toast(T('已刪除','Deleted'),'success');}
 
 async function clearAllData(){
