@@ -113,10 +113,10 @@ body{font-family:'DM Sans',sans-serif;}
       </div>
       <!-- ✈️ Telegram -->
       <div class="no-print flex items-center rounded-md border border-indigo-200 bg-indigo-50 overflow-hidden">
-        <button onclick="sendSummaryTG('adv')" title="傳送預付薪資摘要至 Telegram"
+        <button id="btn-tg-advance" type="button" onclick="sendSummaryTG('adv')" title="傳送預付薪資摘要至 Telegram"
           class="text-xs font-medium px-2.5 py-1.5 text-amber-700 hover:bg-indigo-100 transition">✈️ 預支</button>
         <span class="w-px h-4 bg-indigo-200"></span>
-        <button onclick="sendSummaryTG('pay')" title="傳送正式薪資摘要至 Telegram"
+        <button id="btn-tg-payroll" type="button" onclick="sendSummaryTG('pay')" title="傳送正式薪資摘要至 Telegram"
           class="text-xs font-medium px-2.5 py-1.5 text-emerald-700 hover:bg-indigo-100 transition">✈️ 正式</button>
       </div>
       <button onclick="openPayMaint()" title="線上新增／修改／刪除 Online maintenance"
@@ -862,6 +862,7 @@ body{font-family:'DM Sans',sans-serif;}
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function qs(sel){return document.querySelector(sel);}
 function fmt(n){return(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function int(n){return Math.round(+n||0).toLocaleString('en-US');}
 function fmtD(n){return(!n||n===0)?'<span class="text-slate-200">—</span>':`<span>${fmt(n)}</span>`;}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2664,31 +2665,40 @@ function buildSummaryTableText(which,key){
 
 let _tgWhich='pay';
 function sendSummaryTG(which){
-  _tgWhich=which;
-  const keys=Object.keys(STORE).sort().reverse();
-  if(!keys.length){toast(T('尚無任何期間資料','No period data yet'),'error');return;}
-  qs('#tg-kind').textContent = which==='adv'
-    ? T('💰 預付薪資摘要 Advance Pay','💰 Advance Pay Summary')
-    : T('💵 正式薪資月結摘要 Payroll','💵 Payroll Summary');
-  const sel=qs('#tg-period');
-  sel.innerHTML=keys.map(k=>{
-    const e=STORE[k];
-    const n = which==='adv' ? (e.advanceRecords||[]).length : (e.payrollRecords||[]).length;
-    return `<option value="${k}"${n?'':' disabled'}>${labelFromKey(k)}${n?` · ${n} ${T('人','staff')}`:` · ${T('無資料','no data')}`}</option>`;
-  }).join('');
-  // 預設選當前期間；若當前期間沒有該類型資料，自動跳到最近一個有資料的期間
-  const hasData=k=>{const e=STORE[k];return which==='adv'?(e.advanceRecords||[]).length:(e.payrollRecords||[]).length;};
-  let pick = (ACTIVE&&hasData(ACTIVE.periodKey)) ? ACTIVE.periodKey : keys.find(hasData);
-  if(!pick){
-    toast(which==='adv'?T('所有期間都沒有預付薪資檔','No Advance file in any period')
-                       :T('所有期間都沒有正式薪資檔','No Payroll file in any period'),'error');
-    return;
+  try{
+    _tgWhich=which==='adv'?'adv':'pay';
+    const keys=Object.keys(STORE).filter(k=>STORE[k]&&typeof STORE[k]==='object').sort().reverse();
+    if(!keys.length){toast(T('尚無任何期間資料','No period data yet'),'error');return;}
+    qs('#tg-kind').textContent = _tgWhich==='adv'
+      ? T('💰 預付薪資摘要 Advance Pay','💰 Advance Pay Summary')
+      : T('💵 正式薪資月結摘要 Payroll','💵 Payroll Summary');
+    const rowsOf=k=>{const e=STORE[k]||{},v=_tgWhich==='adv'?e.advanceRecords:e.payrollRecords;return Array.isArray(v)?v:[];};
+    const sel=qs('#tg-period');
+    sel.innerHTML=keys.map(k=>{
+      const n=rowsOf(k).length;
+      return `<option value="${k}"${n?'':' disabled'}>${labelFromKey(k)}${n?` · ${n} ${T('人','staff')}`:` · ${T('無資料','no data')}`}</option>`;
+    }).join('');
+    // 預設選當前期間；若當前期間沒有該類型資料，自動跳到最近一個有資料的期間。
+    const hasData=k=>rowsOf(k).length>0;
+    const pick=(ACTIVE&&ACTIVE.periodKey&&hasData(ACTIVE.periodKey))?ACTIVE.periodKey:keys.find(hasData);
+    if(!pick){
+      toast(_tgWhich==='adv'?T('所有期間都沒有預付薪資檔','No Advance file in any period')
+                         :T('所有期間都沒有正式薪資檔','No Payroll file in any period'),'error');
+      return;
+    }
+    sel.value=pick;
+    // 先顯示選擇視窗，再產生預覽；即使未來某筆舊資料異常，也不會再變成按鈕完全沒反應。
+    const m=qs('#tg-modal');m.classList.remove('hidden');m.classList.add('flex');
+    hrpSyncPersonField();
+    previewTg();
+    applyLang();
+  }catch(e){
+    console.error('[Payroll Telegram modal]',e);
+    const m=qs('#tg-modal');if(m){m.classList.remove('hidden');m.classList.add('flex');}
+    const pv=qs('#tg-preview');if(pv)pv.textContent='⚠️ '+T('無法產生預覽：','Preview error: ')+(e&&e.message?e.message:String(e));
+    const btn=qs('#tg-send');if(btn)btn.disabled=true;
+    toast(T('群組發送視窗發生錯誤：','Group send dialog error: ')+(e&&e.message?e.message:String(e)),'error');
   }
-  sel.value=pick;
-  hrpSyncPersonField();
-  previewTg();
-  const m=qs('#tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
-  applyLang();
 }
 function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function previewTg(){
