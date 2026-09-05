@@ -263,8 +263,8 @@
         <div class="mt-1.5 flex bg-slate-100 rounded-lg p-0.5">
           <button id="tgm-sum" onclick="setTgMode('summary')" data-en="📄 Summary only"
             class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-teal-700 transition">📄 僅傳摘要</button>
-          <button id="tgm-app" onclick="setTgMode('approval')" data-en="📋 Request approval"
-            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">📋 送出核可</button>
+          <button id="tgm-app" onclick="setTgMode('review')" data-en="👀 Group review"
+            class="flex-1 text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">👀 送群組審查</button>
         </div>
         <p id="tgm-note" class="text-[10px] text-slate-400 mt-1.5 leading-relaxed"></p>
       </div>
@@ -473,7 +473,7 @@ function _sheetYM(v){
     const x=String(v||'').trim();
     let m=x.match(/\b(20\d{2})[-\/.](0?[1-9]|1[0-2])\b/);if(m)return{year:+m[1],month:+m[2]};
     const mn={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
-    m=x.toLowerCase().match(/\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)[-\s,]*(20\d{2})\b/);
+    m=x.toLowerCase().match(/\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)[\s,./-]*(20\d{2})\b/);
     if(m)return{year:+m[2],month:mn[m[1]]};
   }catch(e){}
   return null;
@@ -502,8 +502,15 @@ function parseVrtCashSpecialOtSheet(ws,sheetName,fileName){
     }
   }
   if(!headerInfo.length)return null;
+  // 報表期間只可來自 Special OT 標題、檔名或工作表名稱。
+  // 員工列中的 Join Date（例如 2025-01-03）不是報表月份，絕不可拿來覆蓋 Aug /2026。
   let ym=null;
-  for(let i=0;i<Math.min(raw.length,12)&&!ym;i++)for(const v of (raw[i]||[])){const z=_sheetYM(v);if(z){ym=z;break;}}
+  const firstHeader=Math.min.apply(null,headerInfo.map(h=>h.row));
+  for(let i=0;i<Math.min(firstHeader,6)&&!ym;i++)for(const v of (raw[i]||[])){
+    const txt=norm(v);
+    if(!/special\s*(?:overtime|ot)/i.test(txt))continue;
+    const z=_sheetYM(txt);if(z){ym=z;break;}
+  }
   if(!ym)ym=_sheetYM(fileName)||_sheetYM(sheetName);
   if(!ym)return null;
 
@@ -641,6 +648,12 @@ function parseWorkbook(wb,fileName){
 function otKey(r){const b=String(r.type||'')+'|'+String(r.year||'')+'|'+pad(r.month)+'|'+String(r.dept||'').trim().toLowerCase();return r.type==='special'?b+'|'+String(r.empId||'').trim():b;}
 function otUpsert(list,incoming){const map=new Map(),order=[];let replaced=0;(list||[]).forEach(r=>{const k=otKey(r);if(!map.has(k))order.push(k);map.set(k,r);});(incoming||[]).forEach(r=>{const k=otKey(r);if(map.has(k))replaced++;else order.push(k);map.set(k,r);});return{rows:order.map(k=>map.get(k)),replaced};}
 function otDedupe(list){return otUpsert([],list||[]).rows;}
+function otReplaceSpecialSources(list,incoming){
+  const sources=[...new Set((incoming||[]).filter(r=>r.type==='special').map(r=>String(r.src||'')).filter(Boolean))];
+  if(!sources.length)return{rows:list||[],removed:0};
+  const rows=(list||[]).filter(r=>!(r.type==='special'&&sources.includes(String(r.src||''))));
+  return{rows,removed:(list||[]).length-rows.length};
+}
 
 // ━━━━━━━━━ 智慧匯入 ━━━━━━━━━
 async function smartImport(input){
@@ -650,18 +663,26 @@ async function smartImport(input){
   st.textContent=T(`⏳ 解析 ${files.length} 個檔案中…`,`⏳ Parsing ${files.length} file(s)…`);
   st.style.color='#0f766e'; rep.classList.add('hidden'); rep.innerHTML='';
 
+  // 先取回雲端完整歷史，讓同來源日期修復即使換電腦操作，也能精準刪除雲端舊月份。
+  // 下載失敗不阻擋本機匯入；待網路恢復後自動同步仍會重試。
+  try{if(GAS_URL&&window.HRPaySmartSync)await cloudDownload({silent:true,auto:true});}catch(e){console.warn('[Special OT pre-import sync]',e);}
+
   const log=[];
   for(const file of files){
     try{
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true});
       const recs=parseWorkbook(wb,file.name);
       if(!recs){ log.push({ok:false,f:file.name,msg:T('無法辨識格式（找不到 OT/Bonus 或 Special OT 欄位）','Unrecognised OT/Bonus/Special OT format')}); continue; }
-      // 精準 Upsert：只更新 Excel 真正包含的 Type+Month+Dept，不刪其他月份。
+      // 同一份 Special OT 來源必須整份替換：修正月份時清掉該來源先前被誤判的舊月份，
+      // 也能正確反映 Excel 中已刪除的員工；其他來源與一般 OT/Bonus 完全保留。
+      const sourceReplace=otReplaceSpecialSources(RECS,recs);
+      RECS=sourceReplace.rows;
+      const removedSourceRows=sourceReplace.removed;
       const years=[...new Set(recs.map(r=>r.year))];
       const type=recs[0].type;
       const up=otUpsert(RECS,recs); RECS=up.rows;
       const exp=recs.reduce((s,r)=>s+r.expense,0);
-      log.push({ok:true,f:file.name,type,years,n:recs.length,exp,replaced:up.replaced,
+      log.push({ok:true,f:file.name,type,years,n:recs.length,exp,replaced:up.replaced,removedSourceRows,
                 depts:new Set(recs.map(r=>r.dept)).size,
                 warningZh:(recs.find(r=>r.sourceWarningZh)||{}).sourceWarningZh||'',
                 warningEn:(recs.find(r=>r.sourceWarningEn)||{}).sourceWarningEn||''});
@@ -671,7 +692,7 @@ async function smartImport(input){
   if(!RECS.some(r=>typeMatch(r,TYPE))){const first=log.find(x=>x.ok);if(first&&['ot','bonus','special'].includes(first.type))TYPE=first.type;}
   const ps=periods();
   if(ps.length) ACTIVE=ps[ps.length-1];
-  showApp(); renderAll(); pushProjection();
+  showApp(); renderAll(); await pushProjection();
 
   const okN=log.filter(l=>l.ok).length;
   st.textContent = okN===log.length
@@ -690,7 +711,7 @@ async function smartImport(input){
         l.type==='ot'?`<span class="text-teal-700 font-semibold">${T('加班 Overtime','Overtime')}</span>`
         :l.type==='special'?`<span class="text-orange-700 font-semibold">${T('特殊加班 Special OT','Special OT')}</span>`
                      :`<span class="text-amber-700 font-semibold">${T('獎金 Bonus','Bonus')}</span>`
-      } · ${l.years.join(', ')} · ${l.n} ${T('筆','rows')} · ${l.depts} ${T('分類','groups')} · $${fmt(l.exp)} <span class="text-slate-400">${l.replaced?`· ${T('更新','updated')} ${l.replaced}`:''}</span>${l.warningZh?`<span class="block mt-1 text-amber-700">⚠ ${esc(T(l.warningZh,l.warningEn))}</span>`:''}</span></div>`
+      } · ${l.years.join(', ')} · ${l.n} ${T('筆','rows')} · ${l.depts} ${T('分類','groups')} · $${fmt(l.exp)} <span class="text-slate-400">${l.removedSourceRows?`· ${T('替換舊來源','replaced prior source')} ${l.removedSourceRows}`:l.replaced?`· ${T('更新','updated')} ${l.replaced}`:''}</span>${l.warningZh?`<span class="block mt-1 text-amber-700">⚠ ${esc(T(l.warningZh,l.warningEn))}</span>`:''}</span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('')
   + (gaps.length
@@ -698,7 +719,7 @@ async function smartImport(input){
     : `<div class="mt-1.5 pt-1.5 border-t border-slate-100 text-emerald-700">📌 ${T('主要加班表與獎金表皆已載入；Special OT 為獨立可選來源。','Overtime and Bonus loaded; Special OT is an optional separate source.')}</div>`);
   rep.classList.remove('hidden');
   applyLang();
-  if(okN>0) scheduleAutoCloudSync('import');
+  if(okN>0) scheduleAutoCloudSync(log.some(l=>l.ok&&l.removedSourceRows>0)?'delete':'import');
 }
 
 // ━━━━━━━━━ 篩選與彙總 ━━━━━━━━━
@@ -1165,19 +1186,19 @@ function previewTg(){
 }
 
 // ━━━━━━━━━ 送出核可 Approval Request ━━━━━━━━━
-//  ⚠ 2026-07 起的期間才需要核可；之前的期間已結案，只發摘要不附核可按鈕。
-const APPROVAL_FROM='2026-07';
-const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
+// v3.9.11：有效月份都可走「群組審查 → Paul 核可」，不再誤把舊月份鎖成只能摘要。
+const needsApproval=p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(p||'').slice(0,7));
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||''):'';}
 function setTgMode(m){
   const b=qs('#tgm-app');
-  if(m==='approval'&&b&&b.disabled)return;
+  if(m!=='summary'&&m!=='review')m='review';
+  if(m==='review'&&b&&b.disabled)return;
   TG_MODE=m;
   hrpSyncPersonField();
   const a=qs('#tgm-sum');
   if(a)a.className='flex-1 '+_btn(m==='summary','teal');
-  if(b)b.className='flex-1 '+_btn(m==='approval','teal');
+  if(b)b.className='flex-1 '+_btn(m==='review','teal');
   previewTg();
 }
 function syncTgMode(){
@@ -1185,15 +1206,15 @@ function syncTgMode(){
   const b=qs('#tgm-app'), note=qs('#tgm-note');
   if(!b)return;
   b.disabled=!ok; b.style.opacity=ok?'':'0.4'; b.style.cursor=ok?'':'not-allowed';
-  if(!ok&&TG_MODE==='approval'){TG_MODE='summary';
+  if(!ok&&TG_MODE==='review'){TG_MODE='summary';
     const a=qs('#tgm-sum');if(a)a.className='flex-1 '+_btn(true,'teal');
     b.className='flex-1 '+_btn(false,'teal');}
   hrpSyncPersonField();
   if(note)note.textContent=ok
-    ? T(type==='special'?'Special OT 送核前必須補齊每位員工的現金發放金額。':'核可模式會在群組訊息附上「✅ 核可 / ❌ 退件」按鈕，Paul 可直接點選決定。',
-        type==='special'?'Cash amount is required for every Special OT record before approval.':'Approval mode adds Approve / Reject buttons to the group message.')
-    : T(APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。',
-        'Periods before '+APPROVAL_FROM+' are closed — summary only.');
+    ? T(type==='special'?'先送群組審查；審查通過後，同一則訊息會換成 Paul 的「✅ 核可 / ❌ 退件」。Special OT 送核前必須補齊每位員工現金金額。':'先送群組審查；審查通過後，同一則訊息會換成 Paul 的「✅ 核可 / ❌ 退件」。',
+        type==='special'?'Sent to group review first; after verification, the same message changes to Paul Approve / Reject. Every Special OT cash amount is required.':'Sent to group review first; after verification, the same message changes to Paul Approve / Reject.')
+    : T(type==='all'?'全部變動成本只提供摘要；請選擇個別類型送核。':'期間格式不正確，只提供摘要。',
+        type==='all'?'All Variable Cost is summary-only; select an individual type for approval.':'Invalid period format; summary only.');
 }
 async function sendApprovalRequest(period,title,text,amount,headcount,moduleName,items){
   const applicant=hrpPersonValue('applicant',true);
@@ -1202,10 +1223,19 @@ async function sendApprovalRequest(period,title,text,amount,headcount,moduleName
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:moduleName||'ot_bonus',period,title,text,
-        amount:amount||0,headcount:headcount||0,items:items||[],applicant,requestedBy:applicant})});
+        amount:amount||0,headcount:headcount||0,items:items||[],applicant,requestedBy:applicant,route:'review'})});
     let d=null;try{d=await r.json();}catch(e){}
-    if(d&&d.ok!==false){toast(T('已送出，請在 Telegram 群組核可','Sent — approve in the group'),'success');return true;}
-    toast(T('送出失敗','Send failed'),'error');return false;
+    if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No response from GAS deployment'),'error');return false;}
+    if(d.ok===false){toast(T('送出失敗：','Send failed: ')+(d.error||'GAS error'),'error');return false;}
+    const info=d.data||d;
+    if(info.alreadySettled){toast(T('此期間已完成核可，不會重複發送','This period is already settled; not resent'),'error');return false;}
+    if(info.sentToGroup===true&&info.messageId){
+      toast(info.migratedToGroup
+        ? T('已把舊私訊核可轉移到群組，等待審查','Old private approval migrated to group')
+        : T('已送群組，等待審查','Sent to group for review'),'success');
+      return true;
+    }
+    toast(T('GAS 已回應，但 Telegram 群組沒有取得 messageId','GAS responded but no Telegram group messageId'),'error');return false;
   }catch(e){toast(T('送出失敗：','Send failed: ')+e.message,'error');return false;}
 }
 async function confirmSendTg(){
@@ -1214,7 +1244,7 @@ async function confirmSendTg(){
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   let ok=false;
-  if(TG_MODE==='approval'&&needsApproval(period)&&type!=='all'){
+  if(TG_MODE==='review'&&needsApproval(period)&&type!=='all'){
     if(type==='special'&&r.missingCash){btn.disabled=false;btn.textContent=T('確認傳送','Send');toast(T(`Special OT 尚有 ${r.missingCash} 人未填現金金額，不能送核。`,`Special OT has ${r.missingCash} staff without cash amount; approval blocked.`),'error');return;}
     const recs=RECS.filter(x=>typeMatch(x,type)&&`${x.year}-${pad(x.month)}`===period);
     const exp=r.amount!=null?r.amount:recs.reduce((s2,x)=>s2+N(x.expense),0);
@@ -1278,7 +1308,7 @@ function otSyncStatus(msg,type){console.log('[OT smart sync]',msg);}
 function scheduleAutoCloudSync(reason){
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('otbonus',reason||'change',{},900);return;}
   try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
-  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},60);
 }
 async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:otCloudRecords(),legacyToRecords:otLegacyRows,meta:otCloudMeta(),onStatus:otSyncStatus});if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 

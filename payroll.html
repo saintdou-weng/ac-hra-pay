@@ -1466,7 +1466,7 @@ async function smartImport(input){
   if(keys.length){
     const last=keys[keys.length-1];
     qs('#period-sel').value=last; ACTIVE=STORE[last];
-    syncUploadZoneUI(); showStageBadge(); renderAll(); pushProjection(ACTIVE);
+    syncUploadZoneUI(); showStageBadge(); renderAll(); await pushProjection(ACTIVE);
   }
 
   // ── 結果回報 ──
@@ -2705,15 +2705,14 @@ function previewTg(){
 }
 
 // ━━━━━━━━━ 送出核可 Approval Request ━━━━━━━━━
-//  ⚠ 2026-07 起的期間才需要核可；之前的期間已結案，只發摘要不附核可按鈕。
-const APPROVAL_FROM='2026-07';
-const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
+// v3.9.11：正式薪資與預付薪資的有效月份都可送「群組審查 → Paul 核可」。
+const needsApproval=p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(p||'').slice(0,7));
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||''):'';}
 const TGM_IDS={summary:'tgm-sum',review:'tgm-rev'};
 function setTgMode(m){
   if(m!=='summary'&&m!=='review')m='review';
-  if(m!=='summary'&&!needsApproval(_tgPeriodVal()))return;   // 已結案期間不可送核可
+  if(m!=='summary'&&!needsApproval(_tgPeriodVal()))return;
   TG_MODE=m;
   hrpSyncPersonField();
   Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
@@ -2729,7 +2728,7 @@ function syncTgMode(){
   Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
     if(b)b.className='flex-1 '+_cbtn(TG_MODE===k,'sky');});
   if(note)note.textContent = !ok
-    ? (APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。')
+    ? '期間格式不正確，只提供摘要。'
     : TG_MODE==='review'
       ? '送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」，通過後才會出現你的核可按鈕。'
       : '只發通知，不建立核可批次，可重複發送。底部會自動附上平台概況。';
@@ -2742,11 +2741,16 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({type:'approvalRequest',module:_tgWhich==='adv'?'advance':'payroll',
         period,title,text,amount:amount||0,headcount:headcount||0,applicant,requestedBy:applicant,
-        route:route||'review', items:items||[]})});
+        route:'review', items:items||[]})});
     let d=null;try{d=await r.json();}catch(e){}
-    if(d&&d.ok!==false){
-      toast('已送群組，等待審查','success');return true;}
-    toast('送出失敗','error');return false;
+    if(!d){toast('GAS 沒有回傳資料，請確認部署 URL','error');return false;}
+    if(d.ok===false){toast('送出失敗：'+(d.error||'GAS error'),'error');return false;}
+    const info=d.data||d;
+    if(info.alreadySettled){toast('此期間已完成核可，不會重複發送','error');return false;}
+    if(info.sentToGroup===true&&info.messageId){
+      toast(info.migratedToGroup?'已把舊私訊核可轉移到群組，等待審查':'已送群組，等待審查','success');return true;
+    }
+    toast('GAS 已回應，但 Telegram 群組沒有取得 messageId','error');return false;
   }catch(e){toast('送出失敗：'+e.message,'error');return false;}
 }
 /* 核可文件用的明細（欄位名稱對齊 GAS 的 DOC_FIELD_ORDER） */
@@ -2804,7 +2808,7 @@ function scheduleAutoCloudSync(reason,period){
   if(!period){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');period=x.period||'';}catch(e){}}
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('payroll',reason||'change',period?{period:period}:{},900);return;}
   try{localStorage.setItem(HRPAY_AUTO_KEY,JSON.stringify({reason:reason||'change',period:period||'',at:Date.now()}));}catch(e){}
-  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,period:period||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
+  setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,period:period||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},60);
 }
 async function cloudUpload(opts){opts=opts||{};if(!Object.keys(STORE).length){if(!opts.silent)toast('尚無資料可上傳','error');return false;}const btn=qs('#btn-cloud-up');if(btn){btn.disabled=true;btn.classList.add('opacity-50');}try{const pk=opts.period||(ACTIVE&&ACTIVE.periodKey)||'';if(pk&&STORE[pk])await pushProjection(STORE[pk]);const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:payrollCloudRecords(),legacyToRecords:payrollLegacyRows,meta:payrollCloudMeta(),onStatus:payrollSyncStatus});if(!opts.silent)toast(res&&res.skipped?'☁ 雲端已是最新，不需重傳':`☁ 智慧上傳完成${res&&res.uploaded!=null?' · '+res.uploaded+' 期變更':''}`,'success');return true;}catch(e){if(!opts.silent)toast('上傳失敗：'+e.message,'error');console.error(e);return false;}finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}}}
 
