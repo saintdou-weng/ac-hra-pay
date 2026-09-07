@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script src="shared/hrpay-reporting.js?v=3.9.14"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>⚠️ Warning Management | AC-HRA-PAY</title>
@@ -957,6 +958,7 @@ const AP_FIELDS=()=>[
   ['empDept',T('員工部門 Department','Department'),'text',true],
   ['empPos',T('員工職務 Position','Position'),'text',false],
   ['level',T('警告等級 Level','Level'),'level',true],
+  ['incidentTime',T('發生時間（如有）Incident Time','Incident time, if known'),'time',false],
   ['incidentDate',T('發生日期 Incident Date','Incident Date'),'date',true],
   ['reason',T('事由 Reason','Reason'),'textarea',true],
   ['remark',T('備註 Remark','Remark'),'textarea',false],
@@ -1022,7 +1024,7 @@ async function submitApply(){
   }
   const d={timestamp:_nowStr(),applicant:apVal('applicant'),applicantDept:apVal('applicantDept'),
     empId:apVal('empId'),empName:apVal('empName'),empDept:apVal('empDept'),empPos:apVal('empPos'),
-    level:apVal('level'),incidentDate:apVal('incidentDate'),reason:apVal('reason'),
+    level:apVal('level'),incidentDate:apVal('incidentDate'),incidentTime:apVal('incidentTime'),reason:apVal('reason'),
     remark:apVal('remark'),is7Day:apVal('is7Day')};
   const btn=qs('#ap-submit');btn.disabled=true;btn.textContent=T('送出中…','Submitting…');
   try{
@@ -1082,7 +1084,7 @@ async function approveRec(id,approve){
 
 // ━━━━ 雲端 ━━━━
 async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await gasGet({action:'warnList'});if(res&&res.ok&&Array.isArray(res.records)){const cloud=res.records.map(r=>({...r,id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));const ck=new Set(cloud.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));RECS=cloud.concat(RECS.filter(r=>!ck.has(r.empId+'|'+r.incidentDate+'|'+r.level)));RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);await idbSaveAll();const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];showApp();renderAll();if(!opts.silent)toast(T(`☁ 已載入 ${cloud.length} 筆雲端記錄`,`☁ Loaded ${cloud.length}`),'success');return true;}if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
-async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const pending=RECS.filter(r=>r._src==='import'||!r.row);if(!pending.length){if(!opts.silent)toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'success');return true;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}let done=0,skipped=0;try{for(let i=0;i<pending.length;i+=40){const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,remark:r.remark||'',status:r.status||'已核可'}));const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}if(b&&b.querySelector('span'))b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;}if(!opts.silent)toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');if(b.querySelector('span'))b.querySelector('span').textContent=T('上傳','Upload');}}}
+async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const pending=RECS.filter(r=>r._src==='import'||!r.row);if(!pending.length){if(!opts.silent)toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'success');return true;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}let done=0,skipped=0;try{for(let i=0;i<pending.length;i+=40){const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,incidentTime:r.incidentTime||'',remark:r.remark||'',status:r.status||'已核可'}));const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}if(b&&b.querySelector('span'))b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;}if(!opts.silent)toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');if(b.querySelector('span'))b.querySelector('span').textContent=T('上傳','Upload');}}}
 
 const HRPAY_WARNING_AUTO_KEY='hrpay:auto:warning';
 function scheduleWarningAutoSync(reason){
@@ -1150,13 +1152,10 @@ function inTgKey(r,unit,key){
   return `${y}-${pad(mo)}`===key;
 }
 function buildTgText(unit,key){
-  const list=filtered().filter(r=>inTgKey(r,unit,key)); if(!list.length)return{err:T('此期間無警告記錄','No records for this period')};
-  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key,pend=list.filter(r=>r.status==='待審核'||r.status==='待核可').length,act=list.filter(r=>r.status==='已核可'&&!isExpired(r)).length,emps=new Set(list.map(r=>r.empId));
-  const byLv={},dm={};list.forEach(r=>{byLv[r.level]=(byLv[r.level]||0)+1;const d=r.empDept||'—';dm[d]=(dm[d]||0)+1;});
-  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[20,7,8];
-  let tb=row(['Department','Records','%'],W)+'\n'+row(['--------------------','-------','--------'],W)+'\n';Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,v])=>tb+=row([d,v,((v/list.length)*100).toFixed(1)],W)+'\n');tb+=row(['TOTAL',list.length,'100.0'],W);
-  const lv=LEVELS.filter(l=>byLv[l.k]).map(l=>l.en+': '+byLv[l.k]).join(' | ');
-  return{text:'⚠️ <b>員工警告摘要 Warning Summary</b>\n📅 期間 Period：'+esc(label)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Records',list.length,'Employees',emps.size],[12,8,12,8])+'\n'+row(['Open',pend,'Active',act],[12,8,12,8])+'</pre>\n<b>等級 Level</b>\n'+esc(lv||'—')+'\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>'+(pend?'\n👉 '+T('尚有 '+pend+' 件待處理','Open items: '+pend):'')};
+  const list=filtered().filter(r=>inTgKey(r,unit,key));
+  if(!list.length)return {err:T('此期間無警告記錄','No records for this period')};
+  const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key;
+  return {text:HRPayReporting.warning(list,RECS,label,isExpired)};
 }
 
 function buildTgReview(unit,key){

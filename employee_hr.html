@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script src="shared/hrpay-reporting.js?v=3.9.14"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
@@ -495,6 +496,9 @@ const HDR_MAP=[
   ['section',    [/^section$/i]],
   ['position',   [/^position$/i]],
   ['status',     [/^status$/i]],
+  ['pregnant', [/^pregnan/i, /懷孕/]],
+  ['maternity', [/^maternity/i, /產假/]],
+  ['resignDate', [/^(resign|termination|leaving).*date/i, /離職日/]],
   ['province',   [/^place\s*of\s*b/i]],
 ];
 function parseRoster(wb, fileName){
@@ -559,6 +563,9 @@ function parseRoster(wb, fileName){
         marital:col.marital!==undefined?String(r[col.marital]||'').trim():'',
         workStatus:col.workStatus!==undefined?String(r[col.workStatus]||'').trim():'',
         empStatus:col.empStatus!==undefined?String(r[col.empStatus]||'').trim():'',
+        pregnant:col.pregnant!==undefined?String(r[col.pregnant]??'').trim():'',
+        maternity:col.maternity!==undefined?String(r[col.maternity]??'').trim():'',
+        resignDate:col.resignDate!==undefined?dStr(toDate(r[col.resignDate])):'',
         phone:col.phone!==undefined?String(r[col.phone]||'').trim():''
       });
     }
@@ -1168,6 +1175,10 @@ const ED_FIELDS=[
   ['position',T('職務 Position','Position'),'text'],
   ['nationality',T('國籍 Nationality','Nationality'),'text'],
   ['province',T('籍貫 Province','Province'),'text'],
+  ['workStatus',T('聘用性質：Permanent / Contract / Probation','Employment: Permanent / Contract / Probation'),'text'],
+  ['pregnant',T('懷孕：Yes / No（空白＝未知）','Pregnant: Yes / No (blank = unknown)'),'text'],
+  ['maternity',T('產假：Yes / No（空白＝未知）','Maternity: Yes / No (blank = unknown)'),'text'],
+  ['resignDate',T('離職日（如有）','Resignation date, if recorded'),'date'],
   ['education',T('學歷 Education','Education'),'text'],
   ['marital',T('婚姻狀況 Marital','Marital status'),'text'],
   ['nssf',T('NSSF 編號','NSSF code'),'text'],
@@ -1287,38 +1298,10 @@ function hrpPreviewText(text,kind){
 
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept){
-  const s=SNAPS[key]; if(!s)return{err:T('查無此快照','Snapshot not found')};
-  const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows; if(!rows.length)return{err:T('此範圍無人員資料','No staff in this scope')};
-  const sd=(()=>{const [y,m]=key.split('-').map(Number);return new Date(y,(m||12)-1,28);})();
-  function locType(r){const p=String(r.province||'').toLowerCase();if(!p)return'U';return /sihanouk|preah\s*sihanouk|ព្រះសីហនុ|西哈努克/.test(p)?'L':'O';}
-  function natType(r){const n=String(r.nationality||'').toLowerCase();if(!n)return'U';return /cambod|khmer|កម្ពុជា|ខ្មែរ|柬埔寨/.test(n)?'C':'F';}
-  function empType(r){const x=[r.workStatus,r.empStatus,r.status].filter(Boolean).join(' ').toLowerCase();if(!x)return'U';if(/probation|試用|សាកល្បង/.test(x))return'P';if(/contract|fixed|temporary|temp\b|合同|契約|កិច្ចសន្យា/.test(x))return'C';if(/regular|permanent|formal|正式|正職|អចិន្ត្រៃយ៍/.test(x))return'R';return'O';}
-  function stat(rs){
-    const f=rs.filter(r=>r.gender==='F').length,m=rs.length-f,ages=rs.map(r=>N(r.age)).filter(a=>a>5&&a<80),tens=rs.map(r=>{const j=toDate(r.join);return j?yearsBetween(j,sd):0;}).filter(v=>v>0);
-    const lc=rs.filter(r=>locType(r)==='L').length,lo=rs.filter(r=>locType(r)==='O').length,lu=rs.length-lc-lo;
-    const nc=rs.filter(r=>natType(r)==='C').length,nf=rs.filter(r=>natType(r)==='F').length,nu=rs.length-nc-nf;
-    const ec=rs.filter(r=>empType(r)==='C').length,er=rs.filter(r=>empType(r)==='R').length,ep=rs.filter(r=>empType(r)==='P').length,eo=rs.length-ec-er-ep;
-    return{n:rs.length,f,m,age:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,ten:tens.length?tens.reduce((a,b)=>a+b,0)/tens.length:0,lc,lo,lu,nc,nf,nu,ec,er,ep,eo};
-  }
-  const S=stat(rows),y=+key.slice(0,4),newN=rows.filter(r=>r.join&&+r.join.slice(0,4)===y).length,dm={};rows.forEach(r=>(dm[r.dept||'Other']=dm[r.dept||'Other']||[]).push(r));
-  const list=Object.entries(dm).map(([d,rs])=>[d,stat(rs)]).sort((a,b)=>b[1].n-a[1].n);
-  const pct=(a,b)=>b?((a/b)*100).toFixed(1):'0.0', row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '),W=[18,6,6,6,6,6,6,6,6];
-  let tb=row(['Dept','Staff','%','F%','Age','Ten','Local%','Ctr%','Reg%'],W)+'\n'+row(['------------------','------','------','------','------','------','------','------','------'],W)+'\n';
-  list.forEach(([d,v])=>tb+=row([d,v.n,pct(v.n,S.n),pct(v.f,v.n),v.age?v.age.toFixed(1):'—',v.ten?v.ten.toFixed(1):'—',pct(v.lc,v.n),pct(v.ec,v.n),pct(v.er,v.n)],W)+'\n');
-  tb+=row(['TOTAL',S.n,'100.0',pct(S.f,S.n),S.age?S.age.toFixed(1):'—',S.ten?S.ten.toFixed(1):'—',pct(S.lc,S.n),pct(S.ec,S.n),pct(S.er,S.n)],W);
-  const W2=[12,9,12,9];
-  let summary=row(['Headcount',S.n,'Departments',list.length],W2)+'\n'
-    +row(['Female',`${S.f} ${pct(S.f,S.n)}%`,'Male',`${S.m} ${pct(S.m,S.n)}%`],W2)+'\n'
-    +row(['Avg Age',S.age?S.age.toFixed(1):'—','Avg Tenure',S.ten?S.ten.toFixed(1)+' yr':'—'],W2)+'\n'
-    +row(['Joiners '+y,newN,' ',' '],W2)+'\n'
-    +row(['本地 Local',`${S.lc} ${pct(S.lc,S.n)}%`,'外地 Out-area',`${S.lo} ${pct(S.lo,S.n)}%`],W2)+'\n'
-    +row(['柬籍 Cambodian',`${S.nc} ${pct(S.nc,S.n)}%`,'外籍 Foreign',`${S.nf} ${pct(S.nf,S.n)}%`],W2)+'\n'
-    +row(['合同 Contract',`${S.ec} ${pct(S.ec,S.n)}%`,'正式 Regular',`${S.er} ${pct(S.er,S.n)}%`],W2)+'\n'
-    +row(['試用 Probation',`${S.ep} ${pct(S.ep,S.n)}%`,'其他/未知',S.eo],W2);
-  if(S.lu||S.nu)summary+='\n'+row(['地區未知',S.lu,'國籍未知',S.nu],W2);
-  let t='👥 <b>員工人力概況 Workforce Summary</b>\n📅 時點 Snapshot：'+esc(s.label)+(dept?'\n🏭 部門 Dept：'+esc(dept):'')+'\n<b>整體結構 Workforce Profile</b>\n<pre>'+summary+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
-  t+='\n<i>本地/外地依 Province 判定；合同/正式依 Work Status / Employee Status / Status 原始欄位判定，缺欄位則列未知，不自行猜測。</i>';
-  return{text:t};
+  const s=SNAPS[key];if(!s)return {err:T('查無此快照','Snapshot not found')};
+  const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;if(!rows.length)return {err:T('此範圍無人員資料','No staff in scope')};
+  const prevKey=Object.keys(SNAPS).filter(k=>k<key).sort().pop(),prev=prevKey?{key:prevKey,rows:dept?SNAPS[prevKey].rows.filter(r=>r.dept===dept):SNAPS[prevKey].rows}:null;
+  return {text:HRPayReporting.workforce(rows,key,s.label,prev)};
 }
 
 function openTgModal(){
