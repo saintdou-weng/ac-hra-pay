@@ -1,0 +1,50 @@
+AC-HRA-PAY v3.9.2 — All Telegram Summary / Approval Column Layout
+
+Scope of this update
+- Telegram text layout only. Data storage, import/export, Smart Sync, reminder rules, approval keys,
+  approval routing, reviewer/approver permissions, report generation, and existing business logic are preserved.
+
+Column-style Telegram formatting
+- Payroll summary + approval
+- Advance Pay summary + approval
+- Meal Fee summary + approval
+- OT / Bonus summary + approval
+- Position Transfer summary + approval (single, batch, and period)
+- Warning summary + individual review/approval messages
+- Shutdown summary
+- Employee Information / Workforce summary
+
+Detail preservation
+- Existing data fields are retained; the change is presentation/layout only.
+- Transfer keeps employee ID/name, from/to department+position, reason, effective date,
+  each salary item before/after/difference, and total before/after/difference.
+- Warning keeps employee, ID, department, position, level, incident date, reason, applicant,
+  big/final warning count, review status, reviewer, and approver.
+- Payroll/Advance/Meal/OT keep the existing department-level details and totals, with extra percentage/average columns.
+- Shutdown keeps all event-level date/days/headcount/line/person-day detail.
+
+Employee Information aggregate summary (no per-person list)
+- Headcount and department count
+- Female/Male count and ratio
+- Average age and average tenure
+- Joiners in selected year
+- Local / Out-area based on Province
+- Cambodian / Foreign based on Nationality
+- Contract / Regular / Probation based on Work Status / Employee Status / Status
+- Department breakdown: staff %, female %, average age, tenure, local %, contract %, regular %
+- Missing source fields remain Unknown; no invented classification.
+
+Preserved from prior versions
+- Smart incremental / automatic cloud sync
+- Summary/approval auto upload
+- Recent-update reminder logic
+- Monthly completeness reminder
+- Payroll/Meal review content retention
+- Warning safe delete/admin code
+- Position Transfer day/week/month/year + single-record send
+- Approval report Google Sheet/Excel/PDF generation fixes
+
+Verification
+- 10 HTML inline JavaScript syntax checks passed.
+- GAS JavaScript syntax check passed.
+- Diff audit: only Telegram text builder/preview selection functions and warning approval text formatting changed.

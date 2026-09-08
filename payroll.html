@@ -410,11 +410,11 @@ body{font-family:'DM Sans',sans-serif;}
       <div class="flex flex-wrap items-center gap-2.5">
         <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14"data-en="Time">時間</span>
         <div class="flex bg-slate-100 rounded-lg p-0.5">
-          <button id="cu-hour"  onclick="setCostUnit('hour')" data-en="Hourly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每小時</button>
-          <button id="cu-day"   onclick="setCostUnit('day')" data-en="Daily"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
-          <button id="cu-week"  onclick="setCostUnit('week')" data-en="Weekly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+          <button id="cu-hour"  onclick="setCostUnit('hour')" data-en="Hourly avg est."  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">時均估算</button>
+          <button id="cu-day"   onclick="setCostUnit('day')" data-en="Daily avg est."   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">日均估算</button>
+          <button id="cu-week"  onclick="setCostUnit('week')" data-en="Weekly avg est."  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">週均估算</button>
           <button id="cu-month" onclick="setCostUnit('month')" data-en="Monthly" class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">每月</button>
-          <button id="cu-year"  onclick="setCostUnit('year')" data-en="Yearly"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+          <button id="cu-year"  onclick="setCostUnit('year')" data-en="Annualised estimate"  class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">年化估算</button>
         </div>
         <span id="cost-scope" class="text-[11px] text-slate-400 ml-auto"></span>
       </div>
@@ -2037,7 +2037,7 @@ let COST_MODE='total';   // 'total' | 'cap'
 let COST_SRC ='pay';     // 'pay' | 'adv' | 'both'
 let COST_UNIT='month';   // 'hour'|'day'|'week'|'month'|'year'
 const UNIT_DIV={hour:1/(WORK_DAYS*WORK_HRS), day:1/WORK_DAYS, week:1/4.33, month:1, year:12};
-const UNIT_ZH ={hour:'每小時',day:'每日',week:'每週',month:'每月',year:'每年'};
+const UNIT_ZH ={hour:'時均估算',day:'日均估算',week:'週均估算',month:'當月實際',year:'年化估算'};
 function _cbtn(on,color){return on
   ? `text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
   : 'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}

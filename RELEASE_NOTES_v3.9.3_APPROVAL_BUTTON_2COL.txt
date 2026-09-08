@@ -1,0 +1,21 @@
+AC-HRA-PAY v3.9.3 — Approval report link buttons 2-column layout
+
+Change:
+- Approval report Telegram link buttons now use HRA Portal-style 2 buttons per row.
+- Row 1: Excel Download | PDF Download
+- Row 2: Online View | AC-HRA-PAY Dashboard
+- If one optional link is unavailable, remaining buttons are packed left-to-right, max 2 per row.
+
+Scope:
+- Only `approvalDocKeyboard()` in `ac-hra-pay-main.gs` was changed.
+- No changes to approval flow, report generation, document URLs, Smart Sync, reminders, Telegram review/approval logic, HTML pages, data storage, imports/exports, or existing module behavior.
+
+Deployment:
+- Replace `ac-hra-pay-main.gs` in the existing Apps Script project.
+- Save, Manage deployments -> Edit -> New version -> Deploy.
+- Keep the existing Web App URL.
+- No setupAll(), webhook reinstall, trigger reinstall, or HTML replacement is required for this patch.
+
+Verification:
+- GAS syntax check passed (checked as JavaScript).
+- Diff against v3.9.2 confirms only `ac-hra-pay-main.gs` changed, plus this release note.

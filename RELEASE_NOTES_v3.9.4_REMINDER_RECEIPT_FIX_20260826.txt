@@ -1,0 +1,43 @@
+AC-HRA-PAY v3.9.4 — Telegram receipt / false reminder fix (2026-08-26)
+
+Compared with AC HRA Portal v46 reminder fix and audited the current AC-HRA-PAY v3.9.3 flow.
+
+Confirmed false-reminder risks in v3.9.3:
+1. Summary receipt depended mainly on parsing the Telegram text. Employee Workforce Summary text was not reliably mapped to the employee module, so the hourly reminder could still treat a just-sent summary as missing.
+2. A Summary/period covering more than one month could mark only the first detected month, leaving the other covered month(s) pending.
+3. Warning Summary could send first and then auto-upload local warning rows; warnImport treated that upload as a new business-data update, which could reopen a reminder immediately after the Summary.
+4. Warning Review pre-upload could trigger a reminder before the review message reached Telegram.
+
+Fixes:
+- Every official PAY Summary now sends explicit module + period + covered-period metadata to GAS.
+- GAS records the Telegram receipt only after Telegram returns success, and records every covered YYYY-MM period.
+- Added Workforce Summary / 員工人力概況 aliases as a fallback, while explicit metadata is now the primary path.
+- Payroll, Advance, Meal Fee, OT/Bonus and Employee Summary mark their exact month explicitly.
+- Shutdown year/month summaries mark every actual month covered by the shutdown events.
+- Position Transfer D/W/M/Y summaries mark every actual effective month included in the sent records.
+- Warning month/quarter/year summaries mark every actual incident month included in the sent records.
+- Warning post-Summary auto-upload uses telegram-summary context; it cannot create a fresh update after the report receipt.
+- Warning pre-Review upload defers the reminder: successful review marks Approval and clears it; if Telegram review fails, the hourly fallback can still remind later.
+- Existing Smart Sync protection remains: reason=telegram causes changed smart buckets to be cloud-tracked without reopening a report reminder.
+
+Preserved unchanged:
+- v3.9.3 two-column approval document buttons
+- column-style Summary and Approval content
+- Payroll / Advance / Meal / OT / Transfer / Warning approval workflows
+- Smart incremental sync and cloud-history preservation
+- recent/future update reminder policy (previous month + current + future; older data ignored)
+- monthly completeness checks
+- approval document generation (Excel / PDF / Online / Dashboard)
+- Warning safe delete and row-based Telegram mapping
+- existing Bot/group/settings/triggers
+
+Deployment:
+1. Replace website files from this ZIP.
+2. Replace ac-hra-pay-main.gs in Apps Script.
+3. Save -> Manage deployments -> Edit -> New version -> Deploy.
+4. Do NOT run setupAll(), one-click install, or reinstall Telegram/Triggers.
+
+Verification performed:
+- GAS JavaScript syntax passed.
+- All 10 HTML inline JavaScript syntax checks passed.
+- Diff audit confirms only reminder receipt metadata / Warning report-upload context was changed.

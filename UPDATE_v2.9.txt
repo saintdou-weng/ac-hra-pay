@@ -1,0 +1,31 @@
+AC-HRA-PAY v2.9 — Checker / Applicant bilingual update
+
+Telegram Summary 摘要：
+- Payroll / Advance Pay
+- Meal Fee
+- OT & Bonus
+- Transfer
+- Warning Summary
+- Employee HR
+- Shutdown
+All require and display: 檢查人 Checked by
+
+Approval 核可：
+- Payroll / Advance Pay
+- Meal Fee
+- OT & Bonus
+- Transfer
+All require and display: 申請人 Applicant
+- Warning uses the Applicant field already stored in each warning application.
+
+After group Review, the same approval message keeps Applicant + full detail + Reviewer.
+Final approval keeps Applicant + Reviewer + Approver, with bilingual labels.
+Approval document also includes Applicant / Checked by fields.
+
+Deploy:
+1. Replace ac-hra-pay-main.gs in the existing GAS project.
+2. Save.
+3. Deploy > Manage deployments > Edit > New version > Deploy.
+4. Replace the HTML files on GitHub Pages.
+5. Hard refresh / Ctrl+F5.
+No need to run setupAll().

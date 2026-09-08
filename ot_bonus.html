@@ -19,6 +19,7 @@
   ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
+<script src="shared/hrpay-periods.js"></script>
 <script src="shared/hrpay-smart-sync.js"></script>
 <script src="shared/hrpay-auto-sync.js"></script>
 </head>
@@ -30,7 +31,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">OT / Bonus / Special OT Analytics</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.5</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v3.9.15</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -308,6 +309,7 @@ let RECS=[];            // ot/bonus: 部門×月；special: 員工×月，保留
 let ACTIVE=null;        // 'YYYY-MM'
 let TYPE='ot', UNIT='month', MODE='total', REPORT_MODE='month';
 let charts={};
+let OT_CLOUD_RECONCILED=false;
 
 const qs=s=>document.querySelector(s);
 const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
@@ -540,7 +542,7 @@ function parseVrtCashSpecialOtSheet(ws,sheetName,fileName){
       out.push({type:'special',year:ym.year,month:ym.month,dept:sourceGroup,ppl:1,hour,expense,
         empId:id,name:norm(payRow[h.cName])||norm(r[h.cName]),position:'',sourceGroup,
         escortDays,holidayDays,holidayHours:0,normalOtHours,nightOtHours,sundayDays,mealFee,
-        src:fileName||sheetName||''});
+        src:fileName||sheetName||'',reportPeriod:ym.year+'-'+pad(ym.month),periodEvidence:'Special OT report header / filename'});
       break;
     }
   });
@@ -648,10 +650,27 @@ function parseWorkbook(wb,fileName){
 function otKey(r){const b=String(r.type||'')+'|'+String(r.year||'')+'|'+pad(r.month)+'|'+String(r.dept||'').trim().toLowerCase();return r.type==='special'?b+'|'+String(r.empId||'').trim():b;}
 function otUpsert(list,incoming){const map=new Map(),order=[];let replaced=0;(list||[]).forEach(r=>{const k=otKey(r);if(!map.has(k))order.push(k);map.set(k,r);});(incoming||[]).forEach(r=>{const k=otKey(r);if(map.has(k))replaced++;else order.push(k);map.set(k,r);});return{rows:order.map(k=>map.get(k)),replaced};}
 function otDedupe(list){return otUpsert([],list||[]).rows;}
+function otSourceKey(src){return String(src||'').normalize('NFKC').trim().toLowerCase().replace(/(?:\s*\(\d+\))+(?=\.[^.]+$)/,'').replace(/\s+/g,' ');}
+function otRepairSpecialPeriods(list){
+  let changed=0;const fixed=[],native=[];
+  (list||[]).forEach(r=>{
+    const ym=r.type==='special'&&!r.reportPeriod&&/special\s*(?:ot|overtime)/i.test(r.src||'')?_sheetYM(otSourceKey(r.src)):null;
+    if(ym&&(N(r.year)!==ym.year||N(r.month)!==ym.month)){
+      const old=String(r.year)+'-'+pad(r.month);otQueueProjectionRepair(old);
+      fixed.push(Object.assign({},r,{year:ym.year,month:ym.month,reportPeriod:ym.year+'-'+pad(ym.month),periodRepair:{from:old,source:r.src},periodEvidence:'Special OT source filename'}));changed++;
+    }else native.push(r);
+  });
+  const map=new Map();fixed.concat(native).forEach(r=>{const k=otKey(r),prior=map.get(k);if(prior&&prior.periodRepair&&N(prior.expense)!==N(r.expense))r=Object.assign({},r,{periodRepairConflict:{priorAmount:prior.expense,source:prior.src}});map.set(k,r);});
+  return {rows:[...map.values()],changed};
+}
+function otQueueProjectionRepair(period){
+  try{const a=JSON.parse(localStorage.getItem('hrpay:ot:repairPeriods')||'[]');if(!a.includes(period)){a.push(period);localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(a));}}catch(e){}
+}
 function otReplaceSpecialSources(list,incoming){
-  const sources=[...new Set((incoming||[]).filter(r=>r.type==='special').map(r=>String(r.src||'')).filter(Boolean))];
+  const sources=[...new Set((incoming||[]).filter(r=>r.type==='special').map(r=>otSourceKey(r.src)).filter(Boolean))];
   if(!sources.length)return{rows:list||[],removed:0};
-  const rows=(list||[]).filter(r=>!(r.type==='special'&&sources.includes(String(r.src||''))));
+  const rows=(list||[]).filter(r=>!(r.type==='special'&&sources.includes(otSourceKey(r.src))));
+  (list||[]).filter(r=>!rows.includes(r)&&r.type==='special').forEach(r=>otQueueProjectionRepair(r.year+'-'+pad(r.month)));
   return{rows,removed:(list||[]).length-rows.length};
 }
 
@@ -667,7 +686,7 @@ async function smartImport(input){
   // 下載失敗不阻擋本機匯入；待網路恢復後自動同步仍會重試。
   try{if(GAS_URL&&window.HRPaySmartSync)await cloudDownload({silent:true,auto:true});}catch(e){console.warn('[Special OT pre-import sync]',e);}
 
-  const log=[];
+  const log=[];let importedAnchor=null;
   for(const file of files){
     try{
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true});
@@ -681,6 +700,7 @@ async function smartImport(input){
       const years=[...new Set(recs.map(r=>r.year))];
       const type=recs[0].type;
       const up=otUpsert(RECS,recs); RECS=up.rows;
+      importedAnchor={type:recs[0].type,period:recs.map(r=>r.year+'-'+pad(r.month)).sort().pop()};
       const exp=recs.reduce((s,r)=>s+r.expense,0);
       log.push({ok:true,f:file.name,type,years,n:recs.length,exp,replaced:up.replaced,removedSourceRows,
                 depts:new Set(recs.map(r=>r.dept)).size,
@@ -692,6 +712,7 @@ async function smartImport(input){
   if(!RECS.some(r=>typeMatch(r,TYPE))){const first=log.find(x=>x.ok);if(first&&['ot','bonus','special'].includes(first.type))TYPE=first.type;}
   const ps=periods();
   if(ps.length) ACTIVE=ps[ps.length-1];
+  if(importedAnchor){TYPE=importedAnchor.type;ACTIVE=importedAnchor.period;UNIT='month';REPORT_MODE='month';}
   showApp(); renderAll(); await pushProjection();
 
   const okN=log.filter(l=>l.ok).length;
@@ -737,8 +758,8 @@ function allPeriods(){
 // ⚠ timeSeries() 已依單位完成分組彙總（每季 = 該季三個月加總、每年 = 全年加總），
 //    因此係數只負責「由月再細分成日／週」，季與年一律為 1，否則會重複放大 3 倍／12 倍。
 const UNIT_F={day:1/WORK_DAYS, week:1/WEEKS, month:1, quarter:1, year:1};
-const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
-const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
+const UNIT_ZH={day:'日均估算',week:'週均估算',month:'每月',quarter:'每季',year:'每年'};
+const UNIT_EN={day:'Daily average estimate',week:'Weekly average estimate',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
 
 function _btn(on,color){return on
   ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
@@ -753,7 +774,7 @@ function setType(t){
   renderAll();
 }
 function setUnit(u){
-  UNIT=u;
+  UNIT=u;REPORT_MODE=['quarter','year'].includes(u)?u:'month';
   ['day','week','month','quarter','year'].forEach(k=>qs('#cu-'+k).className=_btn(k===u,'teal'));
   renderAll();
 }
@@ -764,14 +785,12 @@ function setMode(m){
   renderAll();
 }
 function setReportMode(m){
-  REPORT_MODE=m;
-  ['month','quarter','year'].forEach(k=>qs('#rp-'+k).className=_btn(k===m,'teal'));
-  renderReport();
+  setUnit(m);
 }
 function jumpPeriod(p){ if(p){ACTIVE=p;renderAll();} }
 function stepPeriod(dir){
-  const ps=periods(); if(!ps.length)return;
-  const i=ps.indexOf(ACTIVE);
+  const mode=['day','week'].includes(UNIT)?'month':UNIT;const ps=HRPayPeriods.options(periods().map(p=>p+'-01'),mode).map(o=>o.value.slice(0,7)); if(!ps.length)return;
+  const i=ps.indexOf(HRPayPeriods.bounds(ACTIVE,mode).start.slice(0,7));
   const n=Math.min(ps.length-1,Math.max(0,(i<0?ps.length-1:i)+dir));
   if(n!==i) jumpPeriod(ps[n]);
 }
@@ -797,7 +816,10 @@ function renderAll(){
   showApp();
   buildDeptSelect();
   const ps=periods();
-  if(!ACTIVE||!ps.includes(ACTIVE)) ACTIVE=ps[ps.length-1];
+  if(!ACTIVE) ACTIVE=ps[ps.length-1];
+  ['day','week','month','quarter','year'].forEach(k=>{const b=qs('#cu-'+k);b.className=_btn(k===UNIT,'teal');if(k==='day'||k==='week'){b.removeAttribute('data-zh');b.removeAttribute('data-en');b.textContent=T(UNIT_ZH[k],UNIT_EN[k]);}});
+  ['month','quarter','year'].forEach(k=>qs('#rp-'+k).className=_btn(k===REPORT_MODE,'teal'));
+  ['ot','bonus','special','both','all'].forEach(k=>qs('#ct-'+k).className=_btn(k===TYPE,k==='special'?'orange':'teal'));
   renderNav();
   renderDash();
   renderTime();
@@ -813,12 +835,15 @@ function buildDeptSelect(){
   if(keep&&ds.includes(keep))sel.value=keep;
 }
 function renderNav(){
-  const ps=periods(), sel=qs('#nav-period');
+  const mode=['day','week'].includes(UNIT)?'month':UNIT;
+  const opts=HRPayPeriods.options(periods().map(p=>p+'-01'),mode);
+  if(ACTIVE&&!opts.some(o=>o.value.slice(0,7)===HRPayPeriods.bounds(ACTIVE,mode).start.slice(0,7)))opts.push({value:HRPayPeriods.bounds(ACTIVE,mode).start,label:HRPayPeriods.label(ACTIVE,mode)});
+  const ps=opts.map(o=>o.value.slice(0,7)), sel=qs('#nav-period');
   sel.innerHTML=ps.slice().reverse().map(p=>{
     const [y,m]=p.split('-');
-    return `<option value="${p}">${MS[+m-1]} ${y}</option>`;
+    return `<option value="${p}">${HRPayPeriods.label(p,mode)}</option>`;
   }).join('');
-  if(ACTIVE)sel.value=ACTIVE;
+  if(ACTIVE)sel.value=HRPayPeriods.bounds(ACTIVE,mode).start.slice(0,7);
   const i=ps.indexOf(ACTIVE);
   const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus'), hasSp=RECS.some(r=>r.type==='special');
   qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span> `
@@ -911,7 +936,7 @@ function renderDash(){
 
 // ── 依時間單位彙總 ──
 function timeSeries(){
-  const recs=typedRecs(), g={};
+  const recs=unitSpanRecs(), g={};
   recs.forEach(r=>{
     let gk,label;
     const q=Math.floor((r.month-1)/3)+1;
@@ -931,7 +956,7 @@ function renderTime(){
   const F=UNIT_F[UNIT], perCap=(MODE==='cap');
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
   const tZh=typeLabel(TYPE);
-  const titleMap={day:T('📅 每日明細','📅 Daily'),week:T('📅 每週明細','📅 Weekly'),
+  const titleMap={day:T('📅 當月日均估算','📅 Selected month daily average'),week:T('📅 當月週均估算','📅 Selected month weekly average'),
     month:T('📅 每月明細','📅 Monthly'),quarter:T('📅 每季明細','📅 Quarterly'),year:T('📅 每年明細','📅 Yearly')};
   qs('#time-title').textContent=titleMap[UNIT];
   const b=qs('#time-src');
@@ -940,7 +965,7 @@ function renderTime(){
   qs('#time-note').textContent = (UNIT==='day'||UNIT==='week')
     ? T(`原始資料為「月」粒度，${uZh}數字由當月金額換算（${WORK_DAYS} 工作天/月、${WEEKS} 週/月）。`,
         `Source data is monthly; ${uZh} figures are derived (${WORK_DAYS} work-days, ${WEEKS} weeks per month).`)
-    : T(`以「${uZh}」彙總所有已匯入年度。`,`Aggregated by ${uZh} across all imported years.`);
+    : T(`僅顯示 ${unitSpanLabel()}，以「${uZh}」彙總。`,`Selected period ${unitSpanLabel()}, grouped by ${uZh}.`);
 
   const H=[T('區間','Period'),T('月數','Months'),T('部門數','Depts'),T('人次','Headcount'),
            T('加班時數','OT Hours'),`${uZh} USD`,T('人均 USD','Per capita'),T('每小時 $','$/hour')];
@@ -1012,21 +1037,24 @@ function renderCmp(){
   const hasOt=RECS.some(r=>r.type==='ot'), hasBn=RECS.some(r=>r.type==='bonus'), hasSp=RECS.some(r=>r.type==='special');
   if(!hasOt&&!hasBn&&!hasSp){box.innerHTML='';return;}
   const dept=qs('#sel-dept').value,yr={};
-  RECS.filter(r=>!dept||r.dept===dept).forEach(r=>{
-    const y=yr[r.year]||(yr[r.year]={ot:{ppl:0,hour:0,exp:0},bonus:{ppl:0,exp:0},special:{ppl:0,hour:0,exp:0}});
+  const unit=['day','week'].includes(UNIT)?'month':UNIT;
+  RECS.filter(r=>(!dept||r.dept===dept)&&HRPayPeriods.contains(r.year+'-'+pad(r.month)+'-01',ACTIVE,unit)).forEach(r=>{
+    const key=HRPayPeriods.key(r.year+'-'+pad(r.month)+'-01',unit);
+    const y=yr[key]||(yr[key]={ot:{ppl:0,hour:0,exp:0},bonus:{ppl:0,exp:0},special:{ppl:0,hour:0,exp:0}});
     if(r.type==='ot'){y.ot.ppl+=N(r.ppl);y.ot.hour+=N(r.hour);y.ot.exp+=N(r.expense);}
     else if(r.type==='bonus'){y.bonus.ppl+=N(r.ppl);y.bonus.exp+=N(r.expense);}
     else if(r.type==='special'){y.special.ppl+=1;y.special.hour+=specialEqHours(r);y.special.exp+=N(r.expense);}
   });
   const years=Object.keys(yr).sort().reverse();
-  const rows=years.map(y=>{const v=yr[y],tot=v.ot.exp+v.bonus.exp+v.special.exp;return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+  const rows=years.map(y=>{const raw=yr[y],F=UNIT_F[UNIT],cap=MODE==='cap';const cost=t=>raw[t].exp*F/(cap?(raw[t].ppl||1):1);const v={ot:{exp:cost('ot')},bonus:{exp:cost('bonus')},special:{exp:cost('special'),hour:raw.special.hour*F,ppl:raw.special.ppl}},tot=(raw.ot.exp+raw.bonus.exp+raw.special.exp)*F/(cap?(raw.ot.ppl+raw.bonus.ppl+raw.special.ppl||1):1);return `<tr class="border-b border-slate-50 hover:bg-slate-50">
     <td class="px-3 py-2 font-semibold text-slate-700">${y}</td>
     <td class="px-3 py-2 text-right jmono">$${fmt(v.ot.exp)}</td>
     <td class="px-3 py-2 text-right jmono">$${fmt(v.bonus.exp)}</td>
     <td class="px-3 py-2 text-right jmono text-orange-700">${fmt(v.special.hour)} h / ${int(v.special.ppl)} ppl</td>
     <td class="px-3 py-2 text-right jmono font-semibold text-orange-700">$${fmt(v.special.exp)}</td>
     <td class="px-3 py-2 text-right jmono font-bold">$${fmt(tot)}</td></tr>`;}).join('');
-  const tOt=years.reduce((a,y)=>a+yr[y].ot.exp,0),tBn=years.reduce((a,y)=>a+yr[y].bonus.exp,0),tSp=years.reduce((a,y)=>a+yr[y].special.exp,0),grand=tOt+tBn+tSp;
+  const rawTotal=t=>years.reduce((a,y)=>a+yr[y][t].exp,0),people=t=>years.reduce((a,y)=>a+yr[y][t].ppl,0),cost=t=>rawTotal(t)*UNIT_F[UNIT]/(MODE==='cap'?(people(t)||1):1);
+  const tOt=cost('ot'),tBn=cost('bonus'),tSp=cost('special'),grand=(rawTotal('ot')+rawTotal('bonus')+rawTotal('special'))*UNIT_F[UNIT]/(MODE==='cap'?(people('ot')+people('bonus')+people('special')||1):1);
   box.innerHTML=`
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
     <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('⏱ 一般加班','⏱ Normal OT')}</p><p class="text-2xl font-bold jmono text-teal-600 mt-1">$${fmt(tOt)}</p></div>
@@ -1035,16 +1063,16 @@ function renderCmp(){
     <div class="bg-white border border-slate-100 rounded-xl p-4"><p class="text-[11px] text-slate-400">${T('Σ 全部變動人力成本','Σ All Variable Labour Cost')}</p><p class="text-2xl font-bold jmono text-violet-700 mt-1">$${fmt(grand)}</p></div>
   </div>
   <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
-    <div class="px-4 py-3 border-b border-slate-100 text-[11px] text-slate-500">${T('Special OT 維持獨立，不併入一般 OT；只有「全部變動成本」視圖才把三類支出相加。','Special OT stays separate from normal OT; only All Variable Cost adds OT + Bonus + Special OT.')}${dept?`　<b>${esc(dept)}</b>`:''}</div>
+    <div class="px-4 py-3 border-b border-slate-100 text-[11px] text-slate-500">${esc(unitSpanLabel())} · ${T(UNIT_ZH[UNIT],UNIT_EN[UNIT])} · ${MODE==='cap'?T('人均（各類按各自人次；全部按合計人次）','Per occurrence; combined uses all occurrences'):T('總額','Total')}<br>${T('Special OT 維持獨立，不併入一般 OT；只有「全部變動成本」視圖才把三類支出相加。','Special OT stays separate from normal OT; only All Variable Cost adds OT + Bonus + Special OT.')}${dept?`　<b>${esc(dept)}</b>`:''}</div>
     <div class="overflow-x-auto"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr>
-      ${[T('年度','Year'),T('一般 OT','Normal OT'),T('獎金','Bonus'),T('Special 時數／人數','Special Hours / Staff'),T('Special 現金','Special Cash'),T('全部合計','All Total')].map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
+      ${[T('期間','Period'),T('一般 OT','Normal OT'),T('獎金','Bonus'),T('Special 時數／人數','Special Hours / Staff'),T('Special 現金','Special Cash'),T('全部合計','All Total')].map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
     </tr></thead><tbody>${rows}</tbody></table></div>
   </div>`;
 }
 
 // ── 期間報表 ──
 function renderReport(){
-  const recs=typedRecs(), g={};
+  const recs=unitSpanRecs(), g={};
   recs.forEach(r=>{
     const q=Math.floor((r.month-1)/3)+1;
     let gk,label;
@@ -1059,7 +1087,7 @@ function renderReport(){
   qs('#rp-count').textContent=`${list.length} ${T('組','groups')}`;
   const perCap=(MODE==='cap');
   qs('#rp-thead').innerHTML=[T('區間','Period'),T('月數','Months'),T('部門數','Depts'),T('人次','Headcount'),
-    T('時數','Hours'),T('每日 $','Daily $'),T('每月 $','Monthly $'),T('合計 $','Total $')]
+    T('時數','Hours'),T('日均估算 $','Daily avg est. $'),T('月均 $','Monthly avg $'),T('合計 $','Total $')]
     .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
   qs('#rp-tbody').innerHTML=list.map(t=>{
     const base=perCap?t.exp/(t.ppl||1):t.exp;
@@ -1132,8 +1160,8 @@ function buildTgText(type,period){return buildTgSummaryTable(type,period);}
 
 /* v3.9.2：Summary / Approval 共用欄位式正文；保留原部門、人次、時數、金額等資料。 */
 function buildTgSummaryTable(type,period){
-  const dept=qs('#sel-dept')?qs('#sel-dept').value:'', [y,m]=period.split('-');
-  const recs=RECS.filter(r=>typeMatch(r,type)&&`${r.year}-${pad(r.month)}`===period&&(!dept||r.dept===dept));
+  const dept=qs('#sel-dept')?qs('#sel-dept').value:'', [y,m]=period.split('-'),scope=/^\d{4}$/.test(period)?'year':/Q/.test(period)?'quarter':'month',anchor=scope==='year'?period+'-01':scope==='quarter'?y+'-'+pad((+m.slice(1)-1)*3+1):period,label=HRPayPeriods.label(anchor,scope);
+  const recs=RECS.filter(r=>typeMatch(r,type)&&HRPayPeriods.contains(r.year+'-'+pad(r.month)+'-01',anchor,scope)&&(!dept||r.dept===dept));
   if(!recs.length)return{err:T('此期間無資料','No data for this period')};
   const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' ');
   if(type==='special'){
@@ -1142,13 +1170,13 @@ function buildTgSummaryTable(type,period){
     const W=[18,7,11,13];let tb=row(['Dept / Group','Staff','Eq. Hours','Cash USD'],W)+'\n'+row(['------------------','-------','-----------','-------------'],W)+'\n';
     list.forEach(([d,v])=>tb+=row([d,int(v.ppl),fmt(v.hour),fmt(v.exp)],W)+'\n');
     tb+=row(['TOTAL',int(tP),fmt(tEq),fmt(tE)],W);
-    let t='🌞 <b>特殊加班 Special OT</b>\n💵 <b>另行現金發放 Separate Cash Payment</b>\n📅 期間 Period：'+MS[+m-1]+' '+y+'\n'
+    let t='🌞 <b>特殊加班 Special OT</b>\n💵 <b>另行現金發放 Separate Cash Payment</b>\n📅 期間 Period：'+label+'\n'
       +'<b>摘要 Summary</b>\n<pre>'+row(['Staff',int(tP),'Groups',list.length],[12,8,12,8])+'\n'+row(['Sunday Day',fmt(tS),'Holiday Day',fmt(tHD)],[12,8,12,8])+'\n'+row(['Normal Hr',fmt(tN),'Night Hr',fmt(tNight)],[12,8,12,8])+'\n'+row(['Trip Day',fmt(tTrip),'Holiday Hr',fmt(tHH)],[12,8,12,8])+'\n'+row(['Meal Fee','$'+fmt(tMeal),'Eq. Hours',fmt(tEq)],[12,10,12,10])+'\n'+row(['Cash Total','$'+fmt(tE),'',''],[12,12,12,8])+'</pre>\n'
       +'<b>來源分類 Source Group</b>\n<pre>'+esc(tb)+'</pre>';
     if(miss)t+='\n⚠️ '+T(`${miss} 人尚未填現金發放金額；可發摘要，但送核前需補齊。`,`${miss} staff missing cash amount; summary is allowed, approval requires amounts.`);
     const warn=recs.find(r=>r.sourceWarningZh);if(warn)t+='\n⚠️ '+esc(T(warn.sourceWarningZh,warn.sourceWarningEn||warn.sourceWarningZh));
     if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
-    return{text:t,amount:tE,headcount:tP,missingCash:miss,items:recs.map(r=>({empId:r.empId||'',name:r.name||'',dept:r.dept||'',position:r.position||'',escortDays:N(r.escortDays),holidayDays:N(r.holidayDays),normalOtHours:N(r.normalOtHours),nightOtHours:N(r.nightOtHours),sundayDays:N(r.sundayDays),holidayHours:N(r.holidayHours),mealFee:N(r.mealFee),hours:specialEqHours(r),amount:N(r.expense),remark:'Special OT / separate cash payment'}))};
+    return{text:t,amount:tE,headcount:tP,missingCash:miss,repairConflict:recs.some(r=>r.periodRepairConflict),items:recs.map(r=>({empId:r.empId||'',name:r.name||'',dept:r.dept||'',position:r.position||'',escortDays:N(r.escortDays),holidayDays:N(r.holidayDays),normalOtHours:N(r.normalOtHours),nightOtHours:N(r.nightOtHours),sundayDays:N(r.sundayDays),holidayHours:N(r.holidayHours),mealFee:N(r.mealFee),hours:specialEqHours(r),amount:N(r.expense),remark:'Special OT / separate cash payment'}))};
   }
   const dm={}; recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,hour:0,exp:0});v.ppl+=N(r.ppl);v.hour+=N(r.hour);v.exp+=N(r.expense);});
   const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp), tP=list.reduce((s,[,v])=>s+v.ppl,0),tH=list.reduce((s,[,v])=>s+v.hour,0),tE=list.reduce((s,[,v])=>s+v.exp,0),avg=tP?tE/tP:0;
@@ -1157,18 +1185,20 @@ function buildTgSummaryTable(type,period){
   list.forEach(([d,v])=>tb+=row([d,int(v.ppl),tP?((v.ppl/tP)*100).toFixed(1):'0.0',int(v.hour),fmt(v.exp),v.ppl?fmt(v.exp/v.ppl):'0.00'],W)+'\n');
   tb+=row(['TOTAL',int(tP),'100.0',int(tH),fmt(tE),fmt(avg)],W);
   const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>':type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>':type==='all'?'📊 <b>全部變動成本 All Variable Cost</b>':'📊 <b>加班＋獎金 OT + Bonus</b>';
-  let t=head+'\n📅 期間 Period：'+MS[+m-1]+' '+y+'\n<b>摘要 Summary</b>\n<pre>'+row(['Depts',list.length,'Headcount',int(tP)],[10,8,10,8])+'\n'+row(['Hours',int(tH),'Total','$'+fmt(tE)],[10,8,10,12])+'\n'+row(['$/Hour',tH?fmt(tE/tH):'—','Avg/Staff',fmt(avg)],[10,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+  let t=head+'\n📅 期間 Period：'+label+'\n<b>摘要 Summary</b>\n<pre>'+row(['Depts',list.length,'Headcount',int(tP)],[10,8,10,8])+'\n'+row(['Hours',int(tH),'Total','$'+fmt(tE)],[10,8,10,12])+'\n'+row(['$/Hour',tH?fmt(tE/tH):'—','Avg/Staff',fmt(avg)],[10,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
   if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
   return{text:t,amount:tE,headcount:tP};
 }
 
 function openTgModal(){
-  const ps=allPeriods().reverse();
+  const mode=['quarter','year'].includes(UNIT)?UNIT:'month';
+  const selected=HRPayPeriods.key(ACTIVE,mode);
+  const ps=[...new Set([selected,...allPeriods().reverse()])].filter(Boolean);
   if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
   qs('#tg-type').value=TYPE;
   const sel=qs('#tg-period');
-  sel.innerHTML=ps.map(p=>{const [y,m]=p.split('-');return `<option value="${p}">${MS[+m-1]} ${y}</option>`;}).join('');
-  sel.value=(ACTIVE&&ps.includes(ACTIVE))?ACTIVE:ps[0];
+  sel.innerHTML=ps.map(p=>{const [y,m]=p.split('-');return `<option value="${p}">${p}</option>`;}).join('');
+  sel.value=selected||ps[0];
   hrpSyncPersonField();
   previewTg();
   const md=qs('#tg-modal'); md.classList.remove('hidden'); md.classList.add('flex');
@@ -1187,7 +1217,7 @@ function previewTg(){
 
 // ━━━━━━━━━ 送出核可 Approval Request ━━━━━━━━━
 // v3.9.11：有效月份都可走「群組審查 → Paul 核可」，不再誤把舊月份鎖成只能摘要。
-const needsApproval=p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(p||'').slice(0,7));
+const needsApproval=p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(p||''));
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||''):'';}
 function setTgMode(m){
@@ -1213,8 +1243,8 @@ function syncTgMode(){
   if(note)note.textContent=ok
     ? T(type==='special'?'先送群組審查；審查通過後，同一則訊息會換成 Paul 的「✅ 核可 / ❌ 退件」。Special OT 送核前必須補齊每位員工現金金額。':'先送群組審查；審查通過後，同一則訊息會換成 Paul 的「✅ 核可 / ❌ 退件」。',
         type==='special'?'Sent to group review first; after verification, the same message changes to Paul Approve / Reject. Every Special OT cash amount is required.':'Sent to group review first; after verification, the same message changes to Paul Approve / Reject.')
-    : T(type==='all'?'全部變動成本只提供摘要；請選擇個別類型送核。':'期間格式不正確，只提供摘要。',
-        type==='all'?'All Variable Cost is summary-only; select an individual type for approval.':'Invalid period format; summary only.');
+    : T(type==='all'?'全部變動成本只提供摘要；請選擇個別類型送核。':'季／年可發摘要；核可請在期間下拉選擇實際給付月份。',
+        type==='all'?'All Variable Cost is summary-only; select an individual type for approval.':'Quarter/year summary; choose an actual payment month for approval.');
 }
 async function sendApprovalRequest(period,title,text,amount,headcount,moduleName,items){
   const applicant=hrpPersonValue('applicant',true);
@@ -1242,6 +1272,7 @@ async function confirmSendTg(){
   const type=qs('#tg-type').value, period=qs('#tg-period').value;
   const r=buildTgSummaryTable(type,period);
   if(r.err){toast(r.err,'error');return;}
+  if(TG_MODE==='review'&&r.repairConflict){toast(T('日期修復發現不同金額，請重匯原檔核對後再送核','Conflicting repaired amounts: reimport the source before approval'),'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   let ok=false;
   if(TG_MODE==='review'&&needsApproval(period)&&type!=='all'){
@@ -1287,12 +1318,22 @@ async function pushProjection(){
         holidayDays:N(r.holidayDays),normalOtHours:N(r.normalOtHours),nightOtHours:N(r.nightOtHours),
         sundayDays:N(r.sundayDays),holidayHours:N(r.holidayHours),mealFee:N(r.mealFee)});
     });
+    let repairs=[];try{repairs=JSON.parse(localStorage.getItem('hrpay:ot:repairPeriods')||'[]');}catch(e){}
+    (OT_CLOUD_RECONCILED?repairs:[]).forEach(period=>{const key=period+':special';if(!byPeriod[key])byPeriod[key]={period,type:'special',rows:[]};});
     const groups=Object.values(byPeriod);
     try{localStorage.setItem('hrpay:result:ot_bonus',JSON.stringify({module:'ot_bonus',updatedAt:_nowISO(),level:'department',groups}));}catch(e){console.warn('OT projection local cache skipped',e);}
     if(GAS_URL){
       for(const g of groups){
         const totals={count:g.rows.length,headcount:g.rows.reduce((a,r)=>a+N(r.ppl),0),hours:g.rows.reduce((a,r)=>a+N(r.hour),0),expense:g.rows.reduce((a,r)=>a+N(r.expense),0),escortDays:g.rows.reduce((a,r)=>a+N(r.escortDays),0),holidayDays:g.rows.reduce((a,r)=>a+N(r.holidayDays),0),normalOtHours:g.rows.reduce((a,r)=>a+N(r.normalOtHours),0),nightOtHours:g.rows.reduce((a,r)=>a+N(r.nightOtHours),0),sundayDays:g.rows.reduce((a,r)=>a+N(r.sundayDays),0),holidayHours:g.rows.reduce((a,r)=>a+N(r.holidayHours),0),mealFee:g.rows.reduce((a,r)=>a+N(r.mealFee),0)};
-        try{await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({type:'projection',module:'ot_bonus',period:g.period,payPhase:g.type,rows:g.rows,totals,sourceFile:'OT / Bonus / Special OT'})});}catch(e){console.warn('OT projection cloud push failed',g.period,g.type,e);}
+        try{
+          const payload={type:'projection',module:'ot_bonus',period:g.period,payPhase:g.type,rows:g.rows,totals,sourceFile:'OT / Bonus / Special OT'},signature=JSON.stringify(payload),cache='hrpay:ot:projection:'+GAS_URL+':'+g.period+':'+g.type;
+          if(localStorage.getItem(cache)!==signature){
+            const response=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:signature}),result=await response.json();
+            if(!response.ok||result.ok===false)throw Error(result.error||'Projection not confirmed');
+            localStorage.setItem(cache,signature);
+          }
+          if(g.type==='special'&&repairs.includes(g.period)){repairs=repairs.filter(p=>p!==g.period);localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(repairs));}
+        }catch(e){console.warn('OT projection cloud push failed',g.period,g.type,e);}
       }
     }
   }catch(e){console.warn(e);}
@@ -1303,17 +1344,17 @@ function otSyncId(r){const b='otb:'+String(r.type||'')+':'+String(r.year||'')+'-
 function otCloudRecords(){return RECS.map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
 function otCloudMeta(){return{periods:Array.from(new Set(RECS.map(function(r){return String(r.year||'')+'-'+pad(r.month);}))).sort()};}
 function otLegacyRows(env){const D=(env&&env.data)||env||{};return(D.records||[]).map(function(r){return Object.assign({_syncId:otSyncId(r),_syncPeriod:String(r.year||'')+'-'+pad(r.month)},r);});}
-async function otApplyCloud(rows){const retainedPeriod=ACTIVE;RECS=otDedupe((rows||[]).map(function(x){const r=Object.assign({},x);delete r._syncId;delete r._syncPeriod;return r;}));await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps.includes(retainedPeriod)?retainedPeriod:ps[ps.length-1]||null;renderAll();}
+async function otApplyCloud(rows){OT_CLOUD_RECONCILED=true;const retainedPeriod=ACTIVE;const repair=otRepairSpecialPeriods((rows||[]).map(function(x){const r=Object.assign({},x);delete r._syncId;delete r._syncPeriod;return r;}));RECS=otDedupe(repair.rows);if(repair.changed)scheduleAutoCloudSync('delete-period-repair');await idbSaveAll();await pushProjection();const ps=periods();ACTIVE=ps.includes(retainedPeriod)?retainedPeriod:ps[ps.length-1]||null;renderAll();}
 function otSyncStatus(msg,type){console.log('[OT smart sync]',msg);}
 function scheduleAutoCloudSync(reason){
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('otbonus',reason||'change',{},900);return;}
   try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
   setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},60);
 }
-async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:otCloudRecords(),apply:otApplyCloud,legacyToRecords:otLegacyRows,meta:otCloudMeta(),onStatus:otSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:otCloudRecords(),apply:otApplyCloud,legacyToRecords:otLegacyRows,meta:otCloudMeta(),onStatus:otSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');OT_CLOUD_RECONCILED=true;await pushProjection();if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
-async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:otCloudRecords(),legacyToRecords:otLegacyRows,apply:otApplyCloud,onStatus:otSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}if(!opts.silent)toast(T(`☁ 智慧下載完成 · ${res.downloaded||0} 筆變更`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:otCloudRecords(),legacyToRecords:otLegacyRows,apply:otApplyCloud,onStatus:otSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}OT_CLOUD_RECONCILED=true;await pushProjection();if(!opts.silent)toast(T(`☁ 智慧下載完成 · ${res.downloaded||0} 筆變更`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 // ━━━━━━━━━ 其他 ━━━━━━━━━
 function exportCSV(which){
@@ -1367,7 +1408,8 @@ async function clearAllData(){
 
 // ━━━━━━━━━ 啟動 ━━━━━━━━━
 (async function init(){
-  RECS=await idbLoad();
+  const repair=otRepairSpecialPeriods(await idbLoad());RECS=repair.rows;
+  if(repair.changed){await idbSaveAll();scheduleAutoCloudSync('delete-period-repair');}
   const ps=periods();
   if(ps.length)ACTIVE=ps[ps.length-1];
   showApp();

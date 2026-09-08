@@ -1,0 +1,39 @@
+AC-HRA-PAY v3.8 — Recent/Future Update Report Reminder (2026-08-24)
+
+Policy
+- When data is actually changed for the previous month, current month, or any future month, the PAY Telegram group is reminded if no Summary or Approval has been sent after that change.
+- Data older than the previous month is ignored. Example: in Aug 2026, Jul/Aug/future updates can remind; Jun 2026 or older does not remind.
+- One reminder remains open for a module/period. Repeated edits do not spam repeated reminders.
+- Sending either Summary or Approval clears the open reminder.
+- If data is changed again after the last Summary/Approval, a new reminder is allowed.
+
+False-positive protection
+- Smart sync now passes the sync reason to GAS without changing the manifest hash.
+- A cloud sync triggered immediately after Telegram send is treated as covered by that Telegram send, so it does not create a false reminder.
+- Projection writes compare actual content first; identical projections are not treated as new data changes.
+- Smart-commit tracking uses only changed month buckets, not every historical period in the manifest.
+
+Modules covered
+- Payroll
+- Advance Pay
+- Meal Fee
+- OT & Bonus
+- Employee HR
+- Position Transfer
+- Shutdown
+- Warning (edit/import paths)
+
+Reminder language
+- Chinese + English + Khmer in the same Telegram reminder.
+
+Reliability
+- Immediate reminder is attempted after a qualifying data update reaches the cloud.
+- An hourly retry trigger is auto-created on the first smart sync after deployment.
+- Manual helper is also available: installRecentUpdateReminderTrigger()
+- Manual scan helper: runRecentUpdateReminderNow()
+
+Deployment
+1. Replace ac-hra-pay-main.gs and deploy a new version to the existing Web App deployment.
+2. Replace shared/hrpay-smart-sync.js and shared/hrpay-auto-sync.js on GitHub Pages (or upload the full ZIP).
+3. Do NOT run setupAll(). Existing Bot/group/settings/triggers remain.
+4. Optional: run installRecentUpdateReminderTrigger() once if you want the hourly fallback installed immediately before the next smart sync.

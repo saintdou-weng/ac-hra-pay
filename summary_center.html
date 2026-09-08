@@ -271,12 +271,8 @@ function scalePeriods(scale){
   if(scale==='year')return [...new Set(ps.map(p=>String(p).slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();
   return ps;
 }
-function actualPeriodForView(){
-  const scale=$('#sel-scale')?.value||'month', val=$('#sel-period')?.value||'';
-  if(scale!=='year')return val;
-  const candidates=periods().filter(p=>periodKind(p)==='month'&&p.startsWith(val+'-')).sort().reverse();
-  return candidates[0]||''; // 年模式目前以該年最新月做核對，不假造日/週資料
-}
+function actualPeriodForView(){return $('#sel-period')?.value||'';}
+
 function fillTopPeriodSelect(keep){
   const scale=$('#sel-scale')?.value||'month',sel=$('#sel-period');
   const ps=scalePeriods(scale);const cur=keep||sel.value;
@@ -293,7 +289,13 @@ function stepPeriod(dir){
   sel.selectedIndex=i;fillTopPeriodSelect(sel.value);render();
 }
 function pick(module,period,phase,batch){
-  const m=MOD[module];if(!m)return null;
+  const m=MOD[module];if(!m||!period)return null;
+  if(/^\d{4}$/.test(period)){
+    const ps=[...new Set(Object.values(m.items).map(x=>x.period).filter(p=>/^\d{4}-\d{2}$/.test(p)&&p.startsWith(period+'-')))].sort();
+    const parts=ps.map(p=>pick(module,p,phase,batch)).filter(Boolean);if(!parts.length)return null;
+    const totals={};parts.forEach(p=>Object.entries(p.totals||{}).forEach(([k,v])=>{if(typeof v==='number')totals[k]=(totals[k]||0)+v;}));
+    return {period,rows:parts.flatMap(p=>(p.rows||[]).map(r=>({...r,sourcePeriod:p.period}))),totals,sourceFile:'年度實際加總 / Imported months '+parts.map(p=>p.period).join(', '),coveredMonths:parts.map(p=>p.period)};
+  }
   let best=null;
   Object.values(m.items).forEach(it=>{
     if(period&&it.period!==period)return;
@@ -323,7 +325,8 @@ function renderCostTotal(P,pay,adv,m1,m2){
   const salaryCash=vals.payroll+vals.advance, mealTotal=vals.meal1+vals.meal2;
   const chosen=Object.keys(opts).filter(k=>opts[k]);
   const missing=chosen.filter(k=>!avail[k]);
-  $('#cost-period').textContent=P||'—';
+  $('#cost-period').textContent=(P||'—')+(/^\d{4}$/.test(P)?' · 實際已匯入月加總；非年化。人數為人次 / Actual imported months; staff occurrences':'');
+  if(/^\d{4}$/.test(P))['payroll','advance','meal1','meal2'].forEach(k=>{const p={payroll:pay,advance:adv,meal1:m1,meal2:m2}[k];if(opts[k]&&(p?.coveredMonths||[]).length<12&&!missing.includes(k))missing.push(k);});
   $('#cost-grid').innerHTML=`
     <div class="cost-box main"><div class="ct">已勾選項目合計 Selected Total</div><div class="cv">$${fmt(total)}</div>
       <div class="cs">${chosen.map(k=>labels[k]).join(' + ')||'未選任何項目'}${missing.length?`<br><span style="color:var(--warn);font-weight:700">⚠ 缺 ${missing.map(k=>labels[k]).join('、')}；缺資料不等於 $0</span>`:''}</div></div>

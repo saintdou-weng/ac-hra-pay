@@ -275,7 +275,7 @@
         <p id="tg-mode-hint" class="mt-1.5 text-[10px] text-slate-400">摘要只發統計；群組審查會把此期間尚未完成的警告逐筆送到群組，先審查再由 Paul 核可。</p>
       </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Scope">範圍 Scope</label>
-        <select id="tg-unit" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+        <select id="tg-unit" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"><option value="day">📅 日 Day</option><option value="week">📆 週 Week</option>
           <option value="month" data-en="Monthly">月 Month</option>
           <option value="quarter" data-en="Quarterly">季 Quarter</option>
           <option value="year" data-en="Yearly">年 Year</option></select></div>
@@ -577,24 +577,15 @@ function filtered(){
     return true;
   });
 }
-const periods=()=>[...new Set(filtered().map(r=>r.incidentDate.slice(0,7)))].sort();
-const allPeriods=()=>[...new Set(RECS.map(r=>r.incidentDate.slice(0,7)))].sort();
+function periodOptions(){return HRPayPeriods.options(filtered().map(r=>r.incidentDate),UNIT);}
+function periods(){return periodOptions().map(o=>['day','week'].includes(UNIT)?o.value:o.value.slice(0,7));}
+function allPeriods(){return [...new Set(RECS.map(r=>r.incidentDate.slice(0,7)))].sort();}
 function spanRecs(){
-  const rs=filtered();if(!ACTIVE)return rs;
-  const [ay,am]=ACTIVE.split('-').map(Number);
-  if(UNIT==='year')return rs.filter(r=>+r.incidentDate.slice(0,4)===ay);
-  if(UNIT==='quarter'){const q=Math.floor((am-1)/3);
-    return rs.filter(r=>+r.incidentDate.slice(0,4)===ay&&Math.floor((+r.incidentDate.slice(5,7)-1)/3)===q);}
-  if(UNIT==='week'||UNIT==='day')return rs.filter(r=>r.incidentDate.slice(0,7)===ACTIVE);
-  return rs.filter(r=>r.incidentDate.slice(0,7)===ACTIVE);
+  if(!ACTIVE)return [];
+  return filtered().filter(r=>HRPayPeriods.contains(r.incidentDate,ACTIVE,UNIT));
 }
-function spanLabel(){
-  if(!ACTIVE)return '';
-  const [ay,am]=ACTIVE.split('-').map(Number);
-  if(UNIT==='year')return String(ay);
-  if(UNIT==='quarter')return `${ay} Q${Math.floor((am-1)/3)+1}`;
-  return `${MS[am-1]} ${ay}`;
-}
+function spanLabel(){return HRPayPeriods.label(ACTIVE,UNIT);}
+
 function _btn(on,color){return on
   ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
   :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
@@ -604,7 +595,7 @@ function setDeptView(v){DEPT_VIEW=v;qs('#dv-cur').className=_btn(v==='cur','ambe
 function jumpPeriod(p){if(p){ACTIVE=p;renderAll();}}
 function stepPeriod(dir){
   const ps=periods();if(!ps.length)return;
-  const i=ps.indexOf(ACTIVE);
+  const b=HRPayPeriods.bounds(ACTIVE,UNIT);const i=ps.indexOf(b?(['day','week'].includes(UNIT)?b.start:b.start.slice(0,7)):ACTIVE);
   const n=Math.min(ps.length-1,Math.max(0,(i<0?ps.length-1:i)+dir));
   if(n!==i)jumpPeriod(ps[n]);
 }
@@ -661,7 +652,7 @@ function renderAll(){
   if(!RECS.length){showApp();return;}
   showApp();buildFilters();
   const ps=periods();
-  if(!ACTIVE||!ps.includes(ACTIVE))ACTIVE=ps[ps.length-1];
+  if(!ACTIVE)ACTIVE=ps[ps.length-1];
   renderNav();renderDash();renderTime();renderDept();renderList();renderEmp();
 }
 function buildFilters(){
@@ -675,16 +666,11 @@ function buildFilters(){
   fill(qs('#sel-level'),LEVELS.map(l=>l.k).filter(k=>RECS.some(r=>r.level===k)),lvName);
 }
 function renderNav(){
-  const ps=periods(),sel=qs('#nav-period');
-  sel.innerHTML=ps.slice().reverse().map(p=>{
-    const [y,m]=p.split('-');
-    const n=filtered().filter(r=>r.incidentDate.slice(0,7)===p).length;
-    return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('筆','rec')}</option>`;}).join('');
-  if(ACTIVE)sel.value=ACTIVE;
-  const i=ps.indexOf(ACTIVE);
-  const pend=RECS.filter(r=>isOpen(r)).length;
-  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span>`
-    +(pend?` <span class="text-rose-600 font-semibold">⏳ ${T(`${pend} 筆待審核`,`${pend} pending`)}</span>`:'');
+  const opts=periodOptions(),b=HRPayPeriods.bounds(ACTIVE,UNIT),value=b?(['day','week'].includes(UNIT)?b.start:b.start.slice(0,7)):'';
+  if(value&&!opts.some(o=>(['day','week'].includes(UNIT)?o.value:o.value.slice(0,7))===value))opts.push({value:b.start,label:spanLabel()});
+  qs('#nav-period').innerHTML=opts.slice().reverse().map(o=>'<option value="'+(['day','week'].includes(UNIT)?o.value:o.value.slice(0,7))+'">'+esc(o.label)+'</option>').join('');
+  qs('#nav-period').value=value;
+  qs('#nav-hint').textContent=spanLabel()+' · '+T('僅統計選定期間','Selected period only');
 }
 
 function renderDash(){
@@ -749,7 +735,7 @@ function renderDash(){
 const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
 const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
 function timeSeries(){
-  const rs=filtered(),g={};
+  const rs=spanRecs(),g={};
   rs.forEach(r=>{
     const d=toDate(r.incidentDate);if(!d)return;
     const y=d.getFullYear(),m=d.getMonth()+1;
@@ -776,7 +762,7 @@ function renderTime(){
     T('涉及人數','Staff'),T('待處理','Open'),T('目前有效','Active')]
     .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
   qs('#time-tbody').innerHTML=series.map((s,i)=>{
-    const mk=s.key.length===7?s.key:null;
+    const mk=HRPayPeriods.options(spanRecs().map(r=>r.incidentDate),UNIT).find(o=>o.key===s.key)?.value||null;
     return `<tr ${mk?`onclick="jumpPeriod('${mk}')"`:''} class="border-b border-slate-50 ${mk?'cursor-pointer':''} ${i===0?'bg-amber-50/40':'hover:bg-slate-50'}">
       <td class="px-3 py-2 font-semibold ${i===0?'text-amber-700':'text-slate-700'}">${s.label}</td>
       <td class="px-3 py-2 text-right jmono font-semibold">${s.n}</td>
@@ -831,7 +817,7 @@ function renderDept(){
 }
 function renderDeptHist(){
   const series=timeSeries();
-  const rs=filtered();
+  const rs=spanRecs();
   const depts=[...new Set(rs.map(r=>r.empDept||'—'))];
   const cnt={};
   rs.forEach(r=>{
@@ -1132,25 +1118,9 @@ function setTgMode(mode){
     :T('只發本期間統計摘要，不進入核可流程。','Summary only; no approval workflow.');
   previewTg();
 }
-function tgKeys(unit){
-  const m={};
-  filtered().forEach(r=>{
-    const d=toDate(r.incidentDate);if(!d)return;
-    const y=d.getFullYear(),mo=d.getMonth()+1;
-    let k,label;
-    if(unit==='year'){k=String(y);label=String(y);}
-    else if(unit==='quarter'){const q=Math.floor((mo-1)/3)+1;k=`${y}-Q${q}`;label=`${y} Q${q}`;}
-    else{k=`${y}-${pad(mo)}`;label=`${MS[mo-1]} ${y}`;}
-    m[k]=label;});
-  return Object.keys(m).sort().reverse().map(k=>({k,label:m[k]}));
-}
-function inTgKey(r,unit,key){
-  const d=toDate(r.incidentDate);if(!d)return false;
-  const y=d.getFullYear(),mo=d.getMonth()+1;
-  if(unit==='year')return String(y)===key;
-  if(unit==='quarter')return `${y}-Q${Math.floor((mo-1)/3)+1}`===key;
-  return `${y}-${pad(mo)}`===key;
-}
+function tgKeys(unit){return HRPayPeriods.options(filtered().map(r=>r.incidentDate),unit).reverse().map(o=>({k:o.key,label:o.label}));}
+function inTgKey(r,unit,key){return HRPayPeriods.key(r.incidentDate,unit)===key;}
+
 function buildTgText(unit,key){
   const list=filtered().filter(r=>inTgKey(r,unit,key));
   if(!list.length)return {err:T('此期間無警告記錄','No records for this period')};
@@ -1181,10 +1151,10 @@ function openTgModal(){
   if(!RECS.length){toast(T('尚無資料','No data'),'error');return;}
   setTgMode('summary');
   hrpSyncPersonField('checker');
-  qs('#tg-unit').value=(UNIT==='year'||UNIT==='quarter')?UNIT:'month';
-  fillTgKeys();
+  qs('#tg-unit').value=UNIT;
+  qs('#tg-preview')._unit=UNIT;fillTgKeys();
   const sel=qs('#tg-key');
-  if(ACTIVE&&[...sel.options].some(o=>o.value===ACTIVE))sel.value=ACTIVE;
+  const key=HRPayPeriods.key(ACTIVE,UNIT);if([...sel.options].some(o=>o.value===key))sel.value=key;
   previewTg();
   const m=qs('#tg-modal');m.classList.remove('hidden');m.classList.add('flex');
   applyLang();

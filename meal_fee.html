@@ -22,6 +22,7 @@
   ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
+<script src="shared/hrpay-periods.js"></script>
 <script src="shared/hrpay-smart-sync.js"></script>
 <script src="shared/hrpay-auto-sync.js"></script>
 </head>
@@ -96,7 +97,7 @@
     <button id="tab-daily"  onclick="goTab('daily')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
     <button id="tab-dept"   onclick="goTab('dept')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
     <button id="tab-roster" onclick="goTab('roster')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="👥 Roster">👥 員工名單</button>
-    <button id="tab-recon"  onclick="goTab('recon')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔍 Reconcile">🔍 考勤核對</button>
+    <button id="tab-recon"  onclick="goTab('recon')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔍 Reconcile">🔍 考勤核對（原始批次）</button>
     <button id="tab-report" onclick="goTab('report')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📋 Period Report">📋 期間報表</button>
   </div>
 </div>
@@ -755,8 +756,29 @@ function activeRows(){
   if(ACTIVE.att) return {rows:rowsForEntry(ACTIVE),src:'att',dayList:ACTIVE.att.dayList};
   return {rows:[],src:'none',dayList:[]};
 }
+let MEAL_ANCHOR='';
+function mealAnchor(){return MEAL_ANCHOR||(ACTIVE?ACTIVE.year+'-'+String(ACTIVE.month).padStart(2,'0')+'-'+(String(ACTIVE.key).endsWith(':2')?'16':'01'):'');}
+function mealScopeRows(){
+  if(!ACTIVE)return {rows:[],src:'none',dayList:[]};
+  const map=new Map(),daySet=new Set();let src='meal';
+  sortedKeys().forEach(k=>{
+    const e=STORE[k],base=e.year+'-'+String(e.month).padStart(2,'0'),entryDate=base+'-'+(k.endsWith(':2')?'16':'01');
+    if(UNIT==='half'&&k!==ACTIVE.key)return;
+    if(!['day','week','half'].includes(UNIT)&&!HRPayPeriods.contains(entryDate,mealAnchor(),UNIT))return;
+    rowsForEntry(e).forEach(r=>{
+      const total=(r.days||[]).reduce((a,d)=>a+N(d.present)+N(d.ot),0);
+      const days=(r.days||[]).map(d=>{const date=base+'-'+String(d.d).padStart(2,'0'),amount=N(d.present)+N(d.ot);return {...d,d:date,usd:total?N(r.usd)*amount/total:0};}).filter(d=>HRPayPeriods.contains(d.d,mealAnchor(),UNIT));
+      if(['day','week'].includes(UNIT)&&!days.length)return;
+      const full=!['day','week'].includes(UNIT),usd=full?N(r.usd):days.reduce((a,d)=>a+d.usd,0),riel=full?N(r.riel):days.reduce((a,d)=>a+N(d.present)+N(d.ot),0);
+      if(!e.meal)src='att';
+      const key=String(r.id)+'|'+r.dept+'|'+r.division,old=map.get(key)||{...r,usd:0,riel:0,days:[]};
+      old.usd+=usd;old.riel+=riel;old.days.push(...days);map.set(key,old);days.forEach(d=>daySet.add(d.d));
+    });
+  });
+  return {rows:[...map.values()],src,dayList:[...daySet].sort()};
+}
 function filtered(){
-  const {rows,src,dayList}=activeRows();
+  const {rows,src,dayList}=mealScopeRows();
   const dv=qs('#sel-division')?qs('#sel-division').value:'';
   const d =qs('#sel-dept')?qs('#sel-dept').value:'';
   const out=rows.filter(r=>(!dv||r.division===dv)&&(!d||r.dept===d));
@@ -770,21 +792,26 @@ function rateOf(rows){
 }
 
 // ━━━━━━━━━━━━ 導覽 ━━━━━━━━━━━━
-function jumpPeriod(k){ if(!STORE[k])return; ACTIVE=STORE[k]; renderAll(); }
+function jumpPeriod(k){ if(!STORE[k])return; ACTIVE=STORE[k]; MEAL_ANCHOR='';renderAll(); }
 function stepPeriod(dir){
-  const ks=sortedKeys(); if(!ks.length)return;
-  const i=ACTIVE?ks.indexOf(ACTIVE.key):-1;
+  if(['day','week'].includes(UNIT)){MEAL_ANCHOR=HRPayPeriods.add(mealAnchor(),dir*(UNIT==='week'?7:1));renderAll();return;}
+  const all=sortedKeys(),ks=all.filter((k,i)=>i===0||(UNIT==='year'?k.slice(0,4)!==all[i-1].slice(0,4):UNIT==='month'?k.split(':')[0]!==all[i-1].split(':')[0]:true)); if(!ks.length)return;
+  const i=ACTIVE?ks.findIndex(k=>UNIT==='year'?k.slice(0,4)===ACTIVE.key.slice(0,4):UNIT==='month'?k.split(':')[0]===ACTIVE.key.split(':')[0]:k===ACTIVE.key):-1;
   const n=Math.min(ks.length-1,Math.max(0,(i<0?ks.length-1:i)+dir));
   if(n!==i) jumpPeriod(ks[n]);
 }
 function renderNav(){
-  const ks=sortedKeys(), sel=qs('#nav-period');
+  const all=sortedKeys(),mode=UNIT;
+  const ks=mode==='month'||mode==='year'?all.filter((k,i)=>i===0||(mode==='year'?k.slice(0,4)!==all[i-1].slice(0,4):k.split(':')[0]!==all[i-1].split(':')[0])):all;
+  const sel=qs('#nav-period');
   sel.innerHTML=ks.map(k=>{
     const e=STORE[k];
     const mark=(e.meal&&e.att)?'':' ⚠';
-    return `<option value="${k}">${bLabel(k)}${mark}</option>`;
+    return `<option value="${k}">${mode==='year'?k.slice(0,4):mode==='month'?k.split(':')[0]:bLabel(k)}${mark}</option>`;
   }).join('');
-  if(ACTIVE) sel.value=ACTIVE.key;
+  if(ACTIVE)sel.value=ks.find(k=>mode==='year'?k.slice(0,4)===ACTIVE.key.slice(0,4):mode==='month'?k.split(':')[0]===ACTIVE.key.split(':')[0]:k===ACTIVE.key)||ACTIVE.key;
+  let anchor=qs('#meal-date-anchor');if(!anchor){anchor=document.createElement('input');anchor.type='date';anchor.id='meal-date-anchor';anchor.className='border rounded-lg p-2';anchor.onchange=()=>{if(!HRPayPeriods.date(anchor.value)){anchor.value=mealAnchor();return;}MEAL_ANCHOR=anchor.value;renderAll();};sel.parentNode.appendChild(anchor);}
+  anchor.hidden=!['day','week'].includes(UNIT);anchor.value=mealAnchor();
   const i=ACTIVE?ks.indexOf(ACTIVE.key):-1;
   const bits=[];
   if(ACTIVE){
@@ -802,7 +829,8 @@ function _btn(on,color){return on
   ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
   :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
 function setUnit(u){
-  UNIT=u;
+  UNIT=u;REPORT_MODE=u;
+  ['half','month','year'].forEach(k=>qs('#rp-'+k).className=_btn(k===REPORT_MODE,'orange'));
   ['day','week','half','month','year'].forEach(k=>{qs('#cu-'+k).className=_btn(k===u,'orange');});
   renderAll();
 }
@@ -813,17 +841,8 @@ function setMode(m){
   renderAll();
 }
 // 本期金額 → 指定時間單位的換算係數
-function unitFactor(days){
-  const d=days||15;
-  switch(UNIT){
-    case 'day':   return 1/d;
-    case 'week':  return 7/d;
-    case 'half':  return 1;
-    case 'month': return 2;          // 一個月兩期
-    case 'year':  return 24;         // 一年 24 期
-    default:      return 1;
-  }
-}
+function unitFactor(){return 1;} // Actual imported amounts; never annualise a half-month batch.
+
 const UNIT_ZH={day:'每日',week:'每週',half:'本期',month:'每月',year:'每年'};
 const UNIT_EN={day:'Daily',week:'Weekly',half:'This period',month:'Monthly',year:'Yearly'};
 
@@ -859,7 +878,7 @@ function renderAll(){
 function buildDeptSelect(){
   const dsel=qs('#sel-division'), sel=qs('#sel-dept');
   const keepDv=dsel?.value||'', keep=sel?.value||'';
-  const {rows}=activeRows();
+  const {rows}=mealScopeRows();
   const dvs=[...new Set(rows.map(r=>r.division).filter(Boolean))].sort();
   if(dsel){
     dsel.innerHTML=`<option value="">${T('全部大類 All Divisions','All Divisions')}</option>`+dvs.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
@@ -879,7 +898,7 @@ function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id]
 function renderDash(){
   const {rows,src,dayList}=filtered();
   const nDays=dayList.length||15;
-  const head=rows.length||1;
+  const head=new Set(rows.map(r=>r.id)).size||1;
   const usd=rows.reduce((s,r)=>s+r.usd,0);
   const riel=rows.reduce((s,r)=>s+r.riel,0);
   const rate=rateOf(rows);
@@ -891,7 +910,7 @@ function renderDash(){
   const div=(MODE==='cap')?head:1;
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
 
-  qs('#kpi-head').textContent=int(rows.length);
+  qs('#kpi-head').textContent=int(new Set(rows.map(r=>r.id)).size);
   qs('#kpi-head-sub').textContent=T(`${nDays} 天 · ${src==='meal'?'餐費表':'考勤表'}`,`${nDays} days · ${src==='meal'?'meal file':'attendance'}`);
   qs('#kpi-usd').textContent='$'+fmt(usd*F/div);
   qs('#kpi-usd-sub').textContent=uZh+(MODE==='cap'?T(' · 每人',' · per person'):'');
@@ -903,26 +922,26 @@ function renderDash(){
   qs('#kpi-mdays-sub').textContent=T(`平均 ${(mealDays/head).toFixed(1)} 天/人`,`avg ${(mealDays/head).toFixed(1)} days/person`);
 
   qs('#scope-txt').textContent=
-    `${(qs('#sel-division')?.value?qs('#sel-division').value+' / ':'')+(qs('#sel-dept').value||T('全廠','All'))} · ${rows.length} ${T('人','staff')} · ${MODE==='cap'?T('每人平均','per capita'):T('總額','total')} · ${uZh}`;
+    `${HRPayPeriods.label(mealAnchor(),UNIT)} · ${(qs('#sel-division')?.value?qs('#sel-division').value+' / ':'')+(qs('#sel-dept').value||T('全廠','All'))} · ${rows.length} ${T('人','staff')} · ${MODE==='cap'?T('每人平均','per capita'):T('總額','total')} · ${uZh}`;
 
   // 每日趨勢
   const byDay={};
-  dayList.forEach(d=>byDay[d]={n:0,riel:0});
+  dayList.forEach(d=>byDay[d]={n:0,riel:0,usd:0});
   rows.forEach(r=>r.days.forEach(d=>{
-    if(!byDay[d.d])byDay[d.d]={n:0,riel:0};
+    if(!byDay[d.d])byDay[d.d]={n:0,riel:0,usd:0};
     if(d.present>0)byDay[d.d].n++;
-    byDay[d.d].riel+=d.present+d.ot;
+    byDay[d.d].riel+=d.present+d.ot;byDay[d.d].usd+=N(d.usd);
   }));
-  const ds=Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+  const ds=Object.keys(byDay).sort();
   qs('#trend-note').textContent=T(`${src==='meal'?'資料來源：餐費表':'資料來源：考勤表'} · ${ds.length} 天`,
                                   `${src==='meal'?'Source: meal-fee file':'Source: attendance'} · ${ds.length} days`);
   destroyChart('trend-chart');
   charts['trend-chart']=new Chart(qs('#trend-chart'),{
     type:'bar',
-    data:{labels:ds.map(d=>String(d).padStart(2,'0')+T(' 日','')),
+    data:{labels:ds.map(d=>d),
       datasets:[
         {type:'bar',label:T('餐費 (USD)','Meal fee (USD)'),
-         data:ds.map(d=>+(byDay[d].riel/rate).toFixed(2)),
+         data:ds.map(d=>+(byDay[d].usd).toFixed(2)),
          backgroundColor:'#f9731699',borderColor:'#f97316',borderWidth:1,borderRadius:4,yAxisID:'y'},
         {type:'line',label:T('用餐人數','Staff served'),
          data:ds.map(d=>byDay[d].n),borderColor:'#0ea5e9',backgroundColor:'#0ea5e9',
@@ -956,22 +975,11 @@ function renderDash(){
 // ── 每日明細 ──
 // 跨期間的「日索引」：把所有已匯入資料攤平成每一天
 function dayIndex(){
-  const idx={}, pad=n=>String(n).padStart(2,'0');
-  const dv=qs('#sel-division')?qs('#sel-division').value:'';
-  const dept=qs('#sel-dept')?qs('#sel-dept').value:'';
-  sortedKeys().forEach(k=>{
-    const e=STORE[k];
-    const rows=rowsForEntry(e);
-    const rs=rows.filter(r=>(!dv||r.division===dv)&&(!dept||r.dept===dept));
-    rs.forEach(r=>r.days.forEach(x=>{
-      const key=`${e.year}-${pad(e.month)}-${pad(x.d)}`;
-      const b=idx[key]||(idx[key]={y:e.year,m:e.month,d:x.d,riel:0,ot:0,served:0,otServed:0,ids:new Set(),src:e.att?'att':'meal'});
-      b.riel+=x.present+x.ot; b.ot+=x.ot;
-      if(x.present>0){b.served++; b.ids.add(r.id);}
-      if(x.ot>0)b.otServed++;
-    }));
-  });
-  return idx;
+  const idx={};filtered().rows.forEach(r=>(r.days||[]).forEach(d=>{
+    const k=d.d,b=idx[k]||(idx[k]={y:+k.slice(0,4),m:+k.slice(5,7),d:+k.slice(8,10),riel:0,usd:0,otUSD:0,ot:0,served:0,otServed:0,ids:new Set(),src:'meal'});
+    const amt=N(d.present)+N(d.ot);b.riel+=amt;b.usd+=N(d.usd);b.ot+=N(d.ot);b.otUSD+=amt?N(d.usd)*N(d.ot)/amt:0;
+    if(N(d.present)>0)b.served++;if(N(d.ot)>0)b.otServed++;if(amt>0)b.ids.add(r.id);
+  }));return idx;
 }
 // ISO 週次
 function isoWeek(y,m,d){
@@ -995,8 +1003,8 @@ function timeSeries(){
       label=`${MN[b.m-1]} ${b.y} · ${h===1?T('上半月','1st half'):T('下半月','2nd half')}`; }
     else if(UNIT==='month'){ gk=`${b.y}-${pad(b.m)}`; label=`${MN[b.m-1]} ${b.y}`; }
     else { gk=String(b.y); label=String(b.y); }
-    const t=g[gk]||(g[gk]={key:gk,label,days:0,riel:0,ot:0,served:0,otServed:0,ids:new Set(),first:k,last:k});
-    t.days++; t.riel+=b.riel; t.ot+=b.ot; t.served+=b.served; t.otServed+=b.otServed;
+    const t=g[gk]||(g[gk]={key:gk,label,days:0,riel:0,usd:0,otUSD:0,ot:0,served:0,otServed:0,ids:new Set(),first:k,last:k});
+    t.days++;t.usd+=b.usd;t.otUSD+=b.otUSD; t.riel+=b.riel; t.ot+=b.ot; t.served+=b.served; t.otServed+=b.otServed;
     b.ids.forEach(id=>t.ids.add(id));
     if(k<t.first)t.first=k; if(k>t.last)t.last=k;
   });
@@ -1021,10 +1029,10 @@ function renderDaily(){
   else badge.textContent='';
 
   qs('#daily-note').textContent = (ACTIVE&&ACTIVE.att)
-    ? T(`已載入考勤表，每日用餐人數與加班餐為實際打卡結果。目前以「${uZh}」為單位彙總所有已匯入期間。`,
-        `Attendance loaded — daily served counts are actual. Aggregated by ${uZh} across all imported periods.`)
-    : T(`尚未載入考勤表，每日數字由餐費表日欄推算。目前以「${uZh}」為單位彙總所有已匯入期間。`,
-        `No attendance file — figures derived from meal-fee sheet. Aggregated by ${uZh} across all imported periods.`);
+    ? T(`已載入考勤表，每日用餐人數與加班餐為實際打卡結果。目前以「${uZh}」為單位彙總目前選定期間。`,
+        `Attendance loaded — daily served counts are actual. Aggregated by ${uZh} within the selected period.`)
+    : T(`尚未載入考勤表，每日數字由餐費表日欄推算。目前以「${uZh}」為單位彙總目前選定期間。`,
+        `No attendance file — figures derived from meal-fee sheet. Aggregated by ${uZh} within the selected period.`);
 
   // ── KPI 卡片：本單位最新一組 ──
   const cur=series[0];
@@ -1033,13 +1041,13 @@ function renderDaily(){
   };
   if(cur){
     const staff=cur.ids.size||1;
-    const usd=cur.riel/rate;
+    const usd=cur.usd;
     setCard(1,T('目前區間','Current'),cur.label,T(`${cur.days} 天 · ${series.length} 組`,`${cur.days} days · ${series.length} groups`));
     setCard(2,T('餐費金額 USD','Meal fee USD'),'$'+fmt(perCap?usd/staff:usd),perCap?T('每人','per person'):T('總額','total'));
     setCard(3,T('用餐人日','Meal-days'),int(cur.served),T(`平均 ${(cur.served/staff).toFixed(1)} 天/人`,`avg ${(cur.served/staff).toFixed(1)} d/person`));
     setCard(4,T('用餐人數','Distinct staff'),int(cur.ids.size),T(`日均 ${Math.round(cur.served/(cur.days||1))} 人`,`${Math.round(cur.served/(cur.days||1))}/day`));
-    setCard(5,T('加班餐','OT meals'),int(cur.otServed),'$'+fmt(cur.ot/rate));
-  }
+    setCard(5,T('加班餐','OT meals'),int(cur.otServed),'$'+fmt(cur.otUSD));
+  }else{for(let i=1;i<=5;i++)setCard(i,T('無資料','No data'),'—',HRPayPeriods.label(mealAnchor(),UNIT));}
 
   // ── 明細表 ──
   const H=[T('區間','Period'),T('天數','Days'),T('用餐人數','Staff'),T('用餐人日','Meal-days'),
@@ -1049,7 +1057,7 @@ function renderDaily(){
     `<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
 
   qs('#daily-tbody').innerHTML=series.map((t,i)=>{
-    const staff=t.ids.size||1, normal=t.riel-t.ot, usd=t.riel/rate;
+    const staff=t.ids.size||1, normal=t.riel-t.ot, usd=t.usd;
     return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-orange-50/40':''}">
       <td class="px-3 py-2 font-semibold ${i===0?'text-orange-700':'text-slate-700'}">${t.label}</td>
       <td class="px-3 py-2 text-right jmono">${t.days}</td>
@@ -1064,7 +1072,7 @@ function renderDaily(){
   }).join('')||`<tr><td colspan="10" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
 
   const TT=series.reduce((a,t)=>({days:a.days+t.days,served:a.served+t.served,ot:a.ot+t.ot,
-    otServed:a.otServed+t.otServed,riel:a.riel+t.riel}),{days:0,served:0,ot:0,otServed:0,riel:0});
+    otServed:a.otServed+t.otServed,riel:a.riel+t.riel,usd:a.usd+t.usd}),{days:0,served:0,ot:0,otServed:0,riel:0,usd:0});
   const allIds=new Set(); series.forEach(t=>t.ids.forEach(x=>allIds.add(x)));
   qs('#daily-tfoot').innerHTML=`
     <td class="px-3 py-2">${T('合計','TOTAL')}</td>
@@ -1075,8 +1083,8 @@ function renderDaily(){
     <td class="px-3 py-2 text-right jmono">${int(TT.riel-TT.ot)}</td>
     <td class="px-3 py-2 text-right jmono">${int(TT.ot)}</td>
     <td class="px-3 py-2 text-right jmono">${int(TT.riel)}</td>
-    <td class="px-3 py-2 text-right jmono text-orange-700">$${fmt(TT.riel/rate)}</td>
-    <td class="px-3 py-2 text-right jmono">$${fmt(TT.riel/rate/(allIds.size||1))}</td>`;
+    <td class="px-3 py-2 text-right jmono text-orange-700">$${fmt(TT.usd)}</td>
+    <td class="px-3 py-2 text-right jmono">$${fmt(TT.usd/(allIds.size||1))}</td>`;
 }
 
 // ── 部門分析 ──
@@ -1154,6 +1162,7 @@ function renderRoster(){
 // ── 考勤核對 ──
 function renderRecon(){
   const box=qs('#recon-body');
+  const title=qs('#pane-recon');if(title)title.setAttribute('aria-label','Batch reconciliation '+(ACTIVE?.key||''));
   if(!ACTIVE||!ACTIVE.meal||!ACTIVE.att){
     box.innerHTML=`<div class="bg-white border border-slate-100 rounded-xl p-10 text-center">
       <p class="text-4xl mb-3">🔍</p>
@@ -1221,13 +1230,8 @@ function renderRecon(){
 }
 
 // ── 期間報表 ──
-function setReportMode(m){
-  REPORT_MODE=m;
-  qs('#rp-half').className=_btn(m==='half','orange');
-  qs('#rp-month').className=_btn(m==='month','orange');
-  qs('#rp-year').className=_btn(m==='year','orange');
-  renderReport();
-}
+function setReportMode(m){setUnit(m);}
+
 function statsOf(e){
   const rows = rowsForEntry(e);
   const dl   = e.meal?e.meal.dayList : (e.att?e.att.dayList:[]);
@@ -1239,7 +1243,12 @@ function statsOf(e){
           days:dl.length||15, mdays:md, hasMeal:!!e.meal, hasAtt:!!e.att};
 }
 function renderReport(){
-  const ks=sortedKeys().reverse();
+  if(UNIT==='day'||UNIT==='week'){
+    const series=timeSeries();qs('#rp-count').textContent=HRPayPeriods.label(mealAnchor(),UNIT);
+    qs('#rp-thead').innerHTML=[T('期間','Period'),T('天數','Days'),T('人數','Staff'),T('金額 USD','Amount USD')].map(h=>'<th class="px-3 py-2">'+h+'</th>').join('');
+    qs('#rp-tbody').innerHTML=series.map(r=>'<tr><td class="px-3 py-2">'+r.label+'</td><td>'+r.days+'</td><td>'+r.ids.size+'</td><td>$'+fmt(r.usd)+'</td></tr>').join('')||'<tr><td colspan="4">'+T('無資料','No data')+'</td></tr>';return;
+  }
+  const ks=sortedKeys().filter(k=>UNIT==='half'?k===ACTIVE.key:HRPayPeriods.contains(k.split(':')[0]+'-'+(k.endsWith(':2')?'16':'01'),mealAnchor(),UNIT)).reverse();
   const perCap=(MODE==='cap');
   const th=qs('#rp-thead'), tb=qs('#rp-tbody');
 
@@ -1377,6 +1386,12 @@ function buildTgText(key){
 
 /* v3.9.2：Summary / Approval 共用欄位式正文；保留原期間、人數、Meal-days、匯率、總額、各部門全部內容。 */
 function buildTgSummaryTable(key){
+  if(key==='@scope'){
+    const rs=filtered().rows;if(!rs.length)return {err:T('此期間無資料','No data for this period')};
+    const groups={};rs.forEach(r=>{const g=groups[r.dept||'Other']||(groups[r.dept||'Other']={ids:new Set(),usd:0});g.ids.add(r.id);g.usd+=N(r.usd);});
+    const total=rs.reduce((a,r)=>a+N(r.usd),0);
+    return {text:'🍱 <b>餐費摘要 Meal Fee</b>\n📅 '+HRPayPeriods.label(mealAnchor(),UNIT)+'\n👥 '+new Set(rs.map(r=>r.id)).size+' Staff\n💵 $'+fmt(total)+' USD\n<b>各部門 Department</b>\n'+Object.entries(groups).sort((a,b)=>b[1].usd-a[1].usd).map(([d,g])=>esc(d)+' · '+g.ids.size+' 人 Staff · $'+fmt(g.usd)).join('\n')+'\n'+T('依實際已匯入期間加總；核可請選半月給付批次。','Actual imported periods; choose a payment batch for approval.')};
+  }
   const e=STORE[key]; if(!e)return{err:T('查無此期間','Period not found')};
   const rows=e.meal?e.meal.rows:(e.att?e.att.rows:[]); if(!rows.length)return{err:T('此期間無資料','No data for this period')};
   const rate=rateOf(rows), dl=(e.meal?e.meal.dayList:e.att.dayList)||[], dm={};
@@ -1402,6 +1417,7 @@ function openTgModal(){
     return `<option value="${k}"${n?'':' disabled'}>${bLabel(k)}${n?` · ${n} ${T('人','staff')}`:` · ${T('無資料','no data')}`}</option>`;
   }).join('');
   sel.value=(ACTIVE&&ks.includes(ACTIVE.key))?ACTIVE.key:ks[0];
+  if(UNIT!=='half'){sel.insertAdjacentHTML('afterbegin','<option value="@scope">'+HRPayPeriods.label(mealAnchor(),UNIT)+' · '+T('目前範圍摘要','Selected scope summary')+'</option>');sel.value='@scope';}
   hrpSyncPersonField();
   previewTg();
   const m=qs('#tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
@@ -1421,7 +1437,7 @@ function previewTg(){
 // ━━━━━━━━━ 送出核可 Approval Request v2.1：群組審查 → Paul 群組核可（不私訊） ━━━━━━━━━
 //  ⚠ 2026-07 起的期間才需要核可；之前的期間已結案，只發摘要不附核可按鈕。
 const APPROVAL_FROM='2026-07';
-const needsApproval=p=>String(p||'').slice(0,7)>=APPROVAL_FROM;
+const needsApproval=p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(p||''))&&String(p)>=APPROVAL_FROM;
 let TG_MODE='summary';
 function _tgPeriodVal(){const el=qs('#tg-period');return el?String(el.value||'').split(':')[0]:'';}
 const TGM_IDS={summary:'tgm-sum',review:'tgm-rev'};
@@ -1442,8 +1458,7 @@ function syncTgMode(){
   Object.keys(TGM_IDS).forEach(k=>{const b=qs('#'+TGM_IDS[k]);
     if(b)b.className='flex-1 '+_btn(TG_MODE===k,'orange');});
   if(note)note.textContent = !ok
-    ? T(APPROVAL_FROM+' 之前的期間已結案，只提供摘要傳送。',
-        'Periods before '+APPROVAL_FROM+' are closed — summary only.')
+    ? T('目前為範圍摘要或已結案期間；送核請在期間選單選擇可核可的半月給付批次。','Scope summary or closed period; choose an eligible half-month payment batch for approval.')
     : TG_MODE==='review'
       ? T('送到群組 AI HR Pay relate，群組裡任何人都可以按「👀 審查通過」；審查後同一則群組訊息會換成 Paul 的「✅ 核可 / ❌ 退件」。全程不私訊。',
           "Sent to the group for review; after Verify, the same group message changes to Paul's Approve / Reject buttons. No private messages.")

@@ -1,0 +1,38 @@
+AC-HRA-PAY v3.9.5 — Auto Sync Status / Immediate Commit Safety Update
+Date: 2026-08-26
+
+Scope of this update
+- ONLY shared/hrpay-auto-sync.js changed from v3.9.4.
+- No module data model, import parser, Telegram text, approval flow, document generation,
+  reminder logic, SmartSync bucket logic, GAS backend, or manual cloud functions were changed.
+
+What changed
+1. Important operations start background sync almost immediately (<= 60 ms):
+   - Excel/file import
+   - Telegram summary
+   - Telegram review / approval
+   - restore and file replacement/deletion
+2. Normal add/edit/delete remains debounced as before to avoid repeated uploads.
+3. A compact cloud state badge is shown beside the existing cloud buttons:
+   - ☁ 待同步
+   - ☁ 同步中…
+   - ✅ 雲端已同步 HH:MM
+   - ☁ 離線待傳
+   - ⚠ 雲端待重試
+4. Pending sync remains stored in localStorage and retries on startup, network restore, app resume and pageshow.
+5. Passive startup checks on an empty module are no longer shown as failed uploads.
+
+Preserved
+- Smart incremental manifest/bucket sync
+- cloud-only history retention
+- manual Upload/Download buttons
+- Telegram summary/review/approval behavior
+- v3.9.4 reminder receipt fix
+- v3.9.3 2-column approval file buttons
+- v3.9.2 column-style Telegram content
+- all existing import/export, approval files, warning/transfer logic
+
+Deployment
+- Replace GitHub package files, especially shared/hrpay-auto-sync.js.
+- GAS does NOT need a new deployment for this v3.9.5 change.
+- No setupAll(), webhook reinstall, trigger reinstall, or data migration required.

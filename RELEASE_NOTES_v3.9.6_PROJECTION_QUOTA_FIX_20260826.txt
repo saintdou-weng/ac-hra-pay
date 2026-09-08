@@ -1,0 +1,36 @@
+AC-HRA-PAY v3.9.6 — Projection localStorage quota fix
+
+Problem fixed
+- Payroll import could finish successfully, then show:
+  Failed to execute 'setItem' on 'Storage': Setting the value of 'hrpay:result:payroll' exceeded the quota.
+- Cause: the derived Payroll Projection was duplicated into localStorage after the main payroll data was already stored in IndexedDB. When browser storage was near its quota, localStorage.setItem() threw before the Projection was posted to GAS Drive.
+
+Safe fix
+1. Payroll main records remain unchanged in IndexedDB and Smart Cloud Sync.
+2. Projection local cache is now optional:
+   - try localStorage normally;
+   - on quota, remove only the stale copy of that same Projection and retry;
+   - if still full, skip the large local Projection cache only. No other HRA-PAY data/settings are cleared.
+3. GAS Projection upload is executed independently, so localStorage quota can no longer block the cloud Projection.
+4. Summary Center silently pulls the Projection from GAS Drive when the local Projection is absent/cloud-only.
+5. Manual Cloud Pull remains unchanged.
+
+Files changed from v3.9.5
+- payroll.html
+- summary_center.html
+- this release note
+
+Not changed
+- GAS backend
+- Smart Sync / Auto Sync
+- import parsing / audit calculation
+- Payroll / Advance records
+- Telegram Summary / Review / Approval
+- approval documents / 2-column buttons
+- reminder logic
+- all other modules
+
+Deployment
+- Replace payroll.html and summary_center.html on GitHub Pages, or upload the full package.
+- No GAS redeploy is required.
+- No setupAll(), webhook, bot, or trigger reinstall is required.
