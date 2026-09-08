@@ -9,7 +9,7 @@
 (function(g){
   'use strict';
   if(g.HRPaySmartSync)return;
-  var VERSION='1.3', STATE_PREFIX='ac_hrpay_smart_sync_v1_', nativeFetch=g.fetch?g.fetch.bind(g):null;
+  var VERSION='1.4', STATE_PREFIX='ac_hrpay_smart_sync_v1_', REQUEST_TIMEOUT_MS=30000, nativeFetch=g.fetch?g.fetch.bind(g):null;
   function now(){return new Date().toISOString();}
   function enc(v){return encodeURIComponent(String(v==null?'':v));}
   function text(v){return String(v==null?'':v);}
@@ -49,7 +49,12 @@
   function buildBuckets(records){var groups={};(records||[]).forEach(function(r){var k=bucketKey(r);(groups[k]||(groups[k]=[])).push(r);});var out={},jobs=Object.keys(groups).sort().map(function(k){var rows=sortRows(groups[k]);return hash(stable(rows)).then(function(h){out[k]={key:k,records:rows,count:rows.length,hash:h};});});return Promise.all(jobs).then(function(){return out;});}
   function readState(tool){try{return JSON.parse(localStorage.getItem(STATE_PREFIX+tool)||'null');}catch(_){return null;}}
   function writeState(tool,v){try{localStorage.setItem(STATE_PREFIX+tool,JSON.stringify(v));}catch(_){} }
-  function jsonFetch(url,opts){if(!nativeFetch)return Promise.reject(new Error('Browser fetch unavailable'));return nativeFetch(url,opts||{}).then(function(r){return r.text().then(function(raw){var j;try{j=JSON.parse(raw);}catch(_){throw new Error('Cloud returned non-JSON: '+raw.slice(0,120));}if(!r.ok||(j&&j.ok===false))throw new Error((j&&j.error)||('HTTP '+r.status));return j;});});}
+  function jsonFetch(url,opts){
+    if(!nativeFetch)return Promise.reject(new Error('Browser fetch unavailable'));
+    opts=opts||{};var controller=null,timer=null,next=opts;
+    if(typeof g.AbortController==='function'&&!opts.signal){controller=new g.AbortController();next=Object.assign({},opts,{signal:controller.signal});timer=g.setTimeout(function(){controller.abort();},REQUEST_TIMEOUT_MS);}
+    return nativeFetch(url,next).then(function(r){return r.text().then(function(raw){var j;try{j=JSON.parse(raw);}catch(_){throw new Error('Cloud returned non-JSON: '+raw.slice(0,120));}if(!r.ok||(j&&j.ok===false))throw new Error((j&&j.error)||('HTTP '+r.status));return j;});}).catch(function(e){if(controller&&controller.signal.aborted)throw new Error('Cloud request timed out after 30 seconds. Please retry.');throw e;}).finally(function(){if(timer!==null)g.clearTimeout(timer);});
+  }
   function dataOf(j){return(j&&j.data!==undefined)?j.data:j;}
   function manifest(url,tool){return jsonFetch(url+(url.indexOf('?')>=0?'&':'?')+'action=smartManifest&tool='+enc(tool)).then(dataOf);}
   function post(url,body){return jsonFetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(dataOf);}

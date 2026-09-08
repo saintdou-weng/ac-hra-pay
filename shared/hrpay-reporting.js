@@ -1,4 +1,4 @@
-/* AC-HRA-PAY v3.9.14: source-preserving mobile reports. No payroll mutations. */
+/* AC-HRA-PAY v3.9.16: source-preserving mobile reports. No payroll mutations. */
 (function(g){'use strict';
 const str=v=>String(v==null?'':v).trim(), num=v=>Number.isFinite(Number(v))?Number(v):0;
 const esc=v=>str(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -9,22 +9,23 @@ function dept(v){const s=str(v).replace(/\s+/g,' ');const m=s.match(/^(?:sewing\
 function id(r){return str(r.empId||r.id||r.employeeId).toUpperCase();}
 function groups(rows,key){const out=new Map();rows.forEach(r=>{const k=key(r);if(!out.has(k))out.set(k,[]);out.get(k).push(r);});return [...out.entries()].sort((a,b)=>b[1].length-a[1].length||a[0].localeCompare(b[0]));}
 function sourceRate(rows){const rates=rows.filter(r=>num(r.salaryUSD)>0&&num(r.salaryKHR)>0).map(r=>num(r.salaryKHR)/num(r.salaryUSD));if(!rates.length)return 0;const rate=rates.slice().sort((a,b)=>a-b)[Math.floor(rates.length/2)];return rates.every(x=>Math.abs(x-rate)<=Math.max(.05,rate*.0001))?Math.round(rate*10000)/10000:0;}
-function fx(rows,p){const rate=num(p&&p.exchangeRate)>0?num(p.exchangeRate):sourceRate(rows);return {rate,source:num(p&&p.exchangeRate)>0?'本期設定 Period setting':'E-Form KHR ÷ USD',confirmed:!!rate};}
+const DEFAULT_KHR_PER_USD=4000;
+function fx(rows,p){const configured=num(p&&p.exchangeRate),source=sourceRate(rows),rate=configured>0?configured:source||DEFAULT_KHR_PER_USD;return {rate,source:configured>0?(p&&p.exchangeRateSource||'本期設定 Period setting'):source?'E-Form KHR ÷ USD':'系統預設 Default (可修改 Editable)',confirmed:rate>0,isDefault:!(configured>0)&&!source};}
 function usd(v,rate){return rate>0?'$'+money(num(v)/rate):'待填匯率 FX required';}
 function benefits(rows,module,period,p){
-  const isN=module==='nssf',paid=rows.filter(r=>isN||r.eligible),rate=fx(rows,p).rate;
+  const isN=module==='nssf',paid=rows.filter(r=>isN||r.eligible),fxInfo=fx(rows,p),rate=fxInfo.rate;
   const sum=(rs,k)=>rs.reduce((s,r)=>s+num(r[k]),0),total=sum(paid,'amount'),avg=paid.length?total/paid.length:0;
   const cash=v=>isN?usd(v,rate):'$'+money(v);
   let text=(isN?'🛡 <b>NSSF 社會保險</b>':'🌿 <b>Seniority 半年年資</b>')+'\n📅 '+esc(period)+' · 👥 '+paid.length+' 人 Staff\n💵 <b>'+cash(total)+'</b> · 人均 Avg '+cash(avg);
   if(isN){text+='\n🟠 職災 Risk '+cash(sum(paid,'risk'))+'\n🔵 醫療 Health '+cash(sum(paid,'health'))+'\n🟣 退休金 Pension '+cash(sum(paid,'pension'))+'\n🏭 工廠負擔 100% · 員工扣款 $0.00';
-    text+='\n💱 '+(rate?'1 USD = '+rate.toLocaleString('en-US')+' KHR · '+esc(fx(rows,p).source):'請先設定本期匯率 FX required')+'\n原額 Source: KHR '+total.toLocaleString('en-US');
+    text+='\n💱 1 USD = '+rate.toLocaleString('en-US')+' KHR · '+esc(fxInfo.source)+'\n原額 Source: KHR '+total.toLocaleString('en-US');
   }else{text+='\n📆 平均給付 Avg days '+(paid.length?sum(paid,'days')/paid.length:0).toFixed(2)+' 天\n🧮 平均月薪 Avg wage $'+money(paid.length?sum(paid,'averageSalary')/paid.length:0)+'\n正式工 Permanent · '+num(p.months)+' 個月 / '+num(p.divisor)+' × 實際給付天數';}
   const block=(label,rs)=>{const a=sum(rs,'amount');return '\n\n🏷 <b>'+esc(label)+'</b>\n👥 '+rs.length+' 人 · '+pct(rs.length,paid.length)+' · 💵 '+cash(a)+'\n人均 Avg '+cash(rs.length?a/rs.length:0)+(isN?'':' · 平均天數 '+(sum(rs,'days')/rs.length).toFixed(2));};
   text+='\n\n<b>🏭 各部門 Department</b>';
   groups(paid,r=>dept(r.dept)).forEach(([d,rs])=>text+=block(d,rs));
   if(paid.some(r=>present(r.section))){text+='\n\n<b>🧵 各組 Section（同一批人，不重複加總）</b>';groups(paid,r=>dept(r.dept)+' / '+(present(r.section)?dept(r.section):'待確認 Unknown')).forEach(([d,rs])=>text+=block(d,rs));}
   const missing=paid.filter(r=>!present(r.dept)).length;if(missing)text+='\n\n⚠️ '+missing+' 人缺部門：請配對同月份名冊／Payroll。';
-  if(isN)text+='\n<i>USD = 各筆原額 ÷ 本期匯率；先加總原額再換算，分組顯示四捨五入可能差 $0.01。</i>';
+  if(isN)text+='\n<i>USD = 各筆原額 ÷ 本期匯率；預設 1 USD = 4,000 KHR，可於「美元匯率」修改；先加總原額再換算，分組顯示四捨五入可能差 $0.01。</i>';
   return text;
 }
 function matchDepartments(rows,roster,payroll,period){
@@ -84,5 +85,5 @@ function warning(list,all,label,expired){
     text+='\n\n<b>'+String(i+1).padStart(2,'0')+' · '+esc(r.empName||'未填姓名')+' ['+esc(r.empId||'無工號')+']</b>\n🏷 '+esc(dept(r.empDept))+' · 🕐 '+esc(r.incidentDate||'未提供')+(r.incidentTime?' '+esc(r.incidentTime):'（時分未提供）')+'\n'+esc(level(r.level))+' · '+esc(r.status||'未知')+'\n本期 '+period.length+' 次 · 歷史 '+history.length+' 次 · 目前有效 '+valid.length+' 次\n有效：小 '+valid.filter(x=>/small|小/i.test(x.level)).length+'／大或最後 '+valid.filter(x=>/big|final|大|最後/i.test(x.level)).length+'\n📝 原因 Reason：'+esc(r.reason||'未提供');
   });return text+'\n\n<i>次數按工號；歷史含退件／失效，現有效只計已核可且未到期，不把小過自行換成大過。</i>';
 }
-g.HRPayReporting={str,num,esc,money,pct,present,dept,id,groups,sourceRate,fx,usd,benefits,matchDepartments,workforce,warning,employment};
+g.HRPayReporting={str,num,esc,money,pct,present,dept,id,groups,sourceRate,fx,usd,benefits,matchDepartments,workforce,warning,employment,DEFAULT_KHR_PER_USD};
 })(typeof window!=='undefined'?window:globalThis);
