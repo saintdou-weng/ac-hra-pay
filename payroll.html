@@ -6,7 +6,7 @@
 <title>VRT Payroll & Cost Analytics Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 body{font-family:'DM Sans',sans-serif;}
@@ -65,6 +65,8 @@ body{font-family:'DM Sans',sans-serif;}
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
 <script src="shared/hrpay-auto-sync.js"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.18">
+<script src="shared/hrpay-online-core.js?v=3.9.18"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -932,7 +934,7 @@ function idbOpen(){
 }
 
 async function idbSave(entry){
-  const db=await idbOpen(); if(!db) return;
+  const db=await idbOpen(); if(!db) throw new Error('本機儲存不可用 / Local storage unavailable');
   return new Promise((res,rej)=>{
     const tx=db.transaction(IDB_STORE,'readwrite');
     tx.objectStore(IDB_STORE).put(entry);
@@ -1097,7 +1099,7 @@ function parseSheet(ws){
     const c0isNull = c0===null||c0===undefined||(typeof c0==='number'&&isNaN(c0));
     if(rowA && c0isNull && typeof c2==='string' && /[a-zA-Z]/.test(c2) && c2.trim()){
       // TotalSalary: try col36 first, then col47, col52
-      const totalSalary = pickNonZero(row[36], row[47], row[52]);
+      const totalSalary = row[36]!==null&&row[36]!==undefined ? N(row[36]) : pickNonZero(row[47], row[52]);
       // Advance deduction: col18 (main), col68 also carries "Advance Pay"
       const advDeduction = Math.abs(N(row[18]));
       const advGiven     = Math.abs(pickNonZero(row[68], row[18]));
@@ -1135,6 +1137,7 @@ function parseSheet(ws){
 
       recs.push({
         ...rowA,
+        _excel: window.HRPayOnline ? HRPayOnline.capturePay(ws,i+1) : null,
         nameLat:     c2.trim(),
         // 標準月薪率保留給稽核；圖表/成本分析使用當月實際發放額。
         basicRate:rowA.basicPay, seniorityRate:N(row[5]), skillRate:N(row[6]),
@@ -1289,7 +1292,7 @@ function _cacheProjectionLocal(key,payload,moduleName){
 
 async function pushProjection(entry){
   let any=false, localFallback=false, cloudFail=false;
-  if(entry.payrollRecords&&entry.payrollRecords.length){
+  if(entry.payrollRecords&&entry.payrollRecords.length&&!entry.payrollRecords.some(r=>r._pending)){
     any=true;
     const p=buildPayrollProjection(entry);
     const lc=_cacheProjectionLocal('hrpay:result:payroll',p,'payroll');
@@ -1297,7 +1300,7 @@ async function pushProjection(entry){
     const cr=await _postProjection(p);
     if(!cr.ok)cloudFail=true;
   }
-  if(entry.advanceRecords&&entry.advanceRecords.length){
+  if(entry.advanceRecords&&entry.advanceRecords.length&&!entry.advanceRecords.some(r=>r._pending)){
     any=true;
     const a=buildAdvanceProjection(entry);
     const lc=_cacheProjectionLocal('hrpay:result:advance',a,'advance');
@@ -1441,13 +1444,14 @@ async function smartImport(input){
       const shName = wb.SheetNames.find(s=>/payroll\s*list/i.test(s))
                   || wb.SheetNames.find(s=>/payroll/i.test(s)) || wb.SheetNames[0];
       const parsed=parseSheet(wb.Sheets[shName]);
-      const dd=payDedupeRows(parsed), recs=dd.rows;
+      const dd=payDedupeRows(parsed); let recs=window.HRPayOnline?HRPayOnline.unique(parsed):dd.rows;
       if(!recs.length){ log.push({ok:false,f:file.name,msg:'未找到員工記錄，請確認工作表格式'}); continue; }
 
-      if(!STORE[pKey]) STORE[pKey]={periodKey:pKey,label:labelFromKey(pKey)};
-      const entry=STORE[pKey];
+      const prior=JSON.stringify(STORE[pKey]);
+      const entry=JSON.parse(JSON.stringify(STORE[pKey]||{periodKey:pKey,label:labelFromKey(pKey)}));
       const isAdv=(det.type==='advance');
       const replaced = isAdv ? !!entry.advanceRecords : !!entry.payrollRecords;
+      if(window.HRPayOnline){recs=await HRPayOnline.acceptImport(isAdv?(entry.advanceRecords||[]):(entry.payrollRecords||[]),recs,file.name,entry,isAdv?'advance':'payroll');if(!recs){log.push({ok:false,f:file.name,msg:'已取消匯入 / Import cancelled'});continue;}}
       if(isAdv){ entry.advanceRecords=recs; entry.advanceFile=file.name; entry.advanceDate=_nowISO(); }
       else     { entry.payrollRecords=recs; entry.payrollFile=file.name; entry.payrollDate=_nowISO(); }
       entry.updatedAt=_nowISO();
@@ -1457,7 +1461,8 @@ async function smartImport(input){
       }else{
         entry.mergedRecords=runAudit([], entry.advanceRecords||[]); entry.stage='adv';
       }
-      await idbSave(entry); touched.add(pKey);
+      if(JSON.stringify(STORE[pKey])!==prior)throw Error('期間資料已更新，請重新核對 / Period changed during import');
+      await idbSave(entry); STORE[pKey]=entry; touched.add(pKey);
       log.push({ok:true,f:file.name,type:det.type,why:det.why,pKey,n:recs.length,replaced,duplicates:dd.duplicates});
     }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
   }
@@ -1488,7 +1493,7 @@ async function smartImport(input){
          <span class="flex-1"><b>${l.f}</b> → 判定為
          <span class="${l.type==='advance'?'text-amber-700':'text-emerald-700'} font-semibold">${l.type==='advance'?'預付薪資':'正式薪資'}</span>
          · ${labelFromKey(l.pKey)} · ${l.n} 人
-         <span class="text-slate-400">（依${l.why}判定${l.replaced?'，已覆蓋原有資料':''}${l.duplicates?`，重複工號略過 ${l.duplicates} 筆`:''}）</span></span></div>`
+         <span class="text-slate-400">（依${l.why}判定${l.replaced?'，已確認匯入差異':''}${l.duplicates?`，重複工號略過 ${l.duplicates} 筆`:''}）</span></span></div>`
       : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span>
          <span class="flex-1"><b>${l.f}</b> — ${l.msg}</span></div>`
     ).join('')
@@ -1531,12 +1536,13 @@ async function handleUpload(type, input){
       pKey=manual;
     }
 
-    const dd=payDedupeRows(parseSheet(ws)), recs=dd.rows;
+    const parsedRows=parseSheet(ws),dd=payDedupeRows(parsedRows);let recs=window.HRPayOnline?HRPayOnline.unique(parsedRows):dd.rows;
     if(!recs.length)throw new Error('未找到員工記錄 No records found — check sheet format.');
 
     // Ensure entry exists
-    if(!STORE[pKey])STORE[pKey]={periodKey:pKey,label:labelFromKey(pKey)};
-    const entry=STORE[pKey];
+    const prior=JSON.stringify(STORE[pKey]);
+    const entry=JSON.parse(JSON.stringify(STORE[pKey]||{periodKey:pKey,label:labelFromKey(pKey)}));
+    if(window.HRPayOnline){recs=await HRPayOnline.acceptImport(isAdv?(entry.advanceRecords||[]):(entry.payrollRecords||[]),recs,file.name,entry,isAdv?'advance':'payroll');if(!recs)throw new Error('已取消匯入 / Import cancelled');}
 
     if(isAdv){
       entry.advanceRecords=recs;
@@ -1559,7 +1565,8 @@ async function handleUpload(type, input){
     }
 
     // Save to IndexedDB (handles large files, no quota issue)
-    await idbSave(entry);
+    if(JSON.stringify(STORE[pKey])!==prior)throw Error('期間資料已更新，請重新核對 / Period changed during import');
+    await idbSave(entry); STORE[pKey]=entry;
 
     // Update UI
     statusEl.textContent=`✓ ${recs.length} employees · ${labelFromKey(pKey)}${dd.duplicates?` · duplicate IDs skipped ${dd.duplicates}`:''}`;
@@ -1632,7 +1639,8 @@ async function clearFile(type){
     return;
   }
   entry.updatedAt=new Date().toISOString();
-  await idbSave(entry);
+  if(JSON.stringify(STORE[pKey])!==prior)throw Error('期間資料已更新，請重新核對 / Period changed during import');
+    await idbSave(entry); STORE[pKey]=entry;
   ACTIVE=entry;
   renderAll();
   showStageBadge();
@@ -3367,5 +3375,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'payroll',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
+<script src="shared/hrpay-online-ui.js?v=3.9.18" data-module="payroll"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.18" data-module="payroll"></script>
 </body>
 </html>

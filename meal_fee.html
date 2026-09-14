@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🍱 Meal Fee Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -25,6 +25,8 @@
 <script src="shared/hrpay-periods.js"></script>
 <script src="shared/hrpay-smart-sync.js"></script>
 <script src="shared/hrpay-auto-sync.js"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.18">
+<script src="shared/hrpay-online-core.js?v=3.9.18"></script>
 </head>
 <body class="text-slate-800">
 
@@ -421,9 +423,9 @@ function idbOpen(){
   return _dbReady;
 }
 async function idbSave(entry){
-  const db=await idbOpen(); if(!db)return;
-  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).put(entry); tx.oncomplete=()=>r(); tx.onerror=()=>r();});
+  const db=await idbOpen(); if(!db)throw new Error('本機儲存不可用 / Local storage unavailable');
+  return new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(entry); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('Save aborted'));});
 }
 async function idbAll(){
   const db=await idbOpen(); if(!db)return [];
@@ -502,7 +504,7 @@ function parseAttendance(wb){
       rows.push({id:String(idv).trim(), name:String(r[cName]||'').trim(),
         dept:(grp||dv||'Other'), division:dv, group:grp,
         days, riel:days.reduce((s,x)=>s+x.present+x.ot,0),
-        usd: totCol>=0?N(r[totCol]):0});
+        usd: totCol>=0?N(r[totCol]):NaN});
     }
     if(!rows.length)continue;
     const ds=dayCols.map(x=>x.d);
@@ -594,8 +596,9 @@ function parseMealSheet(ws,sheetName){
 
   // Total（USD）欄：日期欄之後，數值多落在 0–300 的欄
   const lastC=dayCols[dayCols.length-1].c+1;
-  let totCol=-1,best=0;
-  for(let c=lastC+1;c<lastC+12;c++){
+  const labelledTotal=hdr.findIndex((v,c)=>c>lastC&&typeof v==='string'&&/^total$/i.test(v.trim()));
+  let totCol=labelledTotal,best=0;
+  for(let c=lastC+1;labelledTotal<0&&c<lastC+12;c++){
     let hit=0;
     for(let i=hr+1;i<Math.min(raw.length,hr+150);i++){
       const v=(raw[i]||[])[c];
@@ -618,7 +621,8 @@ function parseMealSheet(ws,sheetName){
     rows.push({id:String(idv).trim(), name:String(r[cName]||'').trim(), dept,
       position:cPos>=0?String(r[cPos]||'').trim():'',
       days, riel:days.reduce((s,x)=>s+x.present+x.ot,0),
-      usd: totCol>=0?N(r[totCol]):0});
+      fx:4000, _mealFormula:totCol>=0?(ws[XLSX.utils.encode_cell({r:i,c:totCol})]||{}).f||'':'',
+      usd: totCol>=0?N(r[totCol]):NaN});
   }
   if(!rows.length)return null;
   return {kind:'meal', year, month, startDay, endDay,
@@ -641,31 +645,34 @@ async function smartImport(input){
     try{
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false,raw:true});
       let d=parseAttendance(wb);
+      if(d&&window.HRPayOnline)d=HRPayOnline.normalizeAttendance(d);
       if(!d) d=parseMealFee(wb,file.name);
       if(!d){ log.push({ok:false,f:file.name,msg:T('無法辨識格式（既非考勤表也非餐費表）','Unrecognised format')}); continue; }
       if(!d.year||!d.month){ log.push({ok:false,f:file.name,msg:T('無法辨識年月','Cannot detect year/month')}); continue; }
 
       const b=batchOf(d.startDay);
       const key=bKey(d.year,d.month,b);
-      if(!STORE[key]) STORE[key]={key,year:d.year,month:d.month,batch:b,
-                                   meal:null,att:null,updatedAt:_nowISO()};
-      const e=STORE[key];
+      const prior=JSON.stringify(STORE[key]);
+      const e=JSON.parse(JSON.stringify(STORE[key]||{key,year:d.year,month:d.month,batch:b,meal:null,att:null}));
+      if(window.HRPayOnline&&d.kind==='meal'){const accepted=await HRPayOnline.acceptImport(e.meal&&e.meal.rows||[],d.rows,file.name,e,'meal');if(!accepted){log.push({ok:false,f:file.name,msg:'已取消匯入 / Import cancelled'});continue;}d.rows=accepted;}
 
       if(d.kind==='att'){
         // 同一半月可能由多份考勤檔組成（01-10 + 11-15），依日期合併
-        if(!e.att) e.att={dayList:[],rows:[],sources:[],startDay:d.startDay,endDay:d.endDay};
-        mergeAttendance(e.att,d);
-        e.att.sources.push(file.name);
+        const candidate=JSON.parse(JSON.stringify(e.att||{dayList:[],rows:[],sources:[],startDay:d.startDay,endDay:d.endDay}));
+        mergeAttendance(candidate,d);
+        if(window.HRPayOnline){const accepted=await HRPayOnline.acceptImport(e.att&&e.att.rows||[],candidate.rows,file.name,e,'att');if(!accepted){log.push({ok:false,f:file.name,msg:'已取消匯入 / Import cancelled'});continue;}candidate.rows=accepted;}
+        candidate.sources=Array.from(new Set([...(candidate.sources||[]),file.name]));e.att=candidate;
         log.push({ok:true,f:file.name,type:'att',key,n:d.rows.length,
-                  span:`${d.startDay}–${d.endDay}`});
+                  span:`${d.startDay}–${d.endDay}`,notes:d.notes||[]});
       }else{
         e.meal={dayList:d.dayList,rows:d.rows,startDay:d.startDay,endDay:d.endDay,
                 source:file.name,sheet:d.sheet};
         log.push({ok:true,f:file.name,type:'meal',key,n:d.rows.length,
-                  span:`${d.startDay}–${d.endDay}`});
+                  span:`${d.startDay}–${d.endDay}`,notes:d.notes||[]});
       }
       e.updatedAt=_nowISO();
-      await idbSave(e); touched.add(key);
+      if(JSON.stringify(STORE[key])!==prior)throw Error('期間資料已更新，請重新核對 / Period changed during import');
+      await idbSave(e); STORE[key]=e; touched.add(key);
     }catch(err){ log.push({ok:false,f:file.name,msg:err.message}); }
   }
 
@@ -693,7 +700,7 @@ async function smartImport(input){
         l.type==='att'
           ? `<span class="text-sky-700 font-semibold">${T('考勤表','Attendance')}</span>`
           : `<span class="text-orange-700 font-semibold">${T('餐費表','Meal Fee')}</span>`
-      } · ${bLabel(l.key)} · ${T('日','days')} ${l.span} · ${l.n} ${T('人','staff')}</span></div>`
+      } · ${bLabel(l.key)} · ${T('日','days')} ${l.span} · ${l.n} ${T('人','staff')}${l.notes?.length?`<br><span class="text-amber-700">${esc(l.notes.join("；"))}</span>`:""}</span></div>`
     : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
   ).join('')
   + (gaps.length
@@ -706,28 +713,8 @@ async function smartImport(input){
 
 // 多份考勤檔合併（依工號 + 日期）
 function mergeAttendance(att,d){
-  // v3.9.8 SAFE：同一工號+日期是覆蓋，不累加；USD 以「匯入日期區段」分段記錄。
-  const idx={}; att.rows.forEach(r=>idx[r.id]=r);
-  att.usdSegments=att.usdSegments||{};
-  const segKey='d:'+[...d.dayList].sort((a,b)=>a-b).join(',');
-  // 舊資料若只有一個相同日期範圍，第一次重匯時把舊總額視為該區段，避免再次加總。
-  if(!Object.keys(att.usdSegments).length && (att.dayList||[]).length){
-    const oldKey='d:'+[...att.dayList].sort((a,b)=>a-b).join(',');
-    att.usdSegments[oldKey]={}; att.rows.forEach(r=>att.usdSegments[oldKey][String(r.id)]=N(r.usd));
-  }
-  att.usdSegments[segKey]={};
-  d.rows.forEach(nr=>{
-    let r=idx[nr.id];
-    if(!r){ r={id:nr.id,name:nr.name,dept:nr.dept,division:nr.division||'',group:nr.group,days:[],riel:0,usd:0};att.rows.push(r);idx[nr.id]=r; }
-    r.name=nr.name||r.name;r.dept=nr.dept||r.dept;r.division=nr.division||r.division||'';r.group=nr.group||r.group||'';
-    const dmap={}; r.days.forEach(x=>dmap[x.d]=x);
-    nr.days.forEach(x=>{ dmap[x.d] ? (dmap[x.d].present=x.present,dmap[x.d].ot=x.ot) : r.days.push({...x}); });
-    r.days.sort((a,b)=>a.d-b.d); r.riel=r.days.reduce((s,x)=>s+N(x.present)+N(x.ot),0);
-    att.usdSegments[segKey][String(nr.id)]=N(nr.usd);
-  });
-  att.rows.forEach(r=>{r.usd=Object.values(att.usdSegments).reduce((s,m)=>s+N((m||{})[String(r.id)]),0);});
-  att.dayList=[...new Set([...att.dayList,...d.dayList])].sort((a,b)=>a-b);
-  att.startDay=Math.min(att.startDay??d.startDay,d.startDay); att.endDay=Math.max(att.endDay??d.endDay,d.endDay);
+  if(window.HRPayOnline){const candidate=HRPayOnline.mergeAttendanceSource(att,d);Object.assign(att,candidate);return;}
+  throw Error('請更新 shared/hrpay-online-core.js / Source checking module missing');
 }
 
 // ━━━━━━━━━━━━ 資料存取 ━━━━━━━━━━━━
@@ -1161,6 +1148,7 @@ function renderRoster(){
 
 // ── 考勤核對 ──
 function renderRecon(){
+  if(window.HRPayOnlineUI?.renderSourceRecon(ACTIVE))return;
   const box=qs('#recon-body');
   const title=qs('#pane-recon');if(title)title.setAttribute('aria-label','Batch reconciliation '+(ACTIVE?.key||''));
   if(!ACTIVE||!ACTIVE.meal||!ACTIVE.att){
@@ -1550,7 +1538,7 @@ function projectionOf(e){
 }
 function cacheMealProjectionLocal(){
   try{
-    const all=sortedKeys().map(k=>projectionOf(STORE[k]));
+    const all=sortedKeys().filter(k=>!(STORE[k].meal?.rows||STORE[k].att?.rows||[]).some(r=>r._pending)).map(k=>projectionOf(STORE[k]));
     localStorage.setItem('hrpay:result:meal',JSON.stringify({
       module:'meal', updatedAt:_nowISO(),
       batches: all.map(x=>({period:x.period,mealBatch:x.mealBatch,rows:x.rows,
@@ -1560,6 +1548,7 @@ function cacheMealProjectionLocal(){
   }catch(err){console.warn('meal projection cache',err);return 0;}
 }
 async function pushProjection(e){
+  if((e.meal?.rows||e.att?.rows||[]).some(r=>r._pending))return;
   try{
     const p=projectionOf(e);
     // 本機：永遠重建所有期間 Projection，讓 Summary Center 可直接讀取
@@ -1665,5 +1654,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'meal',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
+<script src="shared/hrpay-online-ui.js?v=3.9.18" data-module="meal"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.18" data-module="meal"></script>
 </body>
 </html>

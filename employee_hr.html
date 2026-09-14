@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -27,6 +27,8 @@
 </style>
 <script src="shared/hrpay-smart-sync.js"></script>
 <script src="shared/hrpay-auto-sync.js"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.18">
+<script src="shared/hrpay-online-core.js?v=3.9.18"></script>
 </head>
 <body class="text-slate-800">
 
@@ -359,9 +361,9 @@ function idbOpen(){
     rq.onsuccess=e=>res(e.target.result); rq.onerror=()=>res(null);});
   return _dbReady;
 }
-async function idbSave(s){const db=await idbOpen();if(!db)return;
-  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).put(s);tx.oncomplete=()=>r();tx.onerror=()=>r();});}
+async function idbSave(s){const db=await idbOpen();if(!db)throw new Error('本機儲存不可用 / Local storage unavailable');
+  return new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(s);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('Save aborted'));});}
 async function idbAll(){const db=await idbOpen();if(!db)return [];
   return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
     rq.onsuccess=()=>r(rq.result||[]);rq.onerror=()=>r([]);});}
@@ -605,13 +607,17 @@ async function smartImport(input){
       const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
       const d=parseRoster(wb,file.name);
       if(!d){ log.push({ok:false,f:file.name,msg:T('無法辨識名冊格式（需有 Join Date 與 Factory ID 表頭）','Unrecognised roster format')}); continue; }
+      if(window.HRPayOnline)d.rows=HRPayOnline.unique(d.rows);
       const seen=new Map(), order=[]; let dup=0;
       d.rows.forEach((r,i)=>{const id=String(r.id||'').trim()||('__row__'+i);if(seen.has(id))dup++;else order.push(id);seen.set(id,r);});
       d.rows=order.map(id=>seen.get(id));
       const sk=snapKeyOf(file.name,d.rows);
-      SNAPS[sk.key]={key:sk.key,label:sk.label,format:d.format,sheet:d.sheet,
+      const prior=JSON.stringify(SNAPS[sk.key]),candidate=JSON.parse(JSON.stringify(SNAPS[sk.key]||{}));
+      if(window.HRPayOnline){const accepted=await HRPayOnline.acceptImport(candidate.rows||[],d.rows,file.name,candidate,'rows');if(!accepted){log.push({ok:false,f:file.name,msg:'已取消匯入 / Import cancelled'});continue;}d.rows=accepted;}
+      const next={...candidate,key:sk.key,label:sk.label,format:d.format,sheet:d.sheet,
         rows:d.rows,src:file.name,updatedAt:_nowISO()};
-      await idbSave(SNAPS[sk.key]);
+      if(JSON.stringify(SNAPS[sk.key])!==prior)throw Error('名冊已更新，請重新核對 / Roster changed during import');
+      await idbSave(next);SNAPS[sk.key]=next;
       const f=d.rows.filter(r=>r.gender==='F').length;
       log.push({ok:true,f:file.name,key:sk.key,label:sk.label,n:d.rows.length,
         fmt:d.format,fem:f,depts:new Set(d.rows.map(r=>r.dept)).size,sheet:d.sheet,duplicates:dup});
@@ -1437,5 +1443,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'employee',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
+<script src="shared/hrpay-online-ui.js?v=3.9.18" data-module="employee"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.18" data-module="employee"></script>
 </body>
 </html>
