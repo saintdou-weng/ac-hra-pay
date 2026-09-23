@@ -31,7 +31,7 @@
     <div class="mr-2">
       <h1 class="text-base font-bold leading-tight">Warning Management</h1>
       <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.1</span></p>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v3.9.19</span></p>
     </div>
     <div class="flex items-center gap-1.5 ml-auto flex-wrap">
       <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
@@ -622,24 +622,7 @@ function stLabel(st){
        :st==='待核可'?T('待核可','Awaiting approval')
        :st==='已退回'?T('已退回','Returned'):st;
 }
-async function verifyRec(id,pass){
-  const r=RECS.find(x=>x.id===id); if(!r)return;
-  if(!confirm(pass
-    ? T(`確定審查通過：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？\n通過後由 Paul 做最終核可。`,
-        'Verify this warning? Paul will make the final decision.')
-    : T('確定退回這筆申請？','Return this record?')))return;
-  const st=pass?'待核可':'已退回', who=REVIEWER_NAME();
-  try{
-    if(r.row){
-      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_CODE,
-        data:JSON.stringify({row:r.row,status:st,reviewer:who})});
-      if(!res||!res.ok)toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');
-    }
-    r.status=st; r.reviewer=who; r.reviewedAt=_nowStr();
-    await idbSaveAll(); renderAll();
-    toast(pass?T('已審查通過，等待 Paul 核可','Verified — awaiting Paul'):T('已退回','Returned'),'success');
-  }catch(e){toast(T('操作失敗：','Failed: ')+e.message,'error');}
-}
+
 function REVIEWER_NAME(){
   let nm='';
   try{nm=localStorage.getItem('warn_reviewer')||'';}catch(e){}
@@ -873,12 +856,12 @@ function renderList(){
         ${exp?`<span class="ml-1 text-[10px] text-slate-400">${T('已失效','expired')}</span>`:''}</td>
       <td class="px-3 py-2 whitespace-nowrap">
         ${r.status==='待審核'?`
-          <button onclick="verifyRec('${esc(r.id)}',true)" class="text-[11px] text-sky-600 hover:underline">${T('👀 審查通過','Verify')}</button>
+          <button onclick="verifyRec('${esc(r.id)}',true)" class="text-[11px] text-sky-600 hover:underline">${T('👀 群組審查','Review in group')}</button>
           <button onclick="verifyRec('${esc(r.id)}',false)" class="text-[11px] text-slate-500 hover:underline ml-2">${T('退回','Return')}</button>`
         :r.status==='待核可'?`
-          <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('✅ 核可','Approve')}</button>
+          <button onclick="approveRec('${esc(r.id)}',true)" class="text-[11px] text-emerald-600 hover:underline">${T('✅ Paul 群組核可','Paul approval in group')}</button>
           <button onclick="approveRec('${esc(r.id)}',false)" class="text-[11px] text-rose-600 hover:underline ml-2">${T('退件','Reject')}</button>`:''}
-        ${IS_ADMIN?`<button onclick="deleteRec('${esc(r.id)}')" class="text-[11px] text-red-600 hover:underline ml-2">${T('🗑 刪除','Delete')}</button>`:''}
+        ${IS_ADMIN?`<button onclick="warningEdit('${esc(r.id)}')" class="text-[11px] text-teal-700 hover:underline ml-2">✏️ 編輯 / Edit</button><button onclick="deleteRec('${esc(r.id)}')" class="text-[11px] text-red-600 hover:underline ml-2">${T('🗑 刪除','Delete')}</button>`:''}
       </td></tr>`;}).join('')
     ||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
   if(list.length>500)qs('#li-tbody').insertAdjacentHTML('beforeend',
@@ -976,8 +959,11 @@ function resetApply(){qs('#ap-form').querySelectorAll('input,textarea').forEach(
 async function gasGet(params){
   const u=new URL(GAS_URL);
   Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
-  const r=await fetch(u.toString());
-  return await r.json();
+  u.searchParams.set('_ts',String(Date.now()));
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+  try{const r=await fetch(u.toString(),{cache:'no-store',signal:controller.signal});
+    if(!r.ok)throw Error('HTTP '+r.status);return await r.json();
+  }finally{clearTimeout(timer);}
 }
 async function checkApply(){
   const empId=apVal('empId'),empName=apVal('empName'),level=apVal('level');
@@ -1002,6 +988,7 @@ async function checkApply(){
     ${local.length?`<br><span class="text-slate-500">${T(`本機另有 ${local.length} 筆有效記錄`,`${local.length} active records locally`)}</span>`:''}`;
 }
 async function submitApply(){
+  if(qs('#ap-submit').disabled)return;
   const need=AP_FIELDS().filter(f=>f[3]).map(f=>f[0]);
   for(const k of need){
     if(!apVal(k)){toast(T('請填寫所有必填欄位','Please fill all required fields'),'error');
@@ -1012,19 +999,20 @@ async function submitApply(){
     empId:apVal('empId'),empName:apVal('empName'),empDept:apVal('empDept'),empPos:apVal('empPos'),
     level:apVal('level'),incidentDate:apVal('incidentDate'),incidentTime:apVal('incidentTime'),reason:apVal('reason'),
     remark:apVal('remark'),is7Day:apVal('is7Day')};
+  const identity=JSON.stringify({...d,timestamp:''});
+  if(!window._warnSubmitDraft||window._warnSubmitDraft.body!==identity)window._warnSubmitDraft={body:identity,id:'W'+crypto.randomUUID().replace(/-/g,'')};
+  d.id=window._warnSubmitDraft.id;
   const btn=qs('#ap-submit');btn.disabled=true;btn.textContent=T('送出中…','Submitting…');
   try{
     const res=await gasGet({action:'warnSubmit',data:JSON.stringify(d)});
     if(res&&res.ok){
       // 本機同步一筆（狀態待審核）
-      RECS.unshift({...d,id:res.id||('W'+Date.now()),status:'待審核',
-        expireDate:expireOf(d.incidentDate,d.level),approver:'',approveTs:'',_src:'apply'});
-      await idbSaveAll();
+      if(!res.record)throw Error('請先更新 GS 至 v3.9.19 / Update GS first');
+      await warningAcceptRecord(res.record);
+      window._warnSubmitDraft=null;
       const ps=periods();ACTIVE=d.incidentDate.slice(0,7);
       resetApply();showApp();renderAll();goTab('list');
-      toast(res.terminate
-        ? T('已送出，並已在群組標示「建議終止合約」','Submitted — termination flagged')
-        : T('已送出，等待群組審查','Submitted — awaiting group review'),'success');
+      toast(res.sent===false?'資料已儲存，但 Telegram 未送出，請重新發送 / Saved; Telegram resend required':T('已送出，等待群組審查','Submitted — awaiting group review'),res.sent===false?'warning':'success');
     }else{
       toast(T('送出失敗：','Submit failed: ')+((res&&res.error)||'unknown'),'error');
     }
@@ -1042,7 +1030,7 @@ async function deleteRec(id){
     `Delete this warning?\n${who} · ${lvName(r.level)} · ${r.incidentDate}`)))return;
   try{
     if(r.row){
-      const res=await gasGet({action:'warnDelete',adminCode:ADMIN_CODE,row:r.row});
+      const res=await gasGet({action:'warnDelete',adminCode:ADMIN_CODE,...warningGuardParams(r)});
       if(!res||!res.ok){toast(T('雲端刪除失敗：','Delete failed: ')+((res&&res.error)||'unknown'),'error');return;}
     }
     RECS=RECS.filter(x=>x.id!==id);
@@ -1052,25 +1040,11 @@ async function deleteRec(id){
 }
 window.deleteRec=deleteRec;
 
-async function approveRec(id,approve){
-  const r=RECS.find(x=>x.id===id);if(!r)return;
-  if(!confirm(T(`確定${approve?'核可':'退件'}：${r.empName||r.empId} ${lvName(r.level)}（${r.incidentDate}）？`,
-    `${approve?'Approve':'Reject'} this warning?`)))return;
-  try{
-    if(r.row){
-      const res=await gasGet({action:'warnEdit',adminCode:ADMIN_CODE,
-        data:JSON.stringify({row:r.row,status:approve?'已核可':'已退件'})});
-      if(!res||!res.ok){toast(T('雲端更新失敗，僅更新本機','Cloud update failed'),'warning');}
-    }
-    r.status=approve?'已核可':'已退件';r.approver='Paul';r.approveTs=_nowStr();
-    await idbSaveAll();renderAll();
-    toast(approve?T('已核可','Approved'):T('已退件','Rejected'),'success');
-  }catch(e){toast(T('操作失敗：','Failed: ')+e.message,'error');}
-}
+
 
 // ━━━━ 雲端 ━━━━
-async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await gasGet({action:'warnList'});if(res&&res.ok&&Array.isArray(res.records)){const cloud=res.records.map(r=>({...r,id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));const ck=new Set(cloud.map(r=>r.empId+'|'+r.incidentDate+'|'+r.level));RECS=cloud.concat(RECS.filter(r=>!ck.has(r.empId+'|'+r.incidentDate+'|'+r.level)));RECS.sort((a,b)=>a.incidentDate<b.incidentDate?1:-1);await idbSaveAll();const ps=periods();if(ps.length)ACTIVE=ps[ps.length-1];showApp();renderAll();if(!opts.silent)toast(T(`☁ 已載入 ${cloud.length} 筆雲端記錄`,`☁ Loaded ${cloud.length}`),'success');return true;}if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
-async function cloudUpload(opts){opts=opts||{};if(!RECS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const pending=RECS.filter(r=>r._src==='import'||!r.row);if(!pending.length){if(!opts.silent)toast(T('沒有需要上傳的新記錄','Nothing new to upload'),'success');return true;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}let done=0,skipped=0;try{for(let i=0;i<pending.length;i+=40){const chunk=pending.slice(i,i+40).map(r=>({timestamp:r.timestamp||'',applicant:r.applicant||'Import',empName:r.empName||'',empId:r.empId||'',empDept:r.empDept||'',empPos:r.empPos||'',level:r.level,reason:r.reason||'',incidentDate:r.incidentDate,incidentTime:r.incidentTime||'',remark:r.remark||'',status:r.status||'已核可'}));const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});if(res&&res.ok){done+=res.imported||0;skipped+=res.skipped||0;}if(b&&b.querySelector('span'))b.querySelector('span').textContent=`${Math.min(i+40,pending.length)}/${pending.length}`;}if(!opts.silent)toast(T(`☁ 已上傳 ${done} 筆（重複略過 ${skipped} 筆）`,`☁ Uploaded ${done}, skipped ${skipped}`),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');if(b.querySelector('span'))b.querySelector('span').textContent=T('上傳','Upload');}}}
+
+
 
 const HRPAY_WARNING_AUTO_KEY='hrpay:auto:warning';
 function scheduleWarningAutoSync(reason){
@@ -1187,14 +1161,16 @@ async function confirmSendTg(){
   try{
     if(TG_MODE==='review'){
       // Review needs cloud row IDs.  Sync only local-new warnings first, then refresh rows.
-      await cloudUpload({silent:true,auto:true,reason:'telegram-review'});
-      await cloudDownload({silent:true});
+      if(!await cloudUpload({silent:true,auto:true,reason:'telegram-review'}))throw Error('上傳未成功，未送審 / Upload failed; not sent');
+      if(!await cloudDownload({silent:true}))throw Error('下載未成功，未送審 / Refresh failed; not sent');
       const rr=buildTgReview(unit,key);
       if(rr.err){toast(rr.err,'error');b.disabled=false;b.textContent=T('送群組審查','Send for review');return;}
       r.rows=rr.rows||[];r.localOnly=rr.localOnly||0;
       let sent=0,failed=0;
       for(const row of r.rows||[]){
-        const d=await gasGet({action:'warnSendTelegram',row:String(row)});
+        const latest=RECS.find(x=>Number(x.row)===Number(row));
+        const d=await gasGet({action:'warnSendTelegram',...warningGuardParams(latest)});
+        if(d&&d.ok&&d.record)await warningAcceptRecord(d.record);
         if(d&&d.ok&&d.sent)sent++;else failed++;
       }
       if(!sent){toast(T('沒有成功送出的警告；請先確認資料已上傳雲端','No warning was sent; sync records to cloud first'),'error');}
@@ -1217,6 +1193,101 @@ async function confirmSendTg(){
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');}
   b.disabled=false;b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }
+
+// v3.9.19: server-confirmed edits; identity and revision checked for every mutation.
+function warningGuardParams(r){
+  if(!r||!r.row||!r.currentHash)throw Error('請先下載最新雲端資料 / Download the latest cloud records first');
+  return{id:r.id,row:r.row,expectedRevision:Number(r.revision)||0,expectedHash:r.currentHash,expectedStatus:r.status};
+}
+async function warningAcceptRecord(r){
+  const next={...r,currentHash:r.currentHash||r.contentHash,_src:'cloud'};
+  const i=RECS.findIndex(x=>String(x.id)===String(r.id));if(i<0)RECS.unshift(next);else RECS[i]=next;
+  await idbSaveAll();renderAll();return next;
+}
+async function warningSendLatest(id){
+  try{
+    const r=RECS.find(x=>x.id===id),params=warningGuardParams(r);
+    const d=await gasGet({action:'warnSendTelegram',...params});
+    if(!d||!d.ok||!d.sent)throw Error(d&&d.error||'Telegram 未確認送出 / Not sent');
+    if(d.record)await warningAcceptRecord(d.record);
+    toast('已更新群組訊息；請到 Telegram 審查／核可 / Updated. Review in Telegram.','success');
+  }catch(e){toast(String(e.message||e),'error');}
+}
+async function verifyRec(id,pass){
+  if(!confirm('審查／退回將由 Telegram 確認操作者身分。要更新這筆群組訊息嗎？\nReview or return in Telegram. Update this group message?'))return;
+  await warningSendLatest(id);
+}
+async function approveRec(id,approve){
+  if(!confirm('最終核可／退件僅限 Paul 在 Telegram 操作。要更新這筆群組訊息嗎？\nPaul makes the final decision in Telegram. Update the group message?'))return;
+  await warningSendLatest(id);
+}
+function warningEdit(id){
+  const attr=v=>esc(v).replace(/"/g,'&quot;');
+  if(!IS_ADMIN){toast('請先登入管理模式 / Enter Manage mode','warning');return;}
+  const r=RECS.find(x=>x.id===id);let guard;
+  try{guard=warningGuardParams(r);}catch(e){toast(e.message,'error');return;}
+  let dialog=document.getElementById('warning-edit-dialog');if(dialog)dialog.remove();
+  dialog=document.createElement('dialog');dialog.id='warning-edit-dialog';dialog.className='rounded-xl p-5 w-full max-w-2xl bg-white shadow-xl';
+  const fields=[['empId','工號 / Employee ID / លេខសម្គាល់','text'],['empName','姓名 / Name / ឈ្មោះ','text'],['empDept','部門／組 / Department / ផ្នែក','text'],['empPos','職務 / Position / មុខតំណែង','text'],['incidentDate','發生日 / Incident date / កាលបរិច្ឆេទ','date'],['incidentTime','時間 / Time / ម៉ោង','time']];
+  dialog.innerHTML='<h3 class="text-lg font-bold mb-3">✏️ 編輯警告 / Edit warning / កែប្រែការព្រមាន</h3><p class="text-sm text-amber-700 mb-4">儲存後舊按鈕與舊核可失效，需重新送審。Previous buttons and approval expire after saving.</p><form class="grid grid-cols-2 gap-3">'+
+    fields.map(([k,label,type])=>'<label class="text-sm">'+label+'<input name="'+k+'" type="'+type+'" value="'+attr(r[k]||'')+'" class="block w-full border rounded p-2" '+(['empId','empName','incidentDate'].includes(k)?'required':'')+'></label>').join('')+
+    '<label class="text-sm">等級 / Level / កម្រិត<select name="level" class="block w-full border rounded p-2">'+LEVELS.map(l=>'<option value="'+l.k+'" '+(l.k===r.level?'selected':'')+'>'+esc(lvName(l.k))+'</option>').join('')+'</select></label>'+
+    '<label class="text-sm self-center"><input name="is7Day" type="checkbox" '+(r.is7Day===true||r.is7Day==='Y'?'checked':'')+'> 連續曠工 ≥ 7 天 / 7-day AWOL</label>'+
+    ['reason','remark','editReason'].map((k,i)=>'<label class="text-sm col-span-2">'+['原因 / Reason / មូលហេតុ','備註 / Remark / កំណត់សម្គាល់','修改原因 / Edit reason / មូលហេតុកែប្រែ'][i]+'<textarea name="'+k+'" class="block w-full border rounded p-2" '+(k==='remark'?'':'required')+'>'+esc(k==='editReason'?'':r[k]||'')+'</textarea></label>').join('')+
+    '<p id="warning-edit-error" class="col-span-2 text-sm text-red-600" role="alert"></p><div class="col-span-2 flex justify-end gap-3"><button type="button" id="warning-edit-cancel" class="border rounded p-2">取消 / Cancel / បោះបង់</button><button type="submit" class="bg-teal-700 text-white rounded p-2">儲存 / Save / រក្សាទុក</button></div></form>';
+  document.body.appendChild(dialog);dialog.querySelector('#warning-edit-cancel').onclick=()=>dialog.close();
+  dialog.querySelector('form').onsubmit=async e=>{
+    e.preventDefault();const form=e.currentTarget,button=form.querySelector('[type=submit]'),error=dialog.querySelector('#warning-edit-error');error.textContent='';
+    if(!confirm('確認儲存修改並取消此筆原審查／核可？\nSave changes and require a new review?'))return;
+    button.disabled=true;
+    try{
+      const d={...Object.fromEntries(new FormData(form).entries()),...guard,is7Day:form.elements.is7Day.checked,editedBy:REVIEWER_NAME()};
+      const result=await gasGet({action:'warnEdit',adminCode:ADMIN_CODE,data:JSON.stringify(d)});
+      if(!result||!result.ok||!result.record)throw Error(result&&result.error||'雲端未確認儲存 / Save not confirmed');
+      await warningAcceptRecord(result.record);dialog.close();
+      toast(result.unchanged?'內容相同，沒有重複儲存 / No changes':'已儲存最新版，請重新送群組審查 / Saved. Send the new version for review.','success');
+    }catch(ex){error.textContent=String(ex.message||ex);}finally{button.disabled=false;}
+  };
+  dialog.showModal();
+}
+async function cloudDownload(opts){
+  opts=opts||{};const b=qs('#btn-cloud-down');if(b)b.disabled=true;
+  try{
+    const res=await gasGet({action:'warnList'});
+    if(!res||!res.ok||!Array.isArray(res.records))throw Error(res&&res.error||'雲端回覆無效 / Invalid cloud response');
+    const cloud=res.records.map(r=>({...r,id:r.id||('W_'+r.empId+'_'+r.incidentDate+'_'+r.level),expireDate:r.expireDate||expireOf(r.incidentDate,r.level),_src:'cloud'}));
+    const key=r=>String(r.empId||r.empName||'').trim()+'|'+r.incidentDate+'|'+r.level;
+    const local=RECS.filter(r=>!r.row&&r._src!=='cloud');
+    const pending=local.filter(r=>!cloud.some(c=>String(c.id)===String(r.id)||key(c)===key(r)));
+    const conflicts=local.filter(r=>{const c=cloud.find(c=>String(c.id)===String(r.id)||key(c)===key(r));return c&&['empId','empName','empDept','empPos','reason','incidentTime','remark'].some(k=>String(c[k]||'')!==String(r[k]||''));});
+    if(conflicts.length)throw Error('有 '+conflicts.length+' 筆本機修改與雲端不同，未覆蓋；請先匯出保留並核對 / Local/cloud conflict; export and reconcile first');
+    // The cloud list is authoritative for saved rows, including edited identities and soft deletions.
+    RECS=cloud.concat(pending);RECS.sort((a,b)=>String(b.incidentDate).localeCompare(String(a.incidentDate)));
+    await idbSaveAll();const ps=periods();if(!ACTIVE&&ps.length)ACTIVE=ps[ps.length-1];showApp();renderAll();
+    if(!opts.silent)toast('☁ 已載入 '+cloud.length+' 筆最新版 / Latest cloud records','success');return true;
+  }catch(e){toast(String(e.message||e),'error');return false;}finally{if(b)b.disabled=false;}
+}
+async function cloudUpload(opts){
+  opts=opts||{};const pending=RECS.filter(r=>!r.row&&r._src!=='cloud');if(!pending.length)return true;
+  const b=qs('#btn-cloud-up');if(b)b.disabled=true;let done=0;
+  try{
+    for(let i=0;i<pending.length;i+=40){
+      const chunk=pending.slice(i,i+40).map(r=>({...r,status:r.status||'待審核'}));
+      const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});
+      if(!res||!res.ok)throw Error(res&&res.error||'上傳未確認 / Upload not confirmed');
+      for(const r of res.records||[]){
+        const key=x=>String(x.empId||x.empName||'').trim()+'|'+x.incidentDate+'|'+x.level;
+        const sent=chunk.find(x=>String(x.id)===String(r.id)||key(x)===key(r));
+        if(sent)RECS=RECS.filter(x=>!(x.id===sent.id&&!x.row&&String(x.id)!==String(r.id)&&['empId','empName','empDept','empPos','reason','incidentDate','level','incidentTime','remark'].every(k=>String(x[k]||'')===String(sent[k]||''))));
+        await warningAcceptRecord(r);
+      }
+      if(res.conflicts&&res.conflicts.length)throw Error('雲端已有不同內容，未覆蓋 '+res.conflicts.length+' 筆；請核對後編輯 / Existing cloud records preserved');
+      done+=Number(res.imported)||0;
+    }
+    if(!opts.silent)toast('☁ 已上傳 '+done+' 筆 / Uploaded','success');return true;
+  }catch(e){toast(String(e.message||e),'error');return false;}finally{if(b)b.disabled=false;}
+}
+window.warningEdit=warningEdit;window.warningSendLatest=warningSendLatest;
 
 // ━━━━ 其他 ━━━━
 function exportCSV(which){
