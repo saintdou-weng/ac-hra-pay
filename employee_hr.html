@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<script src="shared/hrpay-reporting.js?v=3.9.14"></script>
+<script src="shared/hrpay-reporting.js?v=3.9.20"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
@@ -25,10 +25,11 @@
     table{font-size:11px}
   }
 </style>
-<script src="shared/hrpay-smart-sync.js"></script>
-<script src="shared/hrpay-auto-sync.js"></script>
-<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.18">
-<script src="shared/hrpay-online-core.js?v=3.9.18"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.20">
+<script src="shared/hrpay-online-core.js?v=3.9.20"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
 </head>
 <body class="text-slate-800">
 
@@ -57,7 +58,7 @@
       <button onclick="openEdit()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">
         ✏️ <span data-en="Edit / Add">線上更新</span></button>
       <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
-        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
+        🗑 <span class="hidden sm:inline" data-en="Clear local cache">清除本機快取</span></button>
       <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition">中/EN</button>
     </div>
   </div>
@@ -326,7 +327,7 @@ const PALETTE=['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#14b8a6','#636
 let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='year', charts={};
 
 const qs=s=>document.querySelector(s);
-const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const N=v=>{const n=parseFloat((typeof v==='string'?v.replace(/[,\s$៛]/g,'').replace(/^\((.*)\)$/,'-$1'):v));return isFinite(n)?n:0;};
 const int=n=>Math.round(n||0).toLocaleString('en-US');
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const T=(zh,en)=>LANG==='en'?en:zh;
@@ -367,6 +368,9 @@ async function idbSave(s){const db=await idbOpen();if(!db)throw new Error('本�
 async function idbAll(){const db=await idbOpen();if(!db)return [];
   return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
     rq.onsuccess=()=>r(rq.result||[]);rq.onerror=()=>r([]);});}
+async function idbDelete(key){const db=await idbOpen();if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);tx.oncomplete=()=>r();tx.onerror=()=>r();});}
 async function idbClear(){const db=await idbOpen();if(!db)return;
   return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
     tx.objectStore(IDB_STORE).clear();tx.oncomplete=()=>r();tx.onerror=()=>r();});}
@@ -581,9 +585,15 @@ function parseRoster(wb, fileName){
 // 快照期別：優先取檔名（Jun-_2026 / _2019），否則取名冊中最晚到職日
 function snapKeyOf(fileName, rows){
   const f=String(fileName||'');
+  // v3.9.20: numeric months first — Staff_2026-09 / 2026_09 / 202609 / 2026年9月 / 09-2026
+  let n=f.match(/(20\d{2})\s*年\s*(\d{1,2})\s*月/)||f.match(/(20\d{2})[-_. ]?(0[1-9]|1[0-2])(?!\d)/);
+  if(n){const mo=+n[2];if(mo>=1&&mo<=12)return {key:`${n[1]}-${pad(mo)}`,label:`${MS[mo-1]} ${n[1]}`};}
+  n=f.match(/(?:^|[^\d])(0?[1-9]|1[0-2])[-_. ](20\d{2})(?!\d)/);
+  if(n)return {key:`${n[2]}-${pad(+n[1])}`,label:`${MS[+n[1]-1]} ${n[2]}`};
   let m=f.match(/([A-Za-z]{3,})[-_\s.]*?(20\d{2})/);
   if(m){
-    const mi=MS.findIndex(x=>new RegExp('^'+x,'i').test(m[1]));
+    const FULLM=['january','february','march','april','may','june','july','august','september','october','november','december'],w=m[1].toLowerCase();
+    const mi=FULLM.findIndex(x=>w.length>=3&&x.startsWith(w)); // exact month word only ("Marketing" is not March)
     if(mi>=0)return {key:`${m[2]}-${pad(mi+1)}`, label:`${MS[mi]} ${m[2]}`};
   }
   m=f.match(/(20\d{2})/);
@@ -1218,6 +1228,7 @@ async function saveEdit(){
   if(!o.id){toast(T('工號必填','Factory ID is required'),'error');return;}
   const snap=SNAPS[ACTIVE];
   if(EDIT_ID && o.id!==EDIT_ID && snap.rows.some(x=>x.id===o.id)){toast(T('此工號已存在','This ID already exists'),'error');return;}
+  if(!EDIT_ID&&snap.rows.some(x=>x.id===o.id)){toast(T('此工號已存在，請改用「編輯」','This ID already exists — use Edit instead'),'error');return;}
   const i=snap.rows.findIndex(x=>x.id===(EDIT_ID||o.id));
   if(i>=0) snap.rows[i]={...snap.rows[i],...o};
   else{
@@ -1361,7 +1372,7 @@ async function sendTG(text,meta){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
-    if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出','Not sent'),'error');return false;}
+    if(!d||d.ok!==true||d.sent===false||(d.data&&d.data.sent===false)){toast(T('GAS 回報未送出','Not sent')+(d&&d.error?' · '+d.error:(!d?' · GAS no JSON reply':'')),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }
@@ -1384,14 +1395,14 @@ function employeeSnapToSync(snap){const key=snap.key||'',out=[],meta=Object.assi
 function employeeCloudRecords(){return snapKeys().reduce(function(a,k){return a.concat(employeeSnapToSync(SNAPS[k]||{}));},[]);}
 function employeeCloudMeta(){return{periods:snapKeys().slice()};}
 function employeeLegacyRows(env){const D=(env&&env.data)||env||{};return(D.snapshots||[]).reduce(function(a,x){return a.concat(employeeSnapToSync(x));},[]);}
-async function employeeApplyCloud(rows){const retainedPeriod=ACTIVE;const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,rows:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='row')z.rows.push(x.row||{});});for(const key of Object.keys(g)){const z=g[key],x=Object.assign({key:key},z.meta||{},{rows:z.rows});SNAPS[key]=x;await idbSave(x);}const ks=snapKeys();if(ks.length)ACTIVE=ks.includes(retainedPeriod)?retainedPeriod:ks[ks.length-1];await pushProjection();renderAll();}
+async function employeeApplyCloud(rows){const retainedPeriod=ACTIVE;const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,rows:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='row')z.rows.push(x.row||{});});for(const key of Object.keys(g)){const z=g[key],x=Object.assign({key:key},z.meta||{},{rows:z.rows});SNAPS[key]=x;await idbSave(x);}for(const k of Object.keys(SNAPS)){if(!g[k]){delete SNAPS[k];await idbDelete(k);}}const ks=snapKeys();ACTIVE=ks.length?(ks.includes(retainedPeriod)?retainedPeriod:ks[ks.length-1]):null;await pushProjection();renderAll();}
 function employeeSyncStatus(msg,type){console.log('[Employee smart sync]',msg);}
 function scheduleAutoCloudSync(reason){
   if(window.HRPayAutoSync){HRPayAutoSync.schedule('employee',reason||'change',{},900);return;}
   try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
   setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
 }
-async function cloudUpload(opts){opts=opts||{};if(!Object.keys(SNAPS).length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:employeeCloudRecords(),apply:employeeApplyCloud,legacyToRecords:employeeLegacyRows,meta:employeeCloudMeta(),onStatus:employeeSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudUpload(opts){opts=opts||{};if(!Object.keys(SNAPS).length&&!/delete/i.test(String(opts.reason||''))){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:employeeCloudRecords(),apply:employeeApplyCloud,legacyToRecords:employeeLegacyRows,meta:employeeCloudMeta(),onStatus:employeeSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
 async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:employeeCloudRecords(),legacyToRecords:employeeLegacyRows,apply:employeeApplyCloud,onStatus:employeeSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}if(!opts.silent)toast(T(`☁ 智慧下載完成 · ${res.downloaded||0} 份變更`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
@@ -1407,12 +1418,13 @@ function exportCSV(which){
   toast(T('CSV 已下載','CSV downloaded'),'success');
 }
 async function clearAllData(){
-  if(!confirm(T('確定清除所有已匯入的名冊快照？','Clear all imported roster snapshots?')))return;
+  if(!confirm(T('只清除「這台電腦」的本機快取，雲端資料會保留，下次開啟本頁會自動重新下載。\n（要刪除雲端資料，請在期間/記錄上按刪除）\n確定清除本機快取？','Clear the cache on THIS device only. Cloud data is kept and will be downloaded again next time.\n(To delete cloud data, delete the period/record itself.)\nClear local cache?')))return;
+  try{if(window.HRPaySmartSync&&HRPaySmartSync.resetState)HRPaySmartSync.resetState(HRPAY_SYNC_TOOL);if(window.HRPayAutoSync&&HRPayAutoSync.clearPending)HRPayAutoSync.clearPending('employee');}catch(e){}
   SNAPS={};ACTIVE=null;await idbClear();
   localStorage.removeItem('hrpay:result:employee_hr');
   qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
   showApp();
-  toast(T('資料已清除','Data cleared'),'warning');
+  toast(T('本機快取已清除（雲端保留）','Local cache cleared (cloud kept)'),'warning');
 }
 function setupDropZone(sel,handler,ringCls){
   const el=document.querySelector(sel);if(!el)return;
@@ -1443,7 +1455,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'employee',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
-<script src="shared/hrpay-online-ui.js?v=3.9.18" data-module="employee"></script>
-<script src="shared/hrpay-online-sync.js?v=3.9.18" data-module="employee"></script>
+<script src="shared/hrpay-online-ui.js?v=3.9.20" data-module="employee"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.20" data-module="employee"></script>
 </body>
 </html>

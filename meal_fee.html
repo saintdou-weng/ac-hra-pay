@@ -22,11 +22,12 @@
   ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
-<script src="shared/hrpay-periods.js"></script>
-<script src="shared/hrpay-smart-sync.js"></script>
-<script src="shared/hrpay-auto-sync.js"></script>
-<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.18">
-<script src="shared/hrpay-online-core.js?v=3.9.18"></script>
+<script src="shared/hrpay-periods.js?v=3.9.20"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.20">
+<script src="shared/hrpay-online-core.js?v=3.9.20"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
 </head>
 <body class="text-slate-800">
 
@@ -64,10 +65,10 @@
         class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">✏️ <span class="hidden sm:inline" data-en="Maintain">線上維護</span></button>
       <button onclick="clearAllData()" title="清除所有資料"
         class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
-        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span>
+        🗑 <span class="hidden sm:inline" data-en="Clear local cache">清除本機快取</span>
       </button>
       <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
-        ⬇ <span class="hidden sm:inline" data-en="Export">匯出</span>
+        ⬇ <span class="hidden sm:inline" data-en="Backup JSON">備份 JSON</span>
       </button>
       <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition">中/EN</button>
     </div>
@@ -375,7 +376,7 @@ let UNIT='half', MODE='total', REPORT_MODE='half';
 let charts={};
 
 const qs=s=>document.querySelector(s);
-const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const N=v=>{const n=parseFloat((typeof v==='string'?v.replace(/[,\s$៛]/g,'').replace(/^\((.*)\)$/,'-$1'):v));return isFinite(n)?n:0;};
 const fmt=n=>(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const int=n=>Math.round(n||0).toLocaleString('en-US');
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -432,6 +433,9 @@ async function idbAll(){
   return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
     rq.onsuccess=()=>r(rq.result||[]); rq.onerror=()=>r([]);});
 }
+async function idbDelete(key){const db=await idbOpen();if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);tx.oncomplete=()=>r();tx.onerror=()=>r();});}
 async function idbClear(){
   const db=await idbOpen(); if(!db)return;
   return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
@@ -1565,7 +1569,7 @@ function mealBatchToSync(e){const out=[],key=e.key||'',period=key.split(':')[0],
 function mealCloudRecords(){return sortedKeys().reduce(function(a,k){return a.concat(mealBatchToSync(STORE[k]||{}));},[]);}
 function mealCloudMeta(){return{periods:Array.from(new Set(sortedKeys().map(function(k){return k.split(':')[0];})))};}
 function mealLegacyRows(env){const D=(env&&env.data)||env||{};return(D.batches||[]).reduce(function(a,e){return a.concat(mealBatchToSync(e));},[]);}
-async function mealApplyCloud(rows){const retainedPeriod=ACTIVE&&ACTIVE.key;const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,att:[],meal:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='att')z.att.push(x.row||{});else if(x.kind==='meal')z.meal.push(x.row||{});});const uniq=a=>{const m=new Map();(a||[]).forEach((r,i)=>m.set(String(r.id||r.employeeId||i),r));return Array.from(m.values());};for(const key of Object.keys(g)){const z=g[key],e=Object.assign({key:key},z.meta||{});if(e.att||z.att.length)e.att=Object.assign({},e.att||{},{rows:uniq(z.att)});if(e.meal||z.meal.length)e.meal=Object.assign({},e.meal||{},{rows:uniq(z.meal)});STORE[key]=e;await idbSave(e);}const ks=sortedKeys();if(ks.length)ACTIVE=STORE[retainedPeriod]||STORE[ks[ks.length-1]];cacheMealProjectionLocal();renderAll();}
+async function mealApplyCloud(rows){const retainedPeriod=ACTIVE&&ACTIVE.key;const g={};(rows||[]).forEach(function(x){const key=x.key;if(!key)return;const z=g[key]||(g[key]={meta:null,att:[],meal:[]});if(x.kind==='meta')z.meta=x.data||{};else if(x.kind==='att')z.att.push(x.row||{});else if(x.kind==='meal')z.meal.push(x.row||{});});const uniq=a=>{const m=new Map();(a||[]).forEach((r,i)=>m.set(String(r.id||r.employeeId||i),r));return Array.from(m.values());};for(const key of Object.keys(g)){const z=g[key],e=Object.assign({key:key},z.meta||{});if(e.att||z.att.length)e.att=Object.assign({},e.att||{},{rows:uniq(z.att)});if(e.meal||z.meal.length)e.meal=Object.assign({},e.meal||{},{rows:uniq(z.meal)});STORE[key]=e;await idbSave(e);}for(const k of Object.keys(STORE)){if(!g[k]){delete STORE[k];await idbDelete(k);}}const ks=sortedKeys();ACTIVE=ks.length?(STORE[retainedPeriod]||STORE[ks[ks.length-1]]):null;cacheMealProjectionLocal();renderAll();}
 function mealSyncStatus(msg,type){console.log('[Meal smart sync]',msg);}
 function scheduleAutoCloudSync(reason,key){
   if(!key){try{const x=JSON.parse(localStorage.getItem(HRPAY_AUTO_KEY)||'{}');key=x.key||'';}catch(e){}}
@@ -1573,7 +1577,7 @@ function scheduleAutoCloudSync(reason,key){
   try{localStorage.setItem(HRPAY_AUTO_KEY,JSON.stringify({reason:reason||'change',key:key||'',at:Date.now()}));}catch(e){}
   setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true,key:key||''});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
 }
-async function cloudUpload(opts){opts=opts||{};if(!Object.keys(STORE).length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const k=opts.key||(ACTIVE&&ACTIVE.key)||'';if(k&&STORE[k])await pushProjection(STORE[k]);const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:mealCloudRecords(),apply:mealApplyCloud,legacyToRecords:mealLegacyRows,meta:mealCloudMeta(),onStatus:mealSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudUpload(opts){opts=opts||{};if(!Object.keys(STORE).length&&!/delete/i.test(String(opts.reason||''))){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const k=opts.key||(ACTIVE&&ACTIVE.key)||'';if(k&&STORE[k]&&!/^(startup-reconcile|reconcile|resume|pageshow|network-restored)$/.test(String(opts.reason||'')))await pushProjection(STORE[k]); /* v3.9.20: passive checks do not re-upload the projection */const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:mealCloudRecords(),apply:mealApplyCloud,legacyToRecords:mealLegacyRows,meta:mealCloudMeta(),onStatus:mealSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
 async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:mealCloudRecords(),legacyToRecords:mealLegacyRows,apply:mealApplyCloud,onStatus:mealSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}if(!opts.silent)toast(T(`☁ 智慧下載完成 · 下載 ${res.downloaded||0}`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
@@ -1606,12 +1610,13 @@ async function mealMaintSave(){const key=qs('#mm-key').value,src=qs('#mm-source'
 async function mealMaintDelete(){const key=qs('#mm-key').value,src=qs('#mm-source').value,e=STORE[key],id=MEAL_MAINT_ID||qs('#mm-record').value;if(!e||!id)return;if(!confirm(T('確定刪除此筆？','Delete this record?')))return;e[src].rows=(e[src].rows||[]).filter(r=>String(r.id)!==String(id));e.updatedAt=_nowISO();await idbSave(e);ACTIVE=e;cacheMealProjectionLocal();renderAll();pushProjection(e);scheduleAutoCloudSync('delete',key);mealMaintRefresh();toast(T('已刪除','Deleted'),'success');}
 
 async function clearAllData(){
-  if(!confirm(T('確定清除所有已匯入的餐費與考勤資料？','Clear all imported meal-fee and attendance data?')))return;
+  if(!confirm(T('只清除「這台電腦」的本機快取，雲端資料會保留，下次開啟本頁會自動重新下載。\n（要刪除雲端資料，請在期間/記錄上按刪除）\n確定清除本機快取？','Clear the cache on THIS device only. Cloud data is kept and will be downloaded again next time.\n(To delete cloud data, delete the period/record itself.)\nClear local cache?')))return;
+  try{if(window.HRPaySmartSync&&HRPaySmartSync.resetState)HRPaySmartSync.resetState(HRPAY_SYNC_TOOL);if(window.HRPayAutoSync&&HRPayAutoSync.clearPending)HRPayAutoSync.clearPending('meal');}catch(e){}
   STORE={}; ACTIVE=null; await idbClear();
   localStorage.removeItem('hrpay:result:meal');
   qs('#smart-report').classList.add('hidden'); qs('#smart-status').textContent='';
   showApp();
-  toast(T('資料已清除','Data cleared'),'warning');
+  toast(T('本機快取已清除（雲端保留）','Local cache cleared (cloud kept)'),'warning');
 }
 
 // ━━━━━━━━━━━━ 啟動 ━━━━━━━━━━━━
@@ -1654,7 +1659,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'meal',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
-<script src="shared/hrpay-online-ui.js?v=3.9.18" data-module="meal"></script>
-<script src="shared/hrpay-online-sync.js?v=3.9.18" data-module="meal"></script>
+<script src="shared/hrpay-online-ui.js?v=3.9.20" data-module="meal"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.20" data-module="meal"></script>
 </body>
 </html>

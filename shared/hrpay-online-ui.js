@@ -152,6 +152,6 @@
  if(mod==='payroll'&&typeof sendBreakdownTG==='function'){const original=sendBreakdownTG;sendBreakdownTG=async function(){const k=activeKey();if(pending(k,'payroll').length||pending(k,'advance').length){toast('本期有草稿待核對 / Review this period’s drafts first','error');return;}return original.apply(this,arguments);};}
  if(mod==='payroll'){openPayMaint=launch;}else if(mod==='meal'){openMealMaint=launch;}else if(mod==='employee'){openEdit=function(id){key=activeKey();launch();return safe(()=>edit(id));};}
  const anchor=document.querySelector(mod==='payroll'?'[onclick="openPayMaint()"]':mod==='meal'?'[onclick="openMealMaint()"]':'[onclick="openEdit()"]');
- if(anchor){const btn=document.createElement('button');btn.type='button';btn.className='hro-launch no-print';btn.textContent='沿用上期／線上操作 · Carry forward · ចម្លង';btn.onclick=()=>{key=activeKey();launch();};anchor.insertAdjacentElement('afterend',btn);}
+ if(anchor){const btn=document.createElement('button');btn.type='button';btn.className='hro-launch no-print';btn.textContent='✏️ 線上操作／沿用上期 · Online edit / Carry forward';btn.title=anchor.getAttribute('title')||'';btn.onclick=()=>{key=activeKey();launch();};anchor.insertAdjacentElement('afterend',btn);anchor.style.display='none';/* v3.9.20: one button instead of two that open the same window */}
  window.HRPayOnlineUI={renderSourceRecon,open:launch,edit:id=>safe(()=>edit(id)),getRows,setRows,save,review};
 })();

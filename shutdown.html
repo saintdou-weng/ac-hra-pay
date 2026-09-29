@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🛑 Shutdown Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -19,9 +19,10 @@
   ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
-<script src="shared/hrpay-periods.js"></script>
-<script src="shared/hrpay-smart-sync.js"></script>
-<script src="shared/hrpay-auto-sync.js"></script>
+<script src="shared/hrpay-periods.js?v=3.9.20"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
 </head>
 <body class="text-slate-800">
 
@@ -49,9 +50,9 @@
         ✈️ <span data-en="Telegram">傳送</span></button>
       <button onclick="openShutdownMaint()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition">✏️ <span class="hidden sm:inline" data-en="Maintain">線上維護</span></button>
       <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
-        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
+        🗑 <span class="hidden sm:inline" data-en="Clear local cache">清除本機快取</span></button>
       <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
-        ⬇ <span class="hidden sm:inline" data-en="Export">匯出</span></button>
+        ⬇ <span class="hidden sm:inline" data-en="Backup JSON">備份 JSON</span></button>
       <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition">中/EN</button>
     </div>
   </div>
@@ -291,7 +292,7 @@ const PALETTE=['#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#10b981','#ec4899','#14b
 let LANG='zh', EVENTS=[], ACTIVE=null, UNIT='month', REPORT_MODE='month', charts={};
 
 const qs=s=>document.querySelector(s);
-const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const N=v=>{const n=parseFloat((typeof v==='string'?v.replace(/[,\s$៛]/g,'').replace(/^\((.*)\)$/,'-$1'):v));return isFinite(n)?n:0;};
 const fmt=n=>(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const int=n=>Math.round(n||0).toLocaleString('en-US');
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -926,7 +927,7 @@ async function sendTG(text,meta){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify(Object.assign({type:'notify',text,checker},meta||{}))});
     let d=null; try{d=await r.json();}catch(e){}
-    if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
+    if(!d||d.ok!==true||d.sent===false||(d.data&&d.data.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent')+(d&&d.error?' · '+d.error:(!d?' · GAS no JSON reply':'')),'error');return false;}
     toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
   }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
 }
@@ -955,7 +956,7 @@ function scheduleAutoCloudSync(reason){
   try{localStorage.setItem(HRPAY_AUTO_KEY,String(Date.now()));}catch(e){}
   setTimeout(async function(){const ok=await cloudUpload({silent:true,auto:true});if(ok)try{localStorage.removeItem(HRPAY_AUTO_KEY);}catch(e){}},900);
 }
-async function cloudUpload(opts){opts=opts||{};if(!EVENTS.length){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:shutdownCloudRecords(),apply:shutdownApplyCloud,legacyToRecords:shutdownLegacyRows,meta:shutdownCloudMeta(),onStatus:shutdownSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
+async function cloudUpload(opts){opts=opts||{};if(!EVENTS.length&&!/delete/i.test(String(opts.reason||''))){if(!opts.silent)toast(T('尚無資料可上傳','Nothing to upload'),'error');return false;}const b=qs('#btn-cloud-up');if(b){b.disabled=true;b.classList.add('opacity-50');}try{await pushProjection();const res=await HRPaySmartSync.push({url:GAS_URL,tool:HRPAY_SYNC_TOOL,records:shutdownCloudRecords(),apply:shutdownApplyCloud,legacyToRecords:shutdownLegacyRows,meta:shutdownCloudMeta(),onStatus:shutdownSyncStatus});if(!res||res.ok!==true)throw new Error('Sync incomplete; retry download first');if(!opts.silent)toast(res&&res.skipped?T('☁ 雲端已是最新，不需重傳','☁ Cloud already current'):T('☁ 智慧上傳完成','☁ Smart upload complete'),'success');return true;}catch(e){if(!opts.silent)toast(T('上傳失敗：','Upload failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
 
 
 async function cloudDownload(opts){opts=opts||{};const b=qs('#btn-cloud-down');if(b){b.disabled=true;b.classList.add('opacity-50');}try{const res=await HRPaySmartSync.pull({url:GAS_URL,tool:HRPAY_SYNC_TOOL,localRecords:shutdownCloudRecords(),legacyToRecords:shutdownLegacyRows,apply:shutdownApplyCloud,onStatus:shutdownSyncStatus});if(res&&res.noCloud){if(!opts.silent)toast(T('雲端尚無資料','No cloud data'),'warning');return false;}if(!opts.silent)toast(T(`☁ 智慧下載完成 · ${res.downloaded||0} 筆變更`,`☁ Smart download · ${res.downloaded||0} changed`),'success');return true;}catch(e){if(!opts.silent)toast(T('下載失敗：','Download failed: ')+e.message,'error');console.error(e);return false;}finally{if(b){b.disabled=false;b.classList.remove('opacity-50');}}}
@@ -981,19 +982,20 @@ function ensureShutdownMaint(){if(qs('#shutdown-maint-modal'))return;const d=doc
 function openShutdownMaint(){ensureShutdownMaint();shutdownMaintRefresh();const m=qs('#shutdown-maint-modal');m.classList.remove('hidden');m.classList.add('flex');}
 function closeShutdownMaint(){const m=qs('#shutdown-maint-modal');m.classList.add('hidden');m.classList.remove('flex');}
 function shutdownMaintRefresh(){const s=qs('#sm-record');s.innerHTML='<option value="">＋ New / 新增</option>'+EVENTS.slice().sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(e=>`<option value="${esc(shutdownKey(e))}">${e.start}${e.end&&e.end!==e.start?'~'+e.end:''} · #${e.seq} · ${int(e.shutPPL)} ppl</option>`).join('');shutdownMaintNew();}
-function shutdownMaintNew(){SHUT_MAINT_KEY='';qs('#sm-record').value='';const d=new Date(),ds=dStr(d);qs('#sm-start').value=ACTIVE?ACTIVE+'-01':ds;qs('#sm-end').value=qs('#sm-start').value;['seq','ttlLine','shutLine','shutPPL','remainPPL','ttlPPL'].forEach(k=>qs('#sm-'+k).value='');}
+function shutdownMaintNew(){SHUT_MAINT_KEY='';qs('#sm-record').value='';const d=new Date(),ds=dStr(d);qs('#sm-start').value=ACTIVE?(String(ACTIVE).length===7?ACTIVE+'-01':String(ACTIVE).slice(0,10)):ds;qs('#sm-end').value=qs('#sm-start').value;['seq','ttlLine','shutLine','shutPPL','remainPPL','ttlPPL'].forEach(k=>qs('#sm-'+k).value='');}
 function shutdownMaintLoad(){const k=qs('#sm-record').value,e=EVENTS.find(x=>shutdownKey(x)===k);if(!e){shutdownMaintNew();return;}SHUT_MAINT_KEY=k;['start','end','seq','ttlLine','shutLine','shutPPL','remainPPL','ttlPPL'].forEach(x=>qs('#sm-'+x).value=e[x]!=null?e[x]:'');}
 function shutdownBuildOnline(){const s=qs('#sm-start').value,e=qs('#sm-end').value||s;if(!s)return null;const sd=toDate(s),ed=toDate(e);if(!sd||!ed||ed<sd)return null;const days=Math.round((ed-sd)/86400000)+1,ttlLine=N(qs('#sm-ttlLine').value),shutLine=N(qs('#sm-shutLine').value),shutPPL=N(qs('#sm-shutPPL').value),remain=N(qs('#sm-remainPPL').value),ttlPPL=N(qs('#sm-ttlPPL').value)||(shutPPL+remain);return{year:+s.slice(0,4),seq:N(qs('#sm-seq').value)||1,start:s,end:e,wdStart:wdName(sd),wdEnd:wdName(ed),days,spanDays:days,ttlLine,shutLine,lineRatio:ttlLine?shutLine/ttlLine:0,shutPPL,remainPPL:remain,ttlPPL,personDays:days*shutPPL,sheet:'Online',src:'Online'};}
-async function shutdownMaintSave(){const e=shutdownBuildOnline();if(!e){toast(T('日期不正確','Invalid date range'),'error');return;}const nk=shutdownKey(e);if(SHUT_MAINT_KEY&&SHUT_MAINT_KEY!==nk)EVENTS=EVENTS.filter(x=>shutdownKey(x)!==SHUT_MAINT_KEY);EVENTS=shutdownUpsert(EVENTS,[e]).rows;EVENTS.sort((a,b)=>a.start<b.start?-1:1);await idbSaveAll();ACTIVE=e.start.slice(0,7);await pushProjection();renderAll();scheduleAutoCloudSync(SHUT_MAINT_KEY?'edit':'add');shutdownMaintRefresh();qs('#sm-record').value=nk;SHUT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');}
+async function shutdownMaintSave(){const e=shutdownBuildOnline();if(!e){toast(T('日期不正確','Invalid date range'),'error');return;}if([e.ttlLine,e.shutLine,e.shutPPL,e.remainPPL,e.ttlPPL].some(v=>v<0)){toast(T('數字不可為負數','Numbers cannot be negative'),'error');return;}if(e.ttlLine&&e.shutLine>e.ttlLine){toast(T('停工組數不可大於總組數','Stopped lines cannot exceed total lines'),'error');return;}if(!qs('#sm-seq').value){const same=EVENTS.filter(x=>x.start===e.start&&shutdownKey(x)!==SHUT_MAINT_KEY);if(same.length)e.seq=Math.max(...same.map(x=>N(x.seq)||1))+1;}const nk=shutdownKey(e);if(!SHUT_MAINT_KEY&&EVENTS.some(x=>shutdownKey(x)===nk)){toast(T('同一天同序號的事件已存在，請改序號或用編輯','An event with this date and # already exists — change # or edit it'),'error');return;}if(SHUT_MAINT_KEY&&SHUT_MAINT_KEY!==nk)EVENTS=EVENTS.filter(x=>shutdownKey(x)!==SHUT_MAINT_KEY);EVENTS=shutdownUpsert(EVENTS,[e]).rows;EVENTS.sort((a,b)=>a.start<b.start?-1:1);await idbSaveAll();ACTIVE=e.start.slice(0,7);await pushProjection();renderAll();scheduleAutoCloudSync(SHUT_MAINT_KEY?'edit':'add');shutdownMaintRefresh();qs('#sm-record').value=nk;SHUT_MAINT_KEY=nk;toast(T('已儲存','Saved'),'success');}
 async function shutdownMaintDelete(){const k=SHUT_MAINT_KEY||qs('#sm-record').value;if(!k)return;if(!confirm(T('確定刪除此事件？','Delete this event?')))return;EVENTS=EVENTS.filter(e=>shutdownKey(e)!==k);await idbSaveAll();await pushProjection();renderAll();scheduleAutoCloudSync('delete');shutdownMaintRefresh();toast(T('已刪除','Deleted'),'success');}
 
 async function clearAllData(){
-  if(!confirm(T('確定清除所有已匯入的停工記錄？','Clear all imported shutdown records?')))return;
+  if(!confirm(T('只清除「這台電腦」的本機快取，雲端資料會保留，下次開啟本頁會自動重新下載。\n（要刪除雲端資料，請在期間/記錄上按刪除）\n確定清除本機快取？','Clear the cache on THIS device only. Cloud data is kept and will be downloaded again next time.\n(To delete cloud data, delete the period/record itself.)\nClear local cache?')))return;
+  try{if(window.HRPaySmartSync&&HRPaySmartSync.resetState)HRPaySmartSync.resetState(HRPAY_SYNC_TOOL);if(window.HRPayAutoSync&&HRPayAutoSync.clearPending)HRPayAutoSync.clearPending('shutdown');}catch(e){}
   EVENTS=[];ACTIVE=null;await idbClear();
   localStorage.removeItem('hrpay:result:shutdown');
   qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
   showApp();
-  toast(T('資料已清除','Data cleared'),'warning');
+  toast(T('本機快取已清除（雲端保留）','Local cache cleared (cloud kept)'),'warning');
 }
 
 // ━━━━ 拖放上傳 ━━━━

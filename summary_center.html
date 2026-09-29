@@ -56,6 +56,7 @@ padding:11px 20px;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:n
 
 .topctl{max-width:1080px;margin:12px auto 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.topctl .lab{font-size:.72rem;opacity:.72}.topctl select{min-height:38px}.navbtn{width:38px;height:38px;padding:0;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.12);color:#fff;font-size:1rem;font-weight:800;cursor:pointer}.navbtn:disabled{opacity:.35}.syncpill{font-size:.7rem;padding:6px 10px;border-radius:18px;background:rgba(255,255,255,.12);color:#fff;white-space:nowrap}.syncpill.ok{background:#dcfce7;color:#166534}.syncpill.busy{background:#fef3c7;color:#92400e}.syncpill.warn{background:#fee2e2;color:#991b1b}.scale-sel{min-width:118px}.period-sel{min-width:155px}@media(max-width:560px){header{padding:14px 12px}.topctl{margin-top:10px;gap:6px}.topctl .lab{width:100%}.scale-sel{min-width:108px;flex:0 0 auto}.period-sel{min-width:0;flex:1}.hbtns{width:100%}.hbtns .btn{flex:1}.syncpill{order:9;width:100%;text-align:center}}
 </style>
+<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
 </head>
 <body>
 <header>
@@ -185,6 +186,8 @@ async function projectionMeta(m){
   const r=await fetch(GAS_URL+'?action=pullProjectionMeta&module='+encodeURIComponent(m),{cache:'no-store'});
   const d=await r.json();
   const x=(d&&d.data)||d||{};
+  // v3.9.20: GAS without this action answers {message:...} (no "exists") -> null = fall back to full pullProjection
+  if(!x||typeof x!=='object'||!('exists' in x))return null;
   return {exists:!!x.exists,updatedAt:x.updatedAt||'',itemCount:Number(x.itemCount)||0,keys:x.keys||[]};
 }
 function mergeProjectionItems(localItems,cloudItems){

@@ -131,9 +131,10 @@ setLang(localStorage.getItem('hrpay_lang')||'tc');
   try{
     const r=await fetch(GAS_URL+'?action=status',{method:'GET'});
     const d=await r.json();
-    if(d&&(d.ok||d.status)){dot.className='dot ok';txt.textContent='GAS 已連線';}
-    else{dot.className='dot err';txt.textContent='GAS 回應異常';}
-  }catch(e){dot.className='dot err';txt.textContent='GAS 離線';}
+    const L=()=>localStorage.getItem('hrpay_lang')||'tc',M={ok:{tc:'GAS 已連線',en:'GAS connected',km:'GAS បានភ្ជាប់'},bad:{tc:'GAS 回應異常',en:'GAS error',km:'GAS មានបញ្ហា'}};
+    const st=(d&&(d.ok||d.status))?'ok':'bad';dot.className='dot '+(st==='ok'?'ok':'err');txt.dataset.st=st;txt.textContent=M[st][L()]||M[st].tc;
+    document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',()=>{txt.textContent=M[txt.dataset.st][L()]||M[txt.dataset.st].tc;}));
+  }catch(e){dot.className='dot err';const l=localStorage.getItem('hrpay_lang')||'tc';txt.textContent={tc:'GAS 離線',en:'GAS offline',km:'GAS គ្មានអ៊ីនធឺណិត'}[l]||'GAS 離線';}
 })();
 </script>
 </body>
