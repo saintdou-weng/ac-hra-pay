@@ -64,9 +64,9 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 }
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
-<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
-<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.21"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.21"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.21"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -2291,19 +2291,19 @@ function buildTgText(scope,key,recordId,ptype){
   if(scope==='batch'){
     var b=BATCHES[key]; if(!b)return {err:L('找不到該批次','Batch not found','រកមិនឃើញក្រុម')};
     var dest={}; b.recs.forEach(function(r){var d=r.newDept||'—';dest[d]=(dest[d]||0)+1;});
-    var W=[24,7,8], tb=row(['Destination','Staff','%'],W)+'\n'+row(['------------------------','-------','--------'],W)+'\n';
-    Object.keys(dest).sort(function(x,y){return dest[y]-dest[x];}).forEach(function(d){tb+=row([d,dest[d],(dest[d]/b.recs.length*100).toFixed(1)],W)+'\n';});
-    tb+=row(['TOTAL',b.recs.length,'100.0'],W);
+    var trow=function(a,w){return a.map(function(v,i){v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' ');}; /* v3.9.21 mobile card */
+    var W=[22,5,6], tb=trow(['To Dept','Staff','%'],W)+'\n'+'-'.repeat(35)+'\n';
+    Object.keys(dest).sort(function(x,y){return dest[y]-dest[x];}).forEach(function(d){tb+=trow([d,dest[d],(dest[d]/b.recs.length*100).toFixed(1)],W)+'\n';});
+    tb+='-'.repeat(35)+'\n'+trow(['TOTAL',b.recs.length,'100.0'],W);
     var t='📦 <b>團體調轉 Group Transfer</b>\n'+H
-      +'<pre>'+row(['Effective',b.eff,'Headcount',b.recs.length],[12,14,12,8])+'\n'
-      +row(['From',b.origDept||'—','Salary','None'],[12,20,12,8])+'</pre>\n'
+      +'📅 生效 Effective '+esc(b.eff)+' · 👥 <b>'+b.recs.length+'</b> 人\n🏭 '+esc(b.origDept||'—')+' → '+esc(b.dests.join(' / '))+' · 💵 薪資不變 No salary change\n'
       +'📝 <b>原因 Reason：</b>'+esc(batchReason(b))+'\n'
-      +'<b>去向分佈 Destination Breakdown</b>\n<pre>'+esc(tb)+'</pre>\n'
-      +'<b>人員清單 Member List</b>\n';
-    var Wm=[5,12,20,22], mt=row(['#','ID','Name','To Dept'],Wm)+'\n'+row(['-----','------------','--------------------','----------------------'],Wm)+'\n';
+      +'<b>去向 Destination</b>\n<pre>'+esc(tb)+'</pre>\n'
+      +'<b>人員 Members</b>\n';
+    var Wm=[3,8,13,10], mt=row(['#','ID','Name','To'],Wm)+'\n';
     var cut=0;
     b.recs.forEach(function(r,i){
-      var m=row([i+1,r.empId||'',r.name||'',r.newDept||'—'],Wm)+'\n';
+      var m=row([i+1,r.empId||'',String(r.name||'').slice(0,13),r.newDept||'—'],Wm)+'\n';
       if((t+'<pre>'+mt+m+'</pre>').length<TG_LIMIT-120)mt+=m; else cut++;
     });
     t+='<pre>'+esc(mt.trimEnd())+'</pre>'+(cut?'\n… '+cut+' more / 其餘 '+cut+' 筆略':'')+'\n🕐 '+nowStr();
@@ -2316,20 +2316,16 @@ function buildTgText(scope,key,recordId,ptype){
     if(!D.length)return {err:L('該期間無個人調職記錄','No individual transfers','គ្មានទិន្នន័យ')};
     var tot=D.reduce(function(s,r){return s+recDiff(r);},0), single=(D.length===1&&recordId);
     var t2=(single?'👤 <b>單人調職 Single Employee Transfer</b>\n':'👤 <b>個人調職 Individual Transfer</b>\n')+H
-      +'<pre>'+row(['Period',single?D[0].effDate:tgPeriodLabel(ptype,key),'Records',D.length],[12,18,12,8])+'\n'
-      +row(['Total Adj.','$'+fmtS(tot),'Avg/Rec.',D.length?'$'+fmtS(tot/D.length):'$0.00'],[12,18,12,12])+'</pre>\n';
+      +'📅 '+esc(single?D[0].effDate:tgPeriodLabel(ptype,key))+' · 👥 <b>'+D.length+'</b> 筆 Records\n💵 調薪合計 Total adj. <b>$'+fmtS(tot)+'</b> · 平均 Avg $'+(D.length?fmtS(tot/D.length):'0.00')+'\n';
     var acc='',cut2=0;
     D.forEach(function(r,i){
-      var fields='';
-      fields+=row(['ID',r.empId||'','Name',r.name||''],[11,13,11,20])+'\n';
-      fields+=row(['From Dept',r.origDept||'—','From Pos',r.origPos||'—'],[11,18,11,22])+'\n';
-      fields+=row(['To Dept',r.newDept||'—','To Pos',r.newPos||'—'],[11,18,11,22])+'\n';
-      fields+=row(['Effective',r.effDate||'—','Reason',r.reason||'—'],[11,13,11,30])+'\n';
+      var trow=function(a,w){return a.map(function(v,i){v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' ');};
+      var fields='🏭 '+esc(r.origDept||'—')+(r.origPos?' / '+esc(r.origPos):'')+' → <b>'+esc(r.newDept||'—')+(r.newPos?' / '+esc(r.newPos):'')+'</b>\n📅 生效 '+esc(r.effDate||'—')+(r.reason?' · 📝 '+esc(r.reason):'');
       var sal=SAL.filter(function(x){return N(r.before[x.k])||N(r.after[x.k]);});
-      var sw=[18,10,10,10], st=row(['Salary Item','Before','After','Diff'],sw)+'\n'+row(['------------------','----------','----------','----------'],sw)+'\n';
-      sal.forEach(function(x){var bef=N(r.before[x.k]),aft=N(r.after[x.k]);st+=row([x.en||x.zh,bef.toFixed(2),aft.toFixed(2),fmtS(aft-bef)],sw)+'\n';});
-      st+=row(['TOTAL',fmt(salTotal(r.before)),fmt(salTotal(r.after)),fmtS(recDiff(r))],sw);
-      var blk='\n<b>— '+(i+1)+'. '+esc(r.empId)+' '+esc(r.name)+' —</b>\n<pre>'+esc(fields.trimEnd())+'</pre>\n<pre>'+esc(st)+'</pre>\n';
+      var sw=[11,7,7,7], st=trow(['Item','Before','After','Diff'],sw)+'\n'+'-'.repeat(35)+'\n';
+      sal.forEach(function(x){var bef=N(r.before[x.k]),aft=N(r.after[x.k]);st+=trow([x.en||x.zh,bef.toFixed(2),aft.toFixed(2),fmtS(aft-bef)],sw)+'\n';});
+      st+='-'.repeat(35)+'\n'+trow(['TOTAL',fmt(salTotal(r.before)),fmt(salTotal(r.after)),fmtS(recDiff(r))],sw);
+      var blk='\n<b>'+(i+1)+'. '+esc(r.empId)+' '+esc(r.name)+'</b>\n'+fields+(sal.length?'\n<pre>'+esc(st)+'</pre>':'\n💵 薪資不變 No salary change')+'\n';
       if((t2+acc+blk).length<TG_LIMIT-120)acc+=blk; else cut2++;
     });
     t2+=acc+(cut2?'\n… '+cut2+' more / 其餘 '+cut2+' 筆略\n':'')+'\n🕐 '+nowStr();
@@ -2342,14 +2338,14 @@ function buildTgText(scope,key,recordId,ptype){
   var em={}; D2.forEach(function(r){em[_norm(r.empId).toUpperCase()]=1;});
   var tot2=i2.reduce(function(s,r){return s+recDiff(r);},0), dep={};
   D2.forEach(function(r){var k2=(r.origDept||'—')+' → '+(r.newDept||'—');dep[k2]=(dep[k2]||0)+1;});
-  var W3=[32,7,8], rt=row(['Route','Staff','%'],W3)+'\n'+row(['--------------------------------','-------','--------'],W3)+'\n';
-  Object.keys(dep).sort(function(a,b2){return dep[b2]-dep[a];}).slice(0,10).forEach(function(k2){rt+=row([k2,dep[k2],(dep[k2]/D2.length*100).toFixed(1)],W3)+'\n';});
-  rt+=row(['TOTAL',D2.length,'100.0'],W3);
-  var t3='📊 <b>人事異動期間報告 Period Transfer Report</b>\n'+H
-    +'<pre>'+row(['Period',tgPeriodLabel(ptype,key),'Movements',D2.length],[12,18,12,8])+'\n'
-    +row(['Employees',Object.keys(em).length,'Group',g.length+' / '+Object.keys(bks).length+' batches'],[12,18,12,20])+'\n'
-    +row(['Individual',i2.length,'Total Adj.','$'+fmtS(tot2)],[12,18,12,20])+'\n'
-    +row(['Avg Adj.',i2.length?'$'+fmtS(tot2/i2.length):'$0.00',' ',' '],[12,18,12,20])+'</pre>\n'
+  var trow=function(a,w){return a.map(function(v,i){v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' ');}; /* v3.9.21 mobile card */
+  var W3=[24,5,5], rt=trow(['Route','Staff','%'],W3)+'\n'+'-'.repeat(36)+'\n';
+  Object.keys(dep).sort(function(a,b2){return dep[b2]-dep[a];}).slice(0,10).forEach(function(k2){rt+=trow([k2.replace(' → ','→'),dep[k2],(dep[k2]/D2.length*100).toFixed(1)],W3)+'\n';});
+  rt+='-'.repeat(36)+'\n'+trow(['TOTAL',D2.length,'100.0'],W3);
+  var t3='📊 <b>人事異動 Transfer Report</b> · '+esc(tgPeriodLabel(ptype,key))+'\n'+H
+    +'🔄 <b>'+D2.length+'</b> 筆異動 Movements · 👥 '+Object.keys(em).length+' 人 Staff\n'
+    +'📦 團體 Group '+g.length+'（'+Object.keys(bks).length+' 批 batches）· 👤 個人 Individual '+i2.length+'\n'
+    +'💵 調薪合計 Total adj. <b>$'+fmtS(tot2)+'</b> · 平均 Avg '+(i2.length?'$'+fmtS(tot2/i2.length):'$0.00')+'\n'
     +'<b>調動路線 Top 10 Routes</b>\n<pre>'+esc(rt)+'</pre>\n🕐 '+nowStr();
   return {text:t3,headcount:D2.length,amount:tot2,title:'人事異動期間報告 Transfer Report — '+tgPeriodLabel(ptype,key)};
 }
@@ -2357,7 +2353,7 @@ function buildTgText(scope,key,recordId,ptype){
 /* v3.9.2：Summary / Approval 共用完整欄位式正文；資料、核可 key、期間與送審流程不變。 */
 function buildTgSummaryTable(scope,key,recordId,ptype){ return buildTgText(scope,key,recordId,ptype); }
 
-function openTg(){ buildTgPeriodSelect(); hrpSyncPersonField(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
+function openTg(){ if(_tgScope==='batch'&&!Object.keys(BATCHES).length)_tgScope='sum'; /* v3.9.21: no batch yet → open on period summary instead of an empty list */ buildTgPeriodSelect(); hrpSyncPersonField(); setTgScope(_tgScope); el('m-tg').classList.add('open'); refreshApprovalStatus(true); }
 function openTgFor(scope,key,recordId){
   _tgScope=scope; _tgRecordId=recordId||'';
   if(scope==='ind'&&recordId){

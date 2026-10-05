@@ -19,10 +19,10 @@
   ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
-<script src="shared/hrpay-periods.js?v=3.9.20"></script>
-<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
-<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
+<script src="shared/hrpay-periods.js?v=3.9.21"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.21"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.21"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.21"></script>
 </head>
 <body class="text-slate-800">
 
@@ -1168,7 +1168,7 @@ function buildTgSummaryTable(type,period){
   if(type==='special'){
     const dm={};recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,sun:0,holDay:0,holHr:0,normal:0,night:0,escort:0,meal:0,hour:0,exp:0});v.ppl+=1;v.sun+=N(r.sundayDays);v.holDay+=N(r.holidayDays);v.holHr+=N(r.holidayHours);v.normal+=N(r.normalOtHours);v.night+=N(r.nightOtHours);v.escort+=N(r.escortDays);v.meal+=N(r.mealFee);v.hour+=specialEqHours(r);v.exp+=N(r.expense);});
     const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp||b[1].hour-a[1].hour),sum=k=>list.reduce((s,[,v])=>s+N(v[k]),0),tP=sum('ppl'),tS=sum('sun'),tHD=sum('holDay'),tHH=sum('holHr'),tN=sum('normal'),tNight=sum('night'),tTrip=sum('escort'),tMeal=sum('meal'),tEq=sum('hour'),tE=sum('exp'),miss=recs.filter(r=>N(r.expense)<=0).length;
-    const W=[18,7,11,13];let tb=row(['Dept / Group','Staff','Eq. Hours','Cash USD'],W)+'\n'+row(['------------------','-------','-----------','-------------'],W)+'\n';
+    const W=[13,5,7,9];let tb=row(['Group','Staff','Eq.h','USD'],W)+'\n'+'-'.repeat(37)+'\n';
     list.forEach(([d,v])=>tb+=row([d,int(v.ppl),fmt(v.hour),fmt(v.exp)],W)+'\n');
     tb+=row(['TOTAL',int(tP),fmt(tEq),fmt(tE)],W);
     let t='🌞 <b>特殊加班 Special OT</b>\n💵 <b>另行現金發放 Separate Cash Payment</b>\n📅 期間 Period：'+label+'\n'
@@ -1181,12 +1181,13 @@ function buildTgSummaryTable(type,period){
   }
   const dm={}; recs.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={ppl:0,hour:0,exp:0});v.ppl+=N(r.ppl);v.hour+=N(r.hour);v.exp+=N(r.expense);});
   const list=Object.entries(dm).sort((a,b)=>b[1].exp-a[1].exp), tP=list.reduce((s,[,v])=>s+v.ppl,0),tH=list.reduce((s,[,v])=>s+v.hour,0),tE=list.reduce((s,[,v])=>s+v.exp,0),avg=tP?tE/tP:0;
-  const W=[19,6,6,8,10,9];
-  let tb=row(['Dept','Staff','%','Hours','Amount','Avg'],W)+'\n'+row(['-------------------','------','------','--------','----------','---------'],W)+'\n';
-  list.forEach(([d,v])=>tb+=row([d,int(v.ppl),tP?((v.ppl/tP)*100).toFixed(1):'0.0',int(v.hour),fmt(v.exp),v.ppl?fmt(v.exp/v.ppl):'0.00'],W)+'\n');
-  tb+=row(['TOTAL',int(tP),'100.0',int(tH),fmt(tE),fmt(avg)],W);
+  /* v3.9.21 mobile card */
+  const trow=(a,w)=>a.map((v,i)=>{v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' '); const W=[12,5,6,10];
+  let tb=trow(['Dept','Staff','Hours','USD'],W)+'\n'+'-'.repeat(36)+'\n';
+  list.forEach(([d,v])=>tb+=trow([d,int(v.ppl),int(v.hour),fmt(v.exp)],W)+'\n');
+  tb+='-'.repeat(36)+'\n'+trow(['TOTAL',int(tP),int(tH),fmt(tE)],W);
   const head=type==='ot'?'⏱ <b>加班支出 Overtime</b>':type==='bonus'?'🎁 <b>生產獎金 Production Bonus</b>':type==='all'?'📊 <b>全部變動成本 All Variable Cost</b>':'📊 <b>加班＋獎金 OT + Bonus</b>';
-  let t=head+'\n📅 期間 Period：'+label+'\n<b>摘要 Summary</b>\n<pre>'+row(['Depts',list.length,'Headcount',int(tP)],[10,8,10,8])+'\n'+row(['Hours',int(tH),'Total','$'+fmt(tE)],[10,8,10,12])+'\n'+row(['$/Hour',tH?fmt(tE/tH):'—','Avg/Staff',fmt(avg)],[10,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+  let t=head+' · '+label+'\n👥 <b>'+int(tP)+'</b> 人 Staff · 🏭 '+list.length+' 部門 · ⏱ '+int(tH)+' h\n💵 <b>$'+fmt(tE)+'</b> · 人均 Avg $'+fmt(avg)+(tH?' · $/h '+fmt(tE/tH):'')+'\n\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>';
   if(dept)t+='\n🔎 '+T('已篩選部門','Filtered dept')+'：'+esc(dept);
   return{text:t,amount:tE,headcount:tP};
 }
@@ -1283,7 +1284,7 @@ async function confirmSendTg(){
     const ppl=r.headcount!=null?r.headcount:recs.reduce((s2,x)=>s2+N(x.ppl),0);
     const tz=type==='ot'?T('加班 Overtime','Overtime'):type==='bonus'?T('獎金 Bonus','Bonus'):type==='special'?T('特殊加班 Special OT','Special OT'):T('加班＋獎金','OT + Bonus');
     const [y,m]=period.split('-');
-    ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl,type==='special'?'special_ot':'ot_bonus',r.items||[]);
+    ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl,type==='special'?'special_ot':type==='bonus'?'bonus':'ot_bonus',r.items||[]); /* v3.9.21: Bonus has its own approval (was sharing the OT key, so after OT was approved Bonus could never be sent) */
   }else{
     ok=await sendTG(r.text,{module:type==='special'?'special_ot':'otbonus',period:period,periods:[String(period).slice(0,7)]});
   }

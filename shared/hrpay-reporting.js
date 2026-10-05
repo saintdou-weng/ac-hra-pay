@@ -13,21 +13,36 @@ const DEFAULT_KHR_PER_USD=4000;
 function fx(rows,p){const configured=num(p&&p.exchangeRate),source=sourceRate(rows),rate=configured>0?configured:source||DEFAULT_KHR_PER_USD;return {rate,source:configured>0?(p&&p.exchangeRateSource||'本期設定 Period setting'):source?'E-Form KHR ÷ USD':'系統預設 Default (可修改 Editable)',confirmed:rate>0,isDefault:!(configured>0)&&!source};}
 function usd(v,rate){return rate>0?'$'+money(num(v)/rate):'待填匯率 FX required';}
 function benefits(rows,module,period,p){
+  // v3.9.21 compact card: totals first, one aligned line per department (Telegram <pre>), no walls of text
   const isN=module==='nssf',paid=rows.filter(r=>isN||r.eligible),fxInfo=fx(rows,p),rate=fxInfo.rate;
   const sum=(rs,k)=>rs.reduce((s,r)=>s+num(r[k]),0),total=sum(paid,'amount'),avg=paid.length?total/paid.length:0;
-  const cash=v=>isN?usd(v,rate):'$'+money(v);
-  let text=(isN?'🛡 <b>NSSF 社會保險</b>':'🌿 <b>Seniority 半年年資</b>')+'\n📅 '+esc(period)+' · 👥 '+paid.length+' 人 Staff\n💵 <b>'+cash(total)+'</b> · 人均 Avg '+cash(avg);
-  if(isN){text+='\n🟠 職災 Risk '+cash(sum(paid,'risk'))+'\n🔵 醫療 Health '+cash(sum(paid,'health'))+'\n🟣 退休金 Pension '+cash(sum(paid,'pension'))+'\n🏭 工廠負擔 100% · 員工扣款 $0.00';
-    text+='\n💱 1 USD = '+rate.toLocaleString('en-US')+' KHR · '+esc(fxInfo.source)+'\n原額 Source: KHR '+total.toLocaleString('en-US');
-  }else{text+='\n📆 平均給付 Avg days '+(paid.length?sum(paid,'days')/paid.length:0).toFixed(2)+' 天\n🧮 平均月薪 Avg wage $'+money(paid.length?sum(paid,'averageSalary')/paid.length:0)+'\n正式工 Permanent · '+num(p.months)+' 個月 / '+num(p.divisor)+' × 實際給付天數';}
-  const block=(label,rs)=>{const a=sum(rs,'amount');return '\n\n🏷 <b>'+esc(label)+'</b>\n👥 '+rs.length+' 人 · '+pct(rs.length,paid.length)+' · 💵 '+cash(a)+'\n人均 Avg '+cash(rs.length?a/rs.length:0)+(isN?'':' · 平均天數 '+(sum(rs,'days')/rs.length).toFixed(2));};
-  text+='\n\n<b>🏭 各部門 Department</b>';
-  groups(paid,r=>dept(r.dept)).forEach(([d,rs])=>text+=block(d,rs));
-  if(paid.some(r=>present(r.section))){text+='\n\n<b>🧵 各組 Section（同一批人，不重複加總）</b>';groups(paid,r=>dept(r.dept)+' / '+(present(r.section)?dept(r.section):'待確認 Unknown')).forEach(([d,rs])=>text+=block(d,rs));}
-  const missing=paid.filter(r=>!present(r.dept)).length;if(missing)text+='\n\n⚠️ '+missing+' 人缺部門：請配對同月份名冊／Payroll。';
-  if(isN)text+='\n<i>USD = 各筆原額 ÷ 本期匯率；預設 1 USD = 4,000 KHR，可於「美元匯率」修改；先加總原額再換算，分組顯示四捨五入可能差 $0.01。</i>';
+  const toUsd=v=>isN?(rate>0?num(v)/rate:0):num(v),cash=v=>isN?usd(v,rate):'$'+money(v);
+  const pad=(v,w,right)=>{v=String(v);if(v.length>w)v=v.slice(0,w-1)+'…';return right?v.padStart(w,' '):v.padEnd(w,' ');};
+  const table=(list,nameW)=>{const W=nameW||14;let out=pad('Dept',W)+' '+pad('Staff',5,1)+' '+pad('%',5,1)+' '+pad('USD',9,1)+'\n'+'-'.repeat(W+22)+'\n';
+    list.forEach(([d,rs])=>{out+=pad(d,W)+' '+pad(rs.length,5,1)+' '+pad(paid.length?(100*rs.length/paid.length).toFixed(1):'0.0',5,1)+' '+pad(money(toUsd(sum(rs,'amount'))),9,1)+'\n';});
+    return out+'-'.repeat(W+22)+'\n'+pad('TOTAL',W)+' '+pad(paid.length,5,1)+' '+pad('100.0',5,1)+' '+pad(money(toUsd(total)),9,1);};
+  let text=(isN?'🛡 <b>NSSF 社會保險</b>':'🌿 <b>Seniority 半年年資</b>')+' · '+esc(period)+
+    '\n👥 <b>'+paid.length+'</b> 人 Staff · 💵 <b>'+cash(total)+'</b> · 人均 Avg '+cash(avg);
+  if(isN){
+    text+='\n🟠 職災 Risk '+cash(sum(paid,'risk'))+' · 🔵 醫療 Health '+cash(sum(paid,'health'))+'\n🟣 退休金 Pension '+cash(sum(paid,'pension'))+' · 🏭 工廠 100% · 員工扣款 $0'+
+      '\n💱 1 USD = '+rate.toLocaleString('en-US')+' KHR'+(fxInfo.isDefault?' (預設 Default)':'')+' · 原額 KHR '+total.toLocaleString('en-US');
+  }else{
+    text+='\n📆 平均天數 Avg days '+(paid.length?sum(paid,'days')/paid.length:0).toFixed(2)+' · 🧮 平均月薪 Avg wage $'+money(paid.length?sum(paid,'averageSalary')/paid.length:0)+
+      '\n📐 正式工 Permanent · '+num(p.months)+' 個月 / '+num(p.divisor)+' × 給付天數';
+  }
+  const deps=groups(paid,r=>dept(r.dept));
+  text+='\n\n<b>🏭 各部門 Department</b>\n<pre>'+esc(table(deps))+'</pre>';
+  if(paid.some(r=>present(r.section))){
+    const secs=groups(paid,r=>dept(r.dept)+'/'+(present(r.section)?dept(r.section):'?'));
+    if(secs.length<=25)text+='\n<b>🧵 各組 Section</b>（同批人員 same staff）\n<pre>'+esc(table(secs,16))+'</pre>';
+    else text+='\n🧵 各組 '+secs.length+' 組明細見核可文件 Sections in the report';
+  }
+  const missing=paid.filter(r=>!present(r.dept)).length;
+  if(missing)text+='\n⚠️ '+missing+' 人缺部門 missing dept：請在「組別配對」補齊';
+  if(isN)text+='\n<i>USD = KHR ÷ 匯率；先總額再換算，分組可能差 $0.01</i>';
   return text;
 }
+
 function matchDepartments(rows,roster,payroll,period){
   const unique=list=>{const m=new Map();list.forEach(r=>{const k=id(r);if(!k)return;if(m.has(k))m.set(k,null);else m.set(k,r);});return m;};
   const rm=unique(roster||[]),pm=unique(payroll||[]);let matched=0,missing=0;

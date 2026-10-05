@@ -22,12 +22,12 @@
   ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
-<script src="shared/hrpay-periods.js?v=3.9.20"></script>
-<script src="shared/hrpay-smart-sync.js?v=3.9.20"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.20"></script>
-<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.20">
-<script src="shared/hrpay-online-core.js?v=3.9.20"></script>
-<script src="shared/hrpay-i18n.js?v=3.9.20"></script>
+<script src="shared/hrpay-periods.js?v=3.9.21"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.21"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.21"></script>
+<link rel="stylesheet" href="shared/hrpay-online.css?v=3.9.21">
+<script src="shared/hrpay-online-core.js?v=3.9.21"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.21"></script>
 </head>
 <body class="text-slate-800">
 
@@ -1389,12 +1389,13 @@ function buildTgSummaryTable(key){
   const rate=rateOf(rows), dl=(e.meal?e.meal.dayList:e.att.dayList)||[], dm={};
   rows.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={n:0,usd:0,riel:0,md:0});v.n++;v.usd+=N(r.usd);v.riel+=N(r.riel);(r.days||[]).forEach(x=>{if(x.present>0)v.md++;});});
   const list=Object.entries(dm).sort((a,b)=>b[1].usd-a[1].usd), total=list.reduce((s,[,v])=>s+v.usd,0), riel=list.reduce((s,[,v])=>s+v.riel,0), md=list.reduce((s,[,v])=>s+v.md,0), avg=rows.length?total/rows.length:0;
-  const row=(a,w)=>a.map((v,i)=>String(v).slice(0,w[i]).padEnd(w[i],' ')).join(' '), W=[19,6,6,8,11,9];
-  let tb=row(['Dept','Staff','%','MealDay','Amount','Avg'],W)+'\n'+row(['-------------------','------','------','--------','-----------','---------'],W)+'\n';
-  list.forEach(([d,v])=>tb+=row([d,v.n,((v.n/rows.length)*100).toFixed(1),v.md,fmt(v.usd),v.n?fmt(v.usd/v.n):'0.00'],W)+'\n');
-  tb+=row(['TOTAL',rows.length,'100.0',md,fmt(total),fmt(avg)],W);
+  /* v3.9.21 mobile card */
+  const trow=(a,w)=>a.map((v,i)=>{v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' '); const W=[12,5,6,10];
+  let tb=trow(['Dept','Staff','Days','USD'],W)+'\n'+'-'.repeat(36)+'\n';
+  list.forEach(([d,v])=>tb+=trow([d,v.n,v.md,fmt(v.usd)],W)+'\n');
+  tb+='-'.repeat(36)+'\n'+trow(['TOTAL',rows.length,md,fmt(total)],W);
   let t='🍱 <b>餐費發放 Meal Fee</b>\n📅 期間 Period：'+esc(bLabel(key))+(dl.length?'（'+e.month+'/'+Math.min(...dl)+'–'+e.month+'/'+Math.max(...dl)+'）':'')
-    +'\n<b>摘要 Summary</b>\n<pre>'+row(['Headcount',rows.length,'Depts',list.length],[12,8,10,8])+'\n'+row(['Meal-days',md,'Total','$'+fmt(total)],[12,8,10,12])+'\n'+row(['Rate',int(rate),'Riel',int(riel)],[12,8,10,12])+'</pre>\n<b>各部門 Department Breakdown</b>\n<pre>'+esc(tb)+'</pre>';
+    +'\n👥 <b>'+rows.length+'</b> 人 Staff · 🏭 '+list.length+' 部門 · 🍽 '+int(md)+' 餐日 Meal-days\n💵 <b>$'+fmt(total)+'</b> · 人均 Avg $'+fmt(avg)+'\n💱 1 USD = '+int(rate)+' Riel · 原額 Riel '+int(riel)+'\n\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>';
   if(!e.meal)t+='\n⚠️ '+T('本期僅有考勤表，金額為考勤推算值','Attendance-only estimate');
   return{text:t};
 }
@@ -1659,7 +1660,7 @@ window.addEventListener('load',function(){
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'meal',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
-<script src="shared/hrpay-online-ui.js?v=3.9.20" data-module="meal"></script>
-<script src="shared/hrpay-online-sync.js?v=3.9.20" data-module="meal"></script>
+<script src="shared/hrpay-online-ui.js?v=3.9.21" data-module="meal"></script>
+<script src="shared/hrpay-online-sync.js?v=3.9.21" data-module="meal"></script>
 </body>
 </html>
