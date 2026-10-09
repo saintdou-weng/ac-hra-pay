@@ -6,6 +6,7 @@
 <title>AC HRA · 職位異動管理 Position Transfer v3.7</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="shared/hrpay-kv.js?v=3.9.23"></script>
 <script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -64,9 +65,9 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 }
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
-<script src="shared/hrpay-smart-sync.js?v=3.9.22"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.22"></script>
-<script src="shared/hrpay-i18n.js?v=3.9.22"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.23"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.23"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.23"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -2089,7 +2090,7 @@ function hrpSyncPersonField(kind){
   const input=document.getElementById('tg-person'); if(!input)return;
   kind=kind||hrpCurrentPersonKind();
   const old=input.dataset.kind;
-  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  if(old&&old!==kind&&input.value.trim())try{localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());}catch(_e){}
   input.dataset.kind=kind;
   const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
   input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
@@ -2098,7 +2099,7 @@ function hrpSyncPersonField(kind){
 function hrpPersonChanged(){
   const input=document.getElementById('tg-person'); if(!input)return;
   const kind=input.dataset.kind||hrpCurrentPersonKind();
-  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  try{localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());}catch(_e){}
   if(typeof previewTg==='function')previewTg();
 }
 function hrpPersonValue(kind,ask){
@@ -2109,7 +2110,7 @@ function hrpPersonValue(kind,ask){
     v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
   }
   if(v){
-    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    try{localStorage.setItem(hrpPersonStoreKey(kind),v);}catch(_e){}
     if(input&&input.dataset.kind===kind)input.value=v;
   }
   return v;
@@ -2663,7 +2664,7 @@ Object.assign(window,{setLang:setLang,setTab:setTab,onFiles:onFiles,
 init();
 
 window.addEventListener('load',function(){
-  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'transfer',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'transfer',tool:HRPAY_SYNC_TOOL,pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
 </body>

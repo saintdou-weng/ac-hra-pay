@@ -20,11 +20,17 @@
  * - tab focus / pageshow checks at most once per 5 minutes when nothing is pending (less upload traffic)
  * - badge text follows the page language
  */
+/* v2.0 (2026-10-09, v3.9.23)
+ * - pending queue (待傳清單) moved from localStorage to IndexedDB (HRPayKV "auto:<key>");
+ *   the old localStorage "hrpay:auto2:<key>" entry is migrated once and deleted
+ * - badge shows live progress "同步中 3/10" from the smart-sync per-bucket events
+ * - a partially finished upload stays pending and the next run only sends the remaining buckets
+ */
 (function(g) {
   'use strict';
   if (g.HRPayAutoSync) return;
 
-  var VERSION = '1.4',
+  var VERSION = '2.0',
     RESUME_MIN_MS = 5 * 60 * 1000,
     C = {};
   var PFX = 'hrpay:auto2:';
@@ -37,24 +43,39 @@
     }
   }
 
-  function read(k) {
-    try {
-      return JSON.parse(localStorage.getItem(PFX + k) || 'null');
-    } catch (_) {
-      return null;
+  // ---- pending queue: memory first, persisted in IndexedDB (never blocks, never throws) ----
+  var P = Object.create(null), LOADED = Object.create(null);
+  function kv() { return g.HRPayKV || null; }
+  function load(k) {
+    if (LOADED[k]) return LOADED[k];
+    var store = kv();
+    if (!store) {
+      LOADED[k] = Promise.resolve(null);
+      return LOADED[k];
     }
+    LOADED[k] = store.get('auto:' + k, PFX + k).then(function(v) {
+      if (!(k in P)) P[k] = v || null;          // a write made while loading wins
+      return P[k];
+    }, function() { if (!(k in P)) P[k] = null; return P[k]; });
+    return LOADED[k];
+  }
+
+  function read(k) {
+    return (k in P) ? P[k] : null;
   }
 
   function write(k, v) {
-    try {
-      localStorage.setItem(PFX + k, JSON.stringify(v));
-    } catch (_) {}
+    P[k] = v;
+    var store = kv();
+    if (store) store.set('auto:' + k, v);
+    else try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (_) {}
   }
 
   function clear(k) {
-    try {
-      localStorage.removeItem(PFX + k);
-    } catch (_) {}
+    P[k] = null;
+    var store = kv();
+    if (store) store.remove('auto:' + k);
+    try { localStorage.removeItem(PFX + k); } catch (_) {}
   }
 
   // keep the stronger reason: a pending delete must survive later edits
@@ -133,10 +154,10 @@
     var en = isEn(),
       d = detail ? ' ' + detail : '';
     if (state === 'dirty') return en ? '☁ Pending sync' : '☁ 待同步';
-    if (state === 'syncing') return en ? '☁ Syncing…' : '☁ 同步中…';
+    if (state === 'syncing') return (en ? '☁ Syncing…' : '☁ 同步中…') + d;
     if (state === 'synced') return (en ? '✅ Cloud synced' : '✅ 雲端已同步') + d;
     if (state === 'offline') return en ? '☁ Offline – will upload' : '☁ 離線待傳';
-    if (state === 'retry') return en ? '⚠ Cloud retry pending' : '⚠ 雲端待重試';
+    if (state === 'retry') return (en ? '⚠ Cloud retry pending' : '⚠ 雲端待重試') + d;
     if (state === 'checked') return (en ? '☁ Checked' : '☁ 已檢查') + d;
     return en ? '☁ Auto sync' : '☁ 自動同步';
   }
@@ -204,6 +225,14 @@
       stateDetail: ''
     };
     ensureBadge(s);
+    s.loaded = load(key);
+    g.addEventListener('hrpay-sync-progress', function(ev) {
+      var d = ev && ev.detail || {};
+      if (!s.busy || !d.total || (d.phase !== 'upload' && d.phase !== 'download')) return;
+      var en = isEn(), lab = d.phase === 'upload' ? (en ? 'up ' : '上傳 ') : (en ? 'down ' : '下載 ');
+      setState(s, 'syncing', lab + d.done + '/' + d.total);
+      s.progress = { phase: d.phase, done: d.done, total: d.total, tool: d.tool, at: Date.now() };
+    });
 
     function canSync() {
       try {
@@ -213,9 +242,28 @@
       }
     }
 
+    // a failed / partial run retries by itself (2 → 4 → 8 → 15 min); only the remaining buckets are sent
+    function armRetry() {
+      if (s.retryTimer) clearTimeout(s.retryTimer);
+      s.retryWait = Math.min((s.retryWait || 60000) * 2, 15 * 60 * 1000);
+      s.retryTimer = setTimeout(function() {
+        s.retryTimer = null;
+        var p = read(key);
+        if (p && online()) run(p.reason || 'retry', p.extra || {});
+      }, s.retryWait);
+    }
+
     async function run(reason, extra) {
       reason = reason || 'reconcile';
       extra = extra || {};
+      if (s.busy) {
+        s.queued = {
+          reason: keepReason(s.queued && s.queued.reason, reason),
+          extra: mergeExtra(s.queued && s.queued.extra, extra)
+        };
+        return false;
+      }
+      try { await s.loaded; } catch (_) {}
       if (s.busy) {
         s.queued = {
           reason: keepReason(s.queued && s.queued.reason, reason),
@@ -235,12 +283,15 @@
       }
       s.busy = true;
       s.lastRun = Date.now();
+      s.progress = null;
       setState(s, 'syncing');
       try {
         // Deletion must push the local removal first. Pull-first would re-create the just-deleted cloud record.
         // Normal add/edit/import remains pull-first to preserve cloud-only/newer data.
         var isDelete = /delete/i.test(String(reason || ''));
         if (!isDelete && typeof s.opts.pull === 'function') {
+          var pctx = { key: key, reason: String(reason || ''), at: Date.now() };
+          g.__HRPAY_SYNC_CONTEXT = pctx;   // pull knows this run comes from a user change (keeps a local deletion)
           try {
             await s.opts.pull({
               silent: true,
@@ -249,6 +300,8 @@
             });
           } catch (e) {
             if (s.opts.log !== false) console.warn('[HRPayAutoSync pull ' + key + ']', e);
+          } finally {
+            if (g.__HRPAY_SYNC_CONTEXT === pctx) g.__HRPAY_SYNC_CONTEXT = null;
           }
         }
         var ok = true;
@@ -273,6 +326,8 @@
         }
         if (ok) {
           clear(key);
+          s.retryWait = 0;
+          if (s.retryTimer) { clearTimeout(s.retryTimer); s.retryTimer = null; }
           setState(s, 'synced', hhmm());
         } else if (!priorPending && /^(startup-reconcile|reconcile|resume|pageshow|network-restored)$/.test(String(reason || ''))) {
           // Empty/no-cloud module during a passive check is not a failed upload.
@@ -282,9 +337,11 @@
           write(key, {
             reason: keepReason(priorPending && priorPending.reason, reason),
             extra: extra,
+            progress: s.progress || null,
             at: Date.now()
           });
-          setState(s, 'retry');
+          setState(s, 'retry', s.progress && s.progress.total ? s.progress.done + '/' + s.progress.total : '');
+          armRetry();
         }
         return ok;
       } catch (e) {
@@ -294,6 +351,7 @@
           at: Date.now()
         });
         setState(s, 'retry');
+        armRetry();
         if (s.opts.log !== false) console.warn('[HRPayAutoSync ' + key + ']', e);
         return false;
       } finally {
@@ -310,6 +368,8 @@
       reason = reason || 'change';
       extra = extra || {};
       var old = read(key) || {};
+      // record "the user changed data on this device" for the smart sync (deletions need it)
+      try { if (s.opts.tool && g.HRPaySmartSync && g.HRPaySmartSync.markChange) g.HRPaySmartSync.markChange(s.opts.tool, reason); } catch (_) {}
       reason = keepReason(old.reason, reason);
       write(key, {
         reason: reason,
@@ -333,9 +393,12 @@
     };
     s.schedule = schedule;
     var startup = function() {
-      var p = read(key) || {};
       setTimeout(function() {
-        run(p.reason || 'startup-reconcile', p.extra || {});
+        s.loaded.then(function() {
+          var p = read(key) || {};
+          if (p.reason) setState(s, online() ? 'dirty' : 'offline');
+          run(p.reason || 'startup-reconcile', p.extra || {});
+        });
       }, Number(opts.startDelay) || 450);
     };
     if (document.readyState === 'complete' || document.readyState === 'interactive') startup();
@@ -374,6 +437,7 @@
   function schedule(key, reason, extra, delay) {
     var s = C[key];
     if (!s) {
+      load(key);
       write(key, {
         reason: reason || 'change',
         extra: extra || {},
@@ -405,12 +469,17 @@
     return read(key);
   }
 
+  function pendingAsync(key) {
+    return load(key).then(function() { return read(key); });
+  }
+
   function state(key) {
     var s = C[key];
     return s ? {
       state: s.state,
       detail: s.stateDetail,
-      lastRun: s.lastRun
+      lastRun: s.lastRun,
+      progress: s.progress || null
     } : null;
   }
 
@@ -422,6 +491,7 @@
     run: run,
     flush: run,
     pending: pending,
+    pendingAsync: pendingAsync,
     clearPending: clearPending,
     refreshBadges: refreshBadges,
     state: state

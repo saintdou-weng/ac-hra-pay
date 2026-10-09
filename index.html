@@ -43,6 +43,7 @@ footer{text-align:center;color:#94a3b8;font-size:.75rem;padding:20px;border-top:
 footer a{color:var(--sub);}
 @media(max-width:520px){.grid{grid-template-columns:1fr;}.ic{width:44px;height:44px;font-size:1.4rem;}.ci h3{font-size:.9rem;}}
 </style>
+<script src="shared/hrpay-kv.js?v=3.9.23"></script>
 </head>
 <body>
 <header>
@@ -118,7 +119,7 @@ const I18N={
 };
 function setLang(l){
   if(!I18N[l])l="tc";
-  localStorage.setItem('hrpay_lang',l);
+  try{localStorage.setItem('hrpay_lang',l);}catch(_e){}
   document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
   document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});
 }

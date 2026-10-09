@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>⏱ OT, Bonus &amp; Special OT Analytics | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="shared/hrpay-kv.js?v=3.9.23"></script>
 <script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -19,10 +20,10 @@
   ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   @media print{.no-print{display:none!important}}
 </style>
-<script src="shared/hrpay-periods.js?v=3.9.22"></script>
-<script src="shared/hrpay-smart-sync.js?v=3.9.22"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.22"></script>
-<script src="shared/hrpay-i18n.js?v=3.9.22"></script>
+<script src="shared/hrpay-periods.js?v=3.9.23"></script>
+<script src="shared/hrpay-smart-sync.js?v=3.9.23"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.23"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.23"></script>
 </head>
 <body class="text-slate-800">
 
@@ -665,7 +666,7 @@ function otRepairSpecialPeriods(list){
   return {rows:[...map.values()],changed};
 }
 function otQueueProjectionRepair(period){
-  try{const a=JSON.parse(localStorage.getItem('hrpay:ot:repairPeriods')||'[]');if(!a.includes(period)){a.push(period);localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(a));}}catch(e){}
+  try{const a=JSON.parse(localStorage.getItem('hrpay:ot:repairPeriods')||'[]');if(!a.includes(period)){a.push(period);try{localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(a));}catch(_e){}}}catch(e){}
 }
 function otReplaceSpecialSources(list,incoming){
   const sources=[...new Set((incoming||[]).filter(r=>r.type==='special').map(r=>otSourceKey(r.src)).filter(Boolean))];
@@ -1122,7 +1123,7 @@ function hrpSyncPersonField(kind){
   const input=document.getElementById('tg-person'); if(!input)return;
   kind=kind||hrpCurrentPersonKind();
   const old=input.dataset.kind;
-  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  if(old&&old!==kind&&input.value.trim())try{localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());}catch(_e){}
   input.dataset.kind=kind;
   const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
   input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
@@ -1131,7 +1132,7 @@ function hrpSyncPersonField(kind){
 function hrpPersonChanged(){
   const input=document.getElementById('tg-person'); if(!input)return;
   const kind=input.dataset.kind||hrpCurrentPersonKind();
-  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  try{localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());}catch(_e){}
   if(typeof previewTg==='function')previewTg();
 }
 function hrpPersonValue(kind,ask){
@@ -1142,7 +1143,7 @@ function hrpPersonValue(kind,ask){
     v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
   }
   if(v){
-    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    try{localStorage.setItem(hrpPersonStoreKey(kind),v);}catch(_e){}
     if(input&&input.dataset.kind===kind)input.value=v;
   }
   return v;
@@ -1323,18 +1324,20 @@ async function pushProjection(){
     let repairs=[];try{repairs=JSON.parse(localStorage.getItem('hrpay:ot:repairPeriods')||'[]');}catch(e){}
     (OT_CLOUD_RECONCILED?repairs:[]).forEach(period=>{const key=period+':special';if(!byPeriod[key])byPeriod[key]={period,type:'special',rows:[]};});
     const groups=Object.values(byPeriod);
-    try{localStorage.setItem('hrpay:result:ot_bonus',JSON.stringify({module:'ot_bonus',updatedAt:_nowISO(),level:'department',groups}));}catch(e){console.warn('OT projection local cache skipped',e);}
+    try{if(window.hrpCache)hrpCache('hrpay:result:ot_bonus',{module:'ot_bonus',updatedAt:_nowISO(),level:'department',groups});}catch(e){console.warn('OT projection local cache skipped',e);}  /* v3.9.23: IndexedDB */
     if(GAS_URL){
       for(const g of groups){
         const totals={count:g.rows.length,headcount:g.rows.reduce((a,r)=>a+N(r.ppl),0),hours:g.rows.reduce((a,r)=>a+N(r.hour),0),expense:g.rows.reduce((a,r)=>a+N(r.expense),0),escortDays:g.rows.reduce((a,r)=>a+N(r.escortDays),0),holidayDays:g.rows.reduce((a,r)=>a+N(r.holidayDays),0),normalOtHours:g.rows.reduce((a,r)=>a+N(r.normalOtHours),0),nightOtHours:g.rows.reduce((a,r)=>a+N(r.nightOtHours),0),sundayDays:g.rows.reduce((a,r)=>a+N(r.sundayDays),0),holidayHours:g.rows.reduce((a,r)=>a+N(r.holidayHours),0),mealFee:g.rows.reduce((a,r)=>a+N(r.mealFee),0)};
         try{
           const payload={type:'projection',module:'ot_bonus',period:g.period,payPhase:g.type,rows:g.rows,totals,sourceFile:'OT / Bonus / Special OT'},signature=JSON.stringify(payload),cache='hrpay:ot:projection:'+GAS_URL+':'+g.period+':'+g.type;
-          if(localStorage.getItem(cache)!==signature){
+          let prevSig=null;try{prevSig=window.HRPayKV?await HRPayKV.get(cache):localStorage.getItem(cache);}catch(_e){}
+          if(prevSig!=null&&typeof prevSig!=='string')prevSig=JSON.stringify(prevSig);
+          if(prevSig!==signature){
             const response=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:signature}),result=await response.json();
             if(!response.ok||result.ok===false)throw Error(result.error||'Projection not confirmed');
-            localStorage.setItem(cache,signature);
+            if(window.HRPayKV)HRPayKV.set(cache,signature);else{try{localStorage.setItem(cache,signature);}catch(_e){}}
           }
-          if(g.type==='special'&&repairs.includes(g.period)){repairs=repairs.filter(p=>p!==g.period);localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(repairs));}
+          if(g.type==='special'&&repairs.includes(g.period)){repairs=repairs.filter(p=>p!==g.period);try{localStorage.setItem('hrpay:ot:repairPeriods',JSON.stringify(repairs));}catch(_e){}}
         }catch(e){console.warn('OT projection cloud push failed',g.period,g.type,e);}
       }
     }
@@ -1404,7 +1407,7 @@ async function clearAllData(){
   if(!confirm(T('只清除「這台電腦」的本機快取，雲端資料會保留，下次開啟本頁會自動重新下載。\n（要刪除雲端資料，請在期間/記錄上按刪除）\n確定清除本機快取？','Clear the cache on THIS device only. Cloud data is kept and will be downloaded again next time.\n(To delete cloud data, delete the period/record itself.)\nClear local cache?')))return;
   try{if(window.HRPaySmartSync&&HRPaySmartSync.resetState)HRPaySmartSync.resetState(HRPAY_SYNC_TOOL);if(window.HRPayAutoSync&&HRPayAutoSync.clearPending)HRPayAutoSync.clearPending('otbonus');}catch(e){}
   RECS=[];ACTIVE=null;await idbClear();
-  localStorage.removeItem('hrpay:result:ot_bonus');
+  try{localStorage.removeItem('hrpay:result:ot_bonus');if(window.HRPayKV)HRPayKV.remove('hrpay:result:ot_bonus');}catch(_e){}
   qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
   showApp();
   toast(T('本機快取已清除（雲端保留）','Local cache cleared (cloud kept)'),'warning');
@@ -1446,7 +1449,7 @@ function setupDropZone(sel, handler, ringCls){
 setupDropZone('#dz-smart-ob', smartImport, 'ring-teal-400');
 
 window.addEventListener('load',function(){
-  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'otbonus',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
+  if(window.HRPayAutoSync)HRPayAutoSync.install({key:'otbonus',tool:HRPAY_SYNC_TOOL,pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
 </body>
