@@ -43,7 +43,8 @@ footer{text-align:center;color:#94a3b8;font-size:.75rem;padding:20px;border-top:
 footer a{color:var(--sub);}
 @media(max-width:520px){.grid{grid-template-columns:1fr;}.ic{width:44px;height:44px;font-size:1.4rem;}.ci h3{font-size:.9rem;}}
 </style>
-<script src="shared/hrpay-kv.js?v=3.9.23"></script>
+<script src="shared/hrpay-kv.js?v=3.9.24"></script>
+<script src="shared/hrpay-home-sync.js?v=3.9.24"></script>
 </head>
 <body>
 <header>
@@ -62,6 +63,8 @@ footer a{color:var(--sub);}
 </header>
 
 <main>
+  <div id="home-sync"></div>
+
   <div class="sect" data-i="s1">薪資核心 Payroll Core</div>
   <div class="grid">
     <a class="card" href="./payroll.html"><div class="ic">💵</div><div class="ci"><h3 data-i="m1">薪資 Payroll</h3><p data-i="m1d">預支＋月結雙檔匯入、交叉稽核、Projection 輸出</p></div></a>
@@ -123,7 +126,24 @@ function setLang(l){
   document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
   document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});
 }
-document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>setLang(b.dataset.l));
+document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>{setLang(b.dataset.l);if(window.HomeSync)HomeSync.refreshLang();});
+
+/* ── v3.9.24 首頁雲端同步：全部同步／勾選同步（每個模組用自己的頁面跑雙向智慧同步） ── */
+if(window.HomeSync)HomeSync.mount(document.getElementById('home-sync'),{
+  theme:'light', storeKey:'hrpay:homesync',
+  lang:()=>localStorage.getItem('hrpay_lang')||'tc',
+  modules:[
+    {id:'payroll', page:'payroll.html', kind:'hrpay', key:'payroll', name:{tc:'💵 薪資＋預支 Payroll',en:'💵 Payroll + Advance',km:'💵 ប្រាក់ខែ'}},
+    {id:'meal', page:'meal_fee.html', kind:'hrpay', key:'meal', name:{tc:'🍱 餐費 Meal Fee',en:'🍱 Meal Fee',km:'🍱 ថ្លៃអាហារ'}},
+    {id:'otbonus', page:'ot_bonus.html', kind:'hrpay', key:'otbonus', name:{tc:'⏱ OT / Bonus',en:'⏱ OT / Bonus',km:'⏱ OT / Bonus'}},
+    {id:'seniority', page:'seniority.html', kind:'benefits', name:{tc:'🌿 半年年資 Seniority',en:'🌿 Seniority',km:'🌿 អតីតភាពការងារ'}},
+    {id:'nssf', page:'nssf.html', kind:'benefits', name:{tc:'🛡 社會保險 NSSF',en:'🛡 NSSF',km:'🛡 ប.ស.ស.'}},
+    {id:'employee', page:'employee_hr.html', kind:'hrpay', key:'employee', name:{tc:'👥 員工 HR',en:'👥 Employee HR',km:'👥 បុគ្គលិក'}},
+    {id:'transfer', page:'transfer.html', kind:'hrpay', key:'transfer', name:{tc:'🔄 職位異動 Transfer',en:'🔄 Transfer',km:'🔄 ផ្លាស់ប្តូរតំណែង'}},
+    {id:'warning', page:'warning.html', kind:'hrpay', key:'warning', name:{tc:'⚠️ 警告 Warning',en:'⚠️ Warning',km:'⚠️ ការព្រមាន'}},
+    {id:'shutdown', page:'shutdown.html', kind:'hrpay', key:'shutdown', name:{tc:'🛑 停工 Shutdown',en:'🛑 Shutdown',km:'🛑 ការផ្អាកការងារ'}}
+  ]
+});
 setLang(localStorage.getItem('hrpay_lang')||'tc');
 
 /* ── GAS 連線狀態 ── */
