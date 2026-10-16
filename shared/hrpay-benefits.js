@@ -217,7 +217,7 @@ function localizeTechnical(body){
   const map=lang==='km'?km:zh;return Object.keys(map).reduce((s,k)=>s.split(k).join(map[k]),body);
 }
 const baseModal=modal;modal=function(title,body,buttons){return baseModal(title,localizeTechnical(body),buttons);};
-window.HRPayBenefitsApp={stats,config,rawRows,getRecords:()=>ledger,reportHTML,summaryText,importFile,render,runAudit,sync,active:()=>active,setActive:p=>{active=p;render();},setRecords:async rows=>{ledger=rows;await persist();render();}};
+window.HRPayBenefitsApp={cloud:()=>({state:cloudState,detail:cloudDetail,busy:syncBusy,last:lastReconcile,pending:hasPending}),stats,config,rawRows,getRecords:()=>ledger,reportHTML,summaryText,importFile,render,runAudit,sync,active:()=>active,setActive:p=>{active=p;render();},setRecords:async rows=>{ledger=rows;await persist();render();}};
 setup();restore().then(async()=>{
   render();loadLocalPayroll().catch(e=>console.warn('Payroll local audit',e));
   await serial(reconcile);refreshApproval(false);
