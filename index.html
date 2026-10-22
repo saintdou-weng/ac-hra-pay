@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC-HRA-PAY v3.9.19 | 人資薪資分析平台</title>
+<title>AC-HRA-PAY v3.9.25 | 人資薪資分析平台</title>
 <style>
 :root{
   --navy:#0f2a4a;--navy2:#16375e;--gold:#c9a227;--gold2:#e3c25a;
@@ -43,8 +43,9 @@ footer{text-align:center;color:#94a3b8;font-size:.75rem;padding:20px;border-top:
 footer a{color:var(--sub);}
 @media(max-width:520px){.grid{grid-template-columns:1fr;}.ic{width:44px;height:44px;font-size:1.4rem;}.ci h3{font-size:.9rem;}}
 </style>
-<script src="shared/hrpay-kv.js?v=3.9.24"></script>
-<script src="shared/hrpay-home-sync.js?v=3.9.24"></script>
+<script src="shared/hrpay-kv.js?v=3.9.25"></script>
+<script src="shared/hrpay-home-sync.js?v=3.9.25"></script>
+<script src="shared/hrpay-import-hub.js?v=3.9.25"></script>
 </head>
 <body>
 <header>
@@ -63,7 +64,6 @@ footer a{color:var(--sub);}
 </header>
 
 <main>
-  <div id="home-sync"></div>
 
   <div class="sect" data-i="s1">薪資核心 Payroll Core</div>
   <div class="grid">
@@ -90,6 +90,11 @@ footer a{color:var(--sub);}
   <div class="grid">
     <a class="card" href="./summary_center.html"><div class="ic">📊</div><div class="ci"><h3 data-i="m9">總覽 Summary Center</h3><p data-i="m9d">跨模組 Projection 交叉核對與異常清單</p></div></a>
   </div>
+
+  <!-- v3.9.25 平台智慧匯入：檔案丟一次，自動分到各模組（和 HRA Portal 一樣放在雲端同步上面） -->
+  <div id="home-import" style="margin-top:22px"></div>
+  <!-- v3.9.24 首頁雲端同步（移到下方） -->
+  <div id="home-sync"></div>
 </main>
 
 <footer>
@@ -126,7 +131,7 @@ function setLang(l){
   document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
   document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});
 }
-document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>{setLang(b.dataset.l);if(window.HomeSync)HomeSync.refreshLang();});
+document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>{setLang(b.dataset.l);if(window.HomeSync)HomeSync.refreshLang();if(window.HRPayHub)HRPayHub.refreshLang();});
 
 /* ── v3.9.24 首頁雲端同步：全部同步／勾選同步（每個模組用自己的頁面跑雙向智慧同步） ── */
 if(window.HomeSync)HomeSync.mount(document.getElementById('home-sync'),{
@@ -145,6 +150,8 @@ if(window.HomeSync)HomeSync.mount(document.getElementById('home-sync'),{
   ]
 });
 setLang(localStorage.getItem('hrpay_lang')||'tc');
+/* ── v3.9.25 平台智慧匯入（Excel／msg／zip 丟一次，自動分到各模組；群組收件匣） ── */
+if(window.HRPayHub)HRPayHub.mountEmbed(document.getElementById('home-import'));
 
 /* ── GAS 連線狀態 ── */
 (async()=>{
