@@ -12,7 +12,7 @@
   'use strict';
   if (w.HomeSync) return;
   var doc = w.document, OPT = null, ROOT = null, RUNNING = false, STOP = false;
-  var TIMEOUT = 8 * 60 * 1000, SETTLE = 1500;
+  var TIMEOUT = 45 * 60 * 1000, IDLE = 4 * 60 * 1000, SETTLE = 1500;   // v1.1: time out only when nothing moves for 4 min (big downloads keep going)
   var T = {
     title: ['☁ 雲端同步', '☁ Cloud Sync', '☁ សមកាលកម្មពពក'],
     hint: ['雙向智慧同步：先下載雲端新資料合併，再上傳本機變更；只傳有變的部分，不會刪掉雲端資料。',
@@ -121,7 +121,11 @@
         var app = cw.HRPayBenefitsApp; if (!app || !app.cloud) return null;
         var c = app.cloud(); if (!c) return null;
         var map = { synced: 'synced', empty: 'empty', error: 'retry', offline: 'offline', pending: 'retry', syncing: 'syncing', checking: 'syncing' };
-        return { state: c.busy ? 'syncing' : (map[c.state] || 'syncing'), detail: c.detail || '', lastRun: c.last || 0, final: !c.busy && c.last > 0 && c.state !== 'checking' };
+        // v1.1: "pending" right after a download = the upload is about to start → still running (not a failure)
+        var pend = !c.busy && c.state === 'pending';
+        if (pend) { if (!m._pendSince) m._pendSince = Date.now(); } else m._pendSince = 0;
+        var pendFinal = pend && Date.now() - m._pendSince > 20000;
+        return { state: c.busy || (pend && !pendFinal) ? 'syncing' : (map[c.state] || 'syncing'), detail: c.detail || '', lastRun: c.last || 0, final: !c.busy && c.last > 0 && c.state !== 'checking' && (!pend || pendFinal) };
       }
       var A = m.kind === 'hra' ? cw.HRAAutoSync : cw.HRPayAutoSync; if (!A || !A.state) return null;
       var s = A.state(m.key); if (!s) return null;
@@ -130,7 +134,8 @@
   }
   function runOne(m) {
     return new Promise(function (res) {
-      var f = doc.createElement('iframe'), t0 = Date.now(), sig = '', since = 0, timer = null, ended = false;
+      var f = doc.createElement('iframe'), t0 = Date.now(), sig = '', since = 0, timer = null, ended = false, act = Date.now(), actSig = '';
+      m._pendSince = 0;
       f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.title = 'sync ' + m.id;
       f.style.cssText = 'position:fixed;left:-20000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none';
       f.src = m.page + (m.page.indexOf('?') >= 0 ? '&' : '?') + 'homesync=' + Date.now();
@@ -143,10 +148,11 @@
       doc.body.appendChild(f);
       timer = setInterval(function () {
         if (STOP) return end('stopped');
-        if (Date.now() - t0 > TIMEOUT) return end('timeout');
+        if (Date.now() - t0 > TIMEOUT || Date.now() - act > IDLE) return end('timeout');
         var cw = null; try { cw = f.contentWindow; } catch (_) {}
         if (!cw) return;
         var st = probe(cw, m);
+        if (st) { var a2 = st.state + '|' + st.detail + '|' + st.lastRun; if (a2 !== actSig) { actSig = a2; act = Date.now(); } }
         if (!st) { if (Date.now() - t0 > 60000) end('fail'); return; }
         if (!st.final) { sig = ''; setRow(m.id, 'run', tx('sync') + (st.detail && st.state === 'syncing' ? ' · ' + st.detail : '…')); return; }
         var now = st.state + '|' + st.lastRun;

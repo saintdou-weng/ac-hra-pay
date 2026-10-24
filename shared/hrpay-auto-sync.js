@@ -226,6 +226,10 @@
     };
     ensureBadge(s);
     s.loaded = load(key);
+    g.addEventListener('hrpay-sync-status', function(ev) {
+      var d = ev && ev.detail || {};
+      if (s.busy && (d.type === 'warn' || d.type === 'error') && d.msg) s.lastMsg = String(d.msg).replace(/\s+/g, ' ').slice(0, 80);
+    });
     g.addEventListener('hrpay-sync-progress', function(ev) {
       var d = ev && ev.detail || {};
       if (!s.busy || !d.total || (d.phase !== 'upload' && d.phase !== 'download')) return;
@@ -284,6 +288,7 @@
       s.busy = true;
       s.lastRun = Date.now();
       s.progress = null;
+      s.lastMsg = '';
       setState(s, 'syncing');
       try {
         // Deletion must push the local removal first. Pull-first would re-create the just-deleted cloud record.
@@ -340,7 +345,7 @@
             progress: s.progress || null,
             at: Date.now()
           });
-          setState(s, 'retry', s.progress && s.progress.total ? s.progress.done + '/' + s.progress.total : '');
+          setState(s, 'retry', (s.progress && s.progress.total ? s.progress.done + '/' + s.progress.total + ' ' : '') + (s.lastMsg || ''));
           armRetry();
         }
         return ok;
@@ -350,7 +355,7 @@
           extra: extra,
           at: Date.now()
         });
-        setState(s, 'retry');
+        setState(s, 'retry', String(e && e.message || s.lastMsg || '').replace(/\s+/g, ' ').slice(0, 80));
         armRetry();
         if (s.opts.log !== false) console.warn('[HRPayAutoSync ' + key + ']', e);
         return false;

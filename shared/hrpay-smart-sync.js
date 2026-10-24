@@ -1,4 +1,12 @@
-/* AC-HRA-PAY Smart Incremental Sync v2.0 (2026-10-09)
+/* AC-HRA-PAY Smart Incremental Sync v2.1 (2026-10-24)
+ * v2.1
+ *  - resumable download: every bucket that arrives is kept on this device (IndexedDB "ac_hrpay_dlcache")
+ *    until the whole download is applied; an interrupted / failed download continues where it stopped
+ *    instead of starting over (checked by bucket hash, so changed cloud data is fetched again)
+ *  - fast download: with GAS v3.9.26 "smartBucketsRead" many buckets come back in one request
+ *    (Meal Fee ~1,500 buckets → ~40 requests)
+ *  - cloud lost / never uploaded but this device remembers an old sync → upload everything again
+ *    (before: "Cloud has new changes" ↔ "No cloud data yet" loop, stuck on Retry pending)
  * Manifest + month/hash bucket sync (same model as AC HRA Portal).
  * v2.0
  *  - sync state (last synced hashes, row fingerprints, tombstones, progress) lives in IndexedDB
@@ -16,7 +24,7 @@
 (function(g) {
   'use strict';
   if (g.HRPaySmartSync) return;
-  var VERSION = '2.0',
+  var VERSION = '2.1',
     STATE_PREFIX = 'ac_hrpay_smart_sync_v1_',   // legacy localStorage prefix (migrated)
     REQUEST_TIMEOUT_MS = 90000,
     MANIFEST_TIMEOUT_MS = 45000,
@@ -24,6 +32,9 @@
     BATCH_MAX_BYTES = 1200000,
     BATCH_MAX_BUCKETS = 6,
     PARALLEL = 3,
+    READ_BATCH_BUCKETS = 40,
+    READ_BATCH_ROWS = 2500,
+    READ_PARALLEL = 2,
     PASSIVE = /^(startup-reconcile|reconcile|resume|pageshow|network-restored|benefits-auto|auto)?$/,
     nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
@@ -72,6 +83,41 @@
     var api = { get: get, set: set, remove: remove };
     g.HRPayKV = g.HRPayKV || api;
     return api;
+  })();
+
+  /* ── download cache (resume): one IndexedDB entry per downloaded bucket, no in-memory copy ── */
+  var DLC = (function() {
+    var dbp = null;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise(function(res) {
+        try {
+          if (!g.indexedDB) return res(null);
+          var rq = g.indexedDB.open('ac_hrpay_dlcache', 1);
+          rq.onupgradeneeded = function() { var d = rq.result; if (!d.objectStoreNames.contains('b')) d.createObjectStore('b'); };
+          rq.onsuccess = function() { res(rq.result); };
+          rq.onerror = rq.onblocked = function() { res(null); };
+        } catch (_) { res(null); }
+      });
+      return dbp;
+    }
+    function tx(mode, fn) {
+      return open().then(function(db) {
+        if (!db) return null;
+        return new Promise(function(res) {
+          try {
+            var t = db.transaction('b', mode), out = fn(t.objectStore('b'));
+            t.oncomplete = function() { res(out && out.result !== undefined ? out.result : null); };
+            t.onerror = t.onabort = function() { res(null); };
+          } catch (_) { res(null); }
+        });
+      }, function() { return null; });
+    }
+    return {
+      get: function(key, k) { return tx('readonly', function(s) { return s.get(key + '|' + k); }); },
+      put: function(key, k, v) { return tx('readwrite', function(s) { s.put(v, key + '|' + k); }); },
+      drop: function(key, ks) { if (!ks.length) return Promise.resolve(); return tx('readwrite', function(s) { ks.forEach(function(k) { s.delete(key + '|' + k); }); }); }
+    };
   })();
 
   function now() {
@@ -136,6 +182,8 @@
     try {
       if (fn) fn(msg, type || 'busy');
     } catch (_) {}
+    // v2.1: let the page's sync badge / home sync show WHY a run needs a retry
+    try { g.dispatchEvent(new CustomEvent('hrpay-sync-status', { detail: { msg: String(msg || ''), type: type || 'busy' } })); } catch (_) {}
   }
 
   function stable(v) {
@@ -496,6 +544,12 @@
       var local = parts[0], metaHash = parts[1], st = parts[2], dirty = parts[3];
       var userChange = isUserChange(reason) || !!(dirty && isUserChange(dirty.reason));
       opts = Object.assign({}, opts, { _startedAt: startedAt });
+      // v2.1: the cloud has no data at all, but this device remembers an earlier sync (cloud reset / earlier
+      // upload never committed) → forget the old base so every local bucket is uploaded again
+      if (!migrated && remote.exists === false && Object.keys(st.hashes || {}).length) {
+        console.warn('[HRPaySmartSync] cloud empty for ' + tool + ' — re-uploading all local buckets');
+        st.hashes = {}; st.counts = {}; st.rows = {}; st.tombstones = {}; st.complete = false;
+      }
       var lastH = migrated ? {} : (st.hashes || {}), remoteH = migrated ? {} : (remote.hashes || {}), remoteMetaHash = migrated ? '' : (remote.metaHash || '');
       var stateComplete = !migrated && st.complete === true && Object.keys(lastH).length > 0;
       var changed = [], deleted = [], remoteChanged = [], conflicts = [], newTomb = [], keys = {};
@@ -697,23 +751,70 @@
             newTomb.forEach(function(k) { tomb[k] = { at: now(), reason: (dirty && dirty.reason) || reasonNow || 'change' }; pendingDelete++; });
           }
         }
-        var done = 0;
+        var done = 0, useCache = !opts.readOnly, batchRead = (remote.caps || []).indexOf('smartBucketsRead') >= 0;
         emitProgress(tool, 'download', 0, toFetch.length);
-        return pool(toFetch, PARALLEL, function(k) {
+        function accept(k, rows) {
           var lb = local[k], rh = remoteH[k] || '', bh = lastH[k] || '';
-          return withRetry(function() { return jsonFetch(url + '?action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(k), { timeoutMs: REQUEST_TIMEOUT_MS }); }, k, onStatus).then(function(j) {
-            var bd = dataOf(j) || {}, rows = bd.records || [];
-            if (bd.hash && bd.hash !== rh) throw Object.assign(new Error(L('下載期間雲端有變動，請重試', 'Cloud changed during download; retry.')), { noRetry: true });
-            downloaded += rows.length; done++;
-            emitProgress(tool, 'download', done, toFetch.length);
-            status(onStatus, L('下載 ', 'Downloaded ') + done + '/' + toFetch.length + ' · ' + k, 'busy');
-            st.hashes[k] = rh; st.rows[k] = fpRows(rows); delete tomb[k];
-            if (!lb || (bh && lb.hash === bh)) { out[k] = rows; return; }
-            out[k] = opts.mergeRecords ? merge(opts, lb.records, rows) : mergeThreeWay(lb.records, rows, lastRows[k], stats);
-          }).catch(function(e) {
-            failed.push(k);                              // keep local copy, keep old state → retried next time
-            if (lb) out[k] = lb.records;
-            console.warn('[HRPaySmartSync] download failed', k, e);
+          downloaded += rows.length; done++;
+          emitProgress(tool, 'download', done, toFetch.length);
+          status(onStatus, L('下載 ', 'Downloaded ') + done + '/' + toFetch.length + ' · ' + k, 'busy');
+          st.hashes[k] = rh; st.rows[k] = fpRows(rows); delete tomb[k];
+          if (!lb || (bh && lb.hash === bh)) { out[k] = rows; return; }
+          out[k] = opts.mergeRecords ? merge(opts, lb.records, rows) : mergeThreeWay(lb.records, rows, lastRows[k], stats);
+        }
+        function failBucket(k, e) {
+          failed.push(k);                              // keep local copy, keep old state → retried next time
+          if (local[k]) out[k] = local[k].records;
+          console.warn('[HRPaySmartSync] download failed', k, e);
+        }
+        function remember(k, rows) { return useCache ? DLC.put(key, k, { h: remoteH[k] || '', r: rows }) : null; }
+        // 1) buckets already downloaded by an earlier (interrupted) run — same hash → reuse, no request
+        var need = [];
+        var cached = useCache ? Promise.all(toFetch.map(function(k) {
+          return DLC.get(key, k).then(function(c) { if (c && c.h && c.h === (remoteH[k] || '') && Array.isArray(c.r)) accept(k, c.r); else need.push(k); });
+        })) : Promise.resolve(need.push.apply(need, toFetch));
+        return cached.then(function() {
+          if (need.length < toFetch.length) status(onStatus, L('續傳：已有 ' + (toFetch.length - need.length) + ' 個區塊，只下載剩下 ' + need.length + ' 個', 'Resuming: ' + (toFetch.length - need.length) + ' bucket(s) already here, downloading ' + need.length), 'busy');
+          need.sort();
+          if (!batchRead) {
+            return pool(need, PARALLEL, function(k) {
+              var rh = remoteH[k] || '';
+              return withRetry(function() { return jsonFetch(url + '?action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(k), { timeoutMs: REQUEST_TIMEOUT_MS }); }, k, onStatus).then(function(j) {
+                var bd = dataOf(j) || {}, rows = bd.records || [];
+                if (bd.hash && bd.hash !== rh) throw Object.assign(new Error(L('下載期間雲端有變動，請重試', 'Cloud changed during download; retry.')), { noRetry: true });
+                accept(k, rows); return remember(k, rows);
+              }).catch(function(e) { failBucket(k, e); });
+            });
+          }
+          // 2) fast path: many buckets per request (GAS v3.9.26)
+          var groups = [], cur = [], rowsN = 0, rc = remote.counts || {};
+          need.forEach(function(k) {
+            var c = Number(rc[k]) || 50;
+            if (cur.length && (cur.length >= READ_BATCH_BUCKETS || rowsN + c > READ_BATCH_ROWS)) { groups.push(cur); cur = []; rowsN = 0; }
+            cur.push(k); rowsN += c;
+          });
+          if (cur.length) groups.push(cur);
+          return pool(groups, READ_PARALLEL, function(grp) {
+            var left = grp.slice(), rounds = 0;
+            function step() {
+              if (!left.length) return Promise.resolve();
+              if (++rounds > 8) { left.forEach(function(k) { failBucket(k, new Error('not returned')); }); left = []; return Promise.resolve(); }
+              var ask = left.slice();
+              return withRetry(function() { return post(url, { action: 'smartBucketsRead', tool: tool, buckets: ask }, REQUEST_TIMEOUT_MS); }, ask[0] + '…', onStatus).then(function(d) {
+                var got = (d && d.buckets) || {}, saves = [];
+                left = [];
+                ask.forEach(function(k) {
+                  var b = got[k];
+                  if (b) {
+                    if (b.hash && b.hash !== (remoteH[k] || '')) failBucket(k, new Error('changed during download'));
+                    else { accept(k, b.records || []); saves.push(remember(k, b.records || [])); }
+                  } else if ((d.notFound || []).indexOf(k) >= 0) failBucket(k, new Error('bucket not found'));
+                  else left.push(k);                     // not read this time (time / size budget) → ask again
+                });
+                return Promise.all(saves).then(step);
+              }, function(e) { left.forEach(function(k) { failBucket(k, e); }); left = []; });
+            }
+            return step();
           });
         }).then(function() {
           var merged = sortRows(Object.keys(out).reduce(function(a, k) { return a.concat(out[k] || []); }, []));
@@ -723,6 +824,8 @@
             st.complete = !failed.length;
             emitProgress(tool, failed.length ? 'incomplete' : 'done', done, toFetch.length, { failed: failed.length });
             return (opts.readOnly ? Promise.resolve() : saveState(key, st)).then(function() {
+              if (useCache && !failed.length) return DLC.drop(key, toFetch);   // applied → the resume copy is no longer needed
+            }).then(function() {
               var conflicts = stats.conflicts;
               status(onStatus, L('完成｜下載 ' + downloaded + '｜未變 ' + unchanged + (pending ? '｜本機待上傳 ' + pending : '') + (pendingDelete ? '｜本機待刪除 ' + pendingDelete + ' 區塊' : '') + (failed.length ? '｜' + failed.length + ' 區塊待重試' : '') + (conflicts ? '｜衝突 ' + conflicts + '（保留本機版本）' : ''),
                 'Done · downloaded ' + downloaded + ' · unchanged ' + unchanged + (pending ? ' · pending upload ' + pending : '') + (pendingDelete ? ' · pending delete ' + pendingDelete + ' bucket(s)' : '') + (failed.length ? ' · ' + failed.length + ' bucket(s) to retry' : '') + (conflicts ? ' · ' + conflicts + ' conflict(s), kept this device' : '')), (conflicts || failed.length) ? 'warn' : 'ok');
