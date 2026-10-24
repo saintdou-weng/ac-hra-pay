@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-<script src="shared/hrpay-kv.js?v=3.9.25"></script>
-<script src="shared/hrpay-reporting.js?v=3.9.25"></script>
+<head><script src="shared/hrpay-gate.js?v=3.9.26"></script>
+<script src="shared/hrpay-kv.js?v=3.9.26"></script>
+<script src="shared/hrpay-reporting.js?v=3.9.26"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>⚠️ Warning Management | AC-HRA-PAY</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="shared/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="shared/hrpay-periods.js?v=3.9.25"></script>
-<script src="shared/hrpay-auto-sync.js?v=3.9.25"></script>
+<script src="shared/hrpay-periods.js?v=3.9.26"></script>
+<script src="shared/hrpay-auto-sync.js?v=3.9.26"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
@@ -24,9 +24,9 @@
   @media print{.no-print{display:none!important}}
   @media (max-width:640px){header select{max-width:130px;font-size:12px}header button{font-size:11px;padding:6px 8px}table{font-size:11px}}
 </style>
-<script src="shared/hrpay-i18n.js?v=3.9.25"></script>
-<script src="shared/hrpay-report.js?v=3.9.25"></script>
-<script src="shared/hrpay-import-hub.js?v=3.9.25"></script>
+<script src="shared/hrpay-i18n.js?v=3.9.26"></script>
+<script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 </head>
 <body class="text-slate-800">
 
@@ -965,7 +965,7 @@ async function gasGet(params){
   const u=new URL(GAS_URL);
   Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
   u.searchParams.set('_ts',String(Date.now()));
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);   // v3.9.26: 45 s → 90 s
   try{const r=await fetch(u.toString(),{cache:'no-store',signal:controller.signal});
     if(!r.ok)throw Error('HTTP '+r.status);return await r.json();
   }finally{clearTimeout(timer);}
@@ -1270,7 +1270,7 @@ async function cloudDownload(opts){
     RECS=cloud.concat(pending);RECS.sort((a,b)=>String(b.incidentDate).localeCompare(String(a.incidentDate)));
     await idbSaveAll();const ps=periods();if(!ACTIVE&&ps.length)ACTIVE=ps[ps.length-1];showApp();renderAll();
     if(!opts.silent)toast('☁ 已載入 '+cloud.length+' 筆最新版 / Latest cloud records','success');return true;
-  }catch(e){if(!opts.silent)toast(String(e.message||e),'error');else console.warn('[warning download]',e);return false;}finally{if(b)b.disabled=false;}
+  }catch(e){if(!opts.silent)toast(String(e.message||e),'error');else{console.warn('[warning download]',e);try{dispatchEvent(new CustomEvent('hrpay-sync-status',{detail:{msg:String(e.message||e),type:'error'}}));}catch(_){}}return false;}finally{if(b)b.disabled=false;}
 }
 async function cloudUpload(opts){
   opts=opts||{};const pending=RECS.filter(r=>!r.row&&r._src!=='cloud');if(!pending.length)return true;
@@ -1278,7 +1278,18 @@ async function cloudUpload(opts){
   try{
     for(let i=0;i<pending.length;i+=8){
       const chunk=pending.slice(i,i+8).map(r=>({...r,status:r.status||'待審核'}));
-      const res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});
+      // v3.9.26: cloud busy / slow → wait and retry this chunk (5 s, 15 s, 30 s) instead of failing the whole sync
+      let res=null,tries=0;
+      for(;;){
+        try{res=await gasGet({action:'warnImport',adminCode:ADMIN_CODE,reason:String(opts.reason||''),data:JSON.stringify(chunk)});}
+        catch(e){res={ok:false,error:String(e&&e.message||e),transient:true};}
+        if(res&&res.ok)break;
+        const transient=res&&(res.transient||/busy|忙碌|正在同步|timed out|abort|Failed to fetch|HTTP 5/i.test(String(res.error||'')));
+        if(!transient||tries>=3)break;
+        const wait=[5000,15000,30000][tries++];
+        try{dispatchEvent(new CustomEvent('hrpay-sync-status',{detail:{msg:'雲端忙碌，'+Math.round(wait/1000)+' 秒後重試 / Cloud busy, retry in '+Math.round(wait/1000)+'s',type:'warn'}}));}catch(_){}
+        await new Promise(r=>setTimeout(r,wait));
+      }
       if(!res||!res.ok)throw Error(res&&res.error||'上傳未確認 / Upload not confirmed');
       for(const r of res.records||[]){
         const key=x=>String(x.empId||x.empName||'').trim()+'|'+x.incidentDate+'|'+x.level;
@@ -1288,9 +1299,10 @@ async function cloudUpload(opts){
       }
       if(res.conflicts&&res.conflicts.length)throw Error('雲端已有不同內容，未覆蓋 '+res.conflicts.length+' 筆；請核對後編輯 / Existing cloud records preserved');
       done+=Number(res.imported)||0;
+      try{dispatchEvent(new CustomEvent('hrpay-sync-progress',{detail:{tool:'warning',phase:'upload',done:Math.min(i+8,pending.length),total:pending.length}}));}catch(_){}
     }
     if(!opts.silent)toast('☁ 已上傳 '+done+' 筆 / Uploaded','success');return true;
-  }catch(e){if(!opts.silent)toast(String(e.message||e),'error');else console.warn('[warning upload]',e);return false;}finally{if(b)b.disabled=false;}
+  }catch(e){if(!opts.silent)toast(String(e.message||e),'error');else{console.warn('[warning upload]',e);try{dispatchEvent(new CustomEvent('hrpay-sync-status',{detail:{msg:String(e.message||e),type:'error'}}));}catch(_){}}return false;}finally{if(b)b.disabled=false;}
 }
 window.warningEdit=warningEdit;window.warningSendLatest=warningSendLatest;
 
