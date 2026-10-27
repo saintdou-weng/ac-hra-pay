@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><script src="shared/hrpay-gate.js?v=3.9.26"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<script src="../ac-hra-portal/shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
+<link rel="preload" as="script" href="../ac-hra-portal/shared/cloud-guard.js?v=2">
+<link rel="preload" as="script" href="../ac-hra-portal/shared/hra-smart-sync.js?v=48">
+<link rel="preload" as="script" href="../ac-hra-portal/shared/hra-auto-sync.js?v=49">
+<link rel="preload" as="script" href="shared/xlsx.full.min.js">
+<script type="text/x-ac-after-storage" src="../ac-hra-portal/shared/cloud-guard.js?v=2"></script>
+<script type="text/x-ac-after-storage" src="../ac-hra-portal/shared/hra-smart-sync.js?v=48"></script>
+<script type="text/x-ac-after-storage" src="../ac-hra-portal/shared/hra-auto-sync.js?v=49"></script>
+<title>AC HRA Salary Structure</title>
+<script type="text/x-ac-after-storage" src="shared/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#173c60;--teal:#0b7b7b;--teal2:#e7f7f6;--blue:#1e80ae;--blue2:#edf8fc;
+  --gold:#e9a21b;--gold2:#fff7df;--red:#c4454a;--red2:#fff0f1;--green:#16855d;--green2:#e9f8f1;
+  --ink:#17283b;--muted:#6d7d8f;--line:#d8e3ec;--bg:#f2f7fa;--card:#fff;--shadow:0 5px 18px rgba(25,63,92,.10)
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans TC","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.top{position:sticky;top:0;z-index:50;color:#fff;background:linear-gradient(130deg,#173c60,#0c7b83 72%,#22a6a0);box-shadow:0 4px 18px rgba(0,34,55,.25)}
+.top-in{max-width:1500px;margin:auto;padding:13px 18px 10px}.brand-row{display:flex;align-items:center;gap:12px}
+.logo{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:28px;background:linear-gradient(145deg,#ffdd75,#eea91d);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.brand h1{font-size:22px;line-height:1.2;margin:0}.brand p{font-size:11px;color:rgba(255,255,255,.72);margin:4px 0 0}.grow{flex:1}
+.lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:9px;overflow:hidden}.lang button{border:0;background:rgba(0,0,0,.1);color:#fff;padding:8px 12px;font-weight:850}.lang button.on{background:#fff;color:#0b5f66}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}.top-btn{min-height:42px;border:1px solid rgba(255,255,255,.28);border-radius:10px;background:rgba(255,255,255,.1);color:#fff;padding:7px 12px;font-weight:850;display:flex;align-items:center;gap:7px}.top-btn.primary{background:#ffd966;color:#1c2b3a;border-color:#ffd966}
+.manual-note{font-size:11px;color:rgba(255,255,255,.78);display:flex;align-items:center;margin-left:auto}
+.tab-wrap{position:sticky;top:128px;z-index:40;background:#fff;border-bottom:1px solid var(--line)}.tabs{max-width:1500px;margin:auto;display:flex;overflow-x:auto}
+.tab{white-space:nowrap;border:0;border-bottom:3px solid transparent;background:#fff;color:#6b7a8a;padding:13px 16px;font-weight:850}.tab.on{color:#087b80;border-bottom-color:#0a9891;background:#f6fdfc}
+.period-bar{max-width:1500px;margin:12px auto 0;padding:0 18px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.control{height:40px;border:1px solid #b5c8d4;border-radius:10px;background:#fff;padding:0 10px;color:#1f3447;min-width:120px}
+.hint{font-size:12px;color:var(--muted)}
+main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.view.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px}.kpi{background:#fff;border:1px solid var(--line);border-left:6px solid var(--teal);border-radius:16px;padding:16px;box-shadow:var(--shadow)}.kpi.blue{border-left-color:var(--blue)}.kpi.gold{border-left-color:var(--gold)}.kpi.red{border-left-color:var(--red)}.kpi.green{border-left-color:var(--green)}
+.kpi .label{font-size:13px;font-weight:850;color:#68798b}.kpi .value{font-size:30px;font-weight:900;margin-top:6px}.kpi .sub{font-size:11px;color:#8592a0;margin-top:3px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:14px;margin-top:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-top:14px}.panel-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}.panel-head h2{font-size:15px;margin:0}.panel-body{padding:14px 16px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid #aec1cc;border-radius:9px;background:#fff;color:#29455d;padding:8px 11px;font-weight:850}.btn:hover{background:#f0f6f8}.btn.primary{background:#0b7b7b;border-color:#0b7b7b;color:#fff}.btn.danger{color:#b1333a;border-color:#e4b3b6}.btn.small{padding:5px 9px;font-size:12px}.btn:disabled{opacity:.5;cursor:not-allowed}
+.table-wrap{overflow:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:850px}th{position:sticky;top:0;z-index:2;background:#e8f4f6;color:#315b67;text-align:left;font-size:12px;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}td{padding:8px;border-bottom:1px solid #eaf0f4;font-size:13px;vertical-align:middle}tr:hover td{background:#f8fcfd}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}td.mono{font-family:ui-monospace,monospace;font-size:12px}
+table.edit td input,table.edit td select{width:100%;min-width:60px;border:1px solid #d3dfe6;border-radius:7px;padding:5px 7px}table.edit td input.num{text-align:right}
+.badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:850;white-space:nowrap}.b-regular{background:var(--green2);color:#08704a}.b-probation{background:var(--gold2);color:#8a5a00}.b-resigned{background:#eef1f4;color:#6b7a8a}.b-override{background:var(--blue2);color:#145f82}.b-nomatch{background:var(--red2);color:#9c2c33}
+.notice{border:1px solid #b8dde3;background:#eefafb;border-radius:11px;padding:11px 13px;color:#285d69;font-size:12px;line-height:1.55}.notice.warn{border-color:#efd4a0;background:#fff9e8;color:#76521a}.notice.ok{border-color:#b6e2cb;background:#eefaf3;color:#1d6b47}
+.empty{text-align:center;padding:36px 12px;color:#8794a1}.empty .ico{font-size:35px;margin-bottom:6px}
+.drop{border:2px dashed #8dbfc8;border-radius:14px;background:#f2fbfc;padding:25px;text-align:center;color:#3b6c74;position:relative}.drop.drag{background:#e4f8f7;border-color:#0a9891}.drop input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:850;color:#4d5f70}.field input,.field select,.field textarea{border:1px solid #b9cad4;border-radius:9px;padding:9px 10px;background:#fff}
+.modal{position:fixed;inset:0;background:rgba(7,23,35,.6);z-index:120;display:none;align-items:center;justify-content:center;padding:16px}.modal.open{display:flex}.dialog{width:min(980px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35)}.dialog-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}.dialog-head h3{margin:0;font-size:16px}.dialog-body{padding:16px 18px}.dialog-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)}
+.x{border:0;background:#eef3f6;border-radius:8px;width:34px;height:34px;font-size:18px}
+.pay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}.pay-cell{border:1px solid var(--line);border-radius:10px;padding:9px;background:#fafdfe}.pay-cell b{display:block;font-size:11px;color:#68798b}.pay-cell span{font-size:18px;font-weight:900}.pay-cell.total{background:var(--teal2);border-color:#9fd4d2}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.filters input,.filters select{height:36px;border:1px solid #b9cad4;border-radius:9px;padding:0 9px;background:#fff}
+.diff-up{color:#16855d;font-weight:850}.diff-down{color:#c4454a;font-weight:850}.muted{color:var(--muted)}
+.history{display:grid;gap:6px}.history div{border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:12px;display:flex;gap:10px;align-items:center}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;transition:.2s;background:#183249;color:#fff;padding:11px 18px;border-radius:10px;z-index:220;font-size:13px;font-weight:850;max-width:90vw}#toast.on{opacity:1;transform:translate(-50%,0)}
+.loading{position:fixed;inset:0;background:rgba(242,248,250,.84);z-index:210;display:none;place-items:center}.loading.on{display:grid}.loader{background:#fff;padding:18px 24px;border-radius:13px;box-shadow:var(--shadow);font-weight:850}
+.grid2>*,.panel,main{min-width:0}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.top-in{padding:10px}.brand h1{font-size:18px}.brand p{font-size:10px}.logo{width:46px;height:46px}.top-btn{font-size:0;min-width:42px;justify-content:center}.top-btn span{font-size:16px}.tab-wrap{top:118px}.cards{grid-template-columns:1fr 1fr}.kpi .value{font-size:22px}}
+@media print{.top,.tab-wrap,.period-bar,.toolbar,.btn{display:none!important}main{padding:0}}
+</style>
+<script src="../ac-hra-portal/shared/hra-report.js?v=2" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand-row">
+      <div class="logo">💵</div>
+      <div class="brand"><h1 data-i18n="title">薪資架構與職等</h1><p>AC HRA · SALARY STRUCTURE · GRADES · TITLE MAPPING · ANNUAL ADJUSTMENT v1.0</p></div>
+      <div class="grow"></div>
+      <div class="lang"><button id="langZh" onclick="setLang('zh')">中</button><button id="langEn" onclick="setLang('en')">EN</button></div>
+    </div>
+    <div class="actions">
+      <button class="top-btn primary" onclick="openImport()"><span>📥</span><b data-i18n="import">匯入 Excel</b></button>
+      <button class="top-btn" id="btn-cloud-up" onclick="cloudPush()"><span>☁️↑</span><b data-i18n="cloudUp">手動上傳</b></button>
+      <button class="top-btn" id="btn-cloud-down" onclick="cloudPull()"><span>☁️↓</span><b data-i18n="cloudDown">手動下載</b></button>
+      <button class="top-btn" onclick="exportExcel()"><span>⇩ XLSX</span><b data-i18n="export">匯出</b></button>
+      <button class="top-btn" onclick="window.print()"><span>🖨️</span><b data-i18n="print">列印</b></button>
+      <div class="manual-note" id="manualNote">● 薪資資料不發 Telegram</div>
+    </div>
+  </div>
+</header>
+
+<nav class="tab-wrap"><div class="tabs">
+  <button class="tab on" data-tab="dashboard" data-i18n="tabDashboard">總覽</button>
+  <button class="tab" data-tab="employees" data-i18n="tabEmployees">員工薪資</button>
+  <button class="tab" data-tab="grades" data-i18n="tabGrades">級距表</button>
+  <button class="tab" data-tab="titles" data-i18n="tabTitles">職稱對照</button>
+  <button class="tab" data-tab="batch" data-i18n="tabBatch">批次調整</button>
+  <button class="tab" data-tab="compare" data-i18n="tabCompare">年度比較</button>
+  <button class="tab" data-tab="settings" data-i18n="tabSettings">匯入／設定</button>
+</div></nav>
+
+<div class="period-bar">
+  <label class="hint" data-i18n="asOf">計算基準日</label>
+  <input type="date" class="control" id="asOfDate" onchange="renderAll()">
+  <button class="btn small" onclick="setToday()" data-i18n="today">今天</button>
+  <select class="control" id="globalDept" onchange="renderAll()"><option value="" data-i18n="allDepartments">全部部門</option></select>
+  <span class="hint" id="dataHint"></span>
+</div>
+
+<main>
+  <!-- ═══ Dashboard ═══ -->
+  <section class="view on" id="view-dashboard">
+    <div class="cards">
+      <div class="kpi"><div class="label" data-i18n="kpiActive">在職人數</div><div class="value" id="kActive">0</div><div class="sub" id="kActiveSub"></div></div>
+      <div class="kpi gold"><div class="label" data-i18n="kpiProbation">試用期中</div><div class="value" id="kProbation">0</div><div class="sub" id="kProbationSub"></div></div>
+      <div class="kpi blue"><div class="label" data-i18n="kpiConfirmSoon">30 天內轉正</div><div class="value" id="kConfirmSoon">0</div><div class="sub" data-i18n="autoPlus2">轉正底薪自動 +$2</div></div>
+      <div class="kpi green"><div class="label" data-i18n="kpiMonthly">月固定薪資合計</div><div class="value" id="kMonthly">$0</div><div class="sub" id="kMonthlySub"></div></div>
+      <div class="kpi red"><div class="label" data-i18n="kpiUnmatched">未對到職等</div><div class="value" id="kUnmatched">0</div><div class="sub" data-i18n="needAssign">需指定職等職級</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel" style="margin-top:0">
+        <div class="panel-head"><h2 data-i18n="byDept">部門彙總</h2><span class="hint" id="dashAsOf"></span></div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="dept">部門</th><th class="num" data-i18n="headcount">人數</th><th class="num" data-i18n="probation">試用</th><th class="num" data-i18n="regular">正式</th><th class="num" data-i18n="basicSum">底薪合計</th><th class="num" data-i18n="allowSum">加給合計</th><th class="num" data-i18n="monthlyTotal">月固定合計</th></tr></thead><tbody id="dashDeptBody"></tbody></table></div>
+      </div>
+      <div class="panel" style="margin-top:0"><div class="panel-head"><h2 data-i18n="dataStatus">資料狀態</h2></div><div class="panel-body"><div class="notice" id="dataStatusNote"></div><div style="height:10px"></div><div class="notice warn" id="ruleNote"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="upcoming">近期轉正（未來 60 天）</h2></div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="empId">工號</th><th data-i18n="name">姓名</th><th data-i18n="dept">部門</th><th data-i18n="position">職稱</th><th data-i18n="joinDate">到職日</th><th data-i18n="confirmDate">轉正日</th><th class="num" data-i18n="probBasic">試用底薪</th><th class="num" data-i18n="regBasic">轉正底薪</th></tr></thead><tbody id="upcomingBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ Employees ═══ -->
+  <section class="view" id="view-employees">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head">
+        <h2 data-i18n="tabEmployees">員工薪資</h2>
+        <div class="filters">
+          <input id="empSearch" placeholder="搜尋工號／姓名／職稱" oninput="renderEmployees()">
+          <select id="empStatusFilter" onchange="renderEmployees()"><option value="active" data-i18n="fActive">在職</option><option value="probation" data-i18n="fProbation">試用中</option><option value="regular" data-i18n="fRegular">正式</option><option value="unmatched" data-i18n="fUnmatched">未對到職等</option><option value="override" data-i18n="fOverride">有個人覆蓋</option><option value="resigned" data-i18n="fResigned">已離職</option><option value="all" data-i18n="fAll">全部</option></select>
+          <select id="empTrackFilter" onchange="renderEmployees()"><option value="" data-i18n="allTracks">全部軌道</option><option value="prod" data-i18n="trackProd">生產</option><option value="admin" data-i18n="trackAdmin">行政</option></select>
+        </div>
+        <div class="grow"></div>
+        <button class="btn" onclick="pullOtherModules()" data-i18n="pullModules">從其他模組帶入員工</button>
+        <button class="btn primary" onclick="openEmpForm()" data-i18n="addEmp">＋ 新增員工</button>
+      </div>
+      <div class="table-wrap"><table id="empTable"><thead><tr>
+        <th data-i18n="empId">工號</th><th data-i18n="name">姓名</th><th data-i18n="dept">部門</th><th data-i18n="section">組別</th><th data-i18n="position">職稱</th><th data-i18n="joinDate">到職日</th><th data-i18n="status">狀態</th><th data-i18n="grade">職等職級</th>
+        <th class="num" data-i18n="basic">底薪</th><th class="num" data-i18n="job">職務</th><th class="num" data-i18n="skill">技術</th><th class="num" data-i18n="attendance">全勤</th><th class="num" data-i18n="housing">交通住宿</th><th class="num" data-i18n="temp">臨時</th><th class="num" data-i18n="total">合計</th><th></th>
+      </tr></thead><tbody id="empBody"></tbody></table></div>
+      <div class="panel-body hint" id="empCount"></div>
+    </div>
+  </section>
+
+  <!-- ═══ Grades ═══ -->
+  <section class="view" id="view-grades">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head"><h2 data-i18n="basicWage">法定底薪（每年一筆）</h2><div class="grow"></div><button class="btn small" onclick="addBasicYear()" data-i18n="addYear">＋ 新增年度</button><button class="btn small primary" onclick="saveBasic()" data-i18n="save">儲存</button></div>
+      <div class="panel-body"><div class="notice" data-i18n="basicNote">試用期底薪 = 正式底薪 − $2。明年調薪只需新增一筆年度，所有人自動從生效日起套用新底薪；加給不變。</div></div>
+      <div class="table-wrap"><table class="edit" style="min-width:600px"><thead><tr><th data-i18n="year">年度</th><th data-i18n="effectiveFrom">生效日</th><th class="num" data-i18n="probBasic">試用底薪</th><th class="num" data-i18n="regBasic">正式底薪</th><th data-i18n="note">備註</th><th></th></tr></thead><tbody id="basicBody"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="gradeTables">職等職級加給表</h2><span class="hint" data-i18n="gradeHint">每格 = 底薪 + 職務加給 + 技術加給 + 全勤 + 交通住宿（＋獨立臨時補助）</span><div class="grow"></div><button class="btn small" onclick="addGradeRow()" data-i18n="addGrade">＋ 新增職等</button><button class="btn small primary" onclick="saveGrades()" data-i18n="save">儲存</button></div>
+      <div class="panel-body">
+        <div class="toolbar"><span class="hint" data-i18n="track">軌道</span>
+          <select class="control" id="gradeTrack" onchange="renderGrades()"><option value="admin" data-i18n="trackAdmin">行政</option><option value="prod" data-i18n="trackProd">生產</option></select>
+          <span class="hint" data-i18n="previewYear">以年度預覽</span><select class="control" id="gradeYear" onchange="renderGrades()"></select>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="edit"><thead><tr><th data-i18n="gradeTitle">職稱</th><th data-i18n="kind">職務</th><th data-i18n="rank">職等</th><th data-i18n="level">職級</th><th class="num" data-i18n="basic">底薪</th><th class="num" data-i18n="job">職務加給</th><th class="num" data-i18n="skill">技術加給</th><th class="num" data-i18n="attendance">全勤</th><th class="num" data-i18n="housing">交通住宿</th><th class="num" data-i18n="subtotal">架構小計</th><th class="num" data-i18n="withTemp">含臨時補助</th><th class="num" data-i18n="people">人數</th><th></th></tr></thead><tbody id="gradeBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ Titles ═══ -->
+  <section class="view" id="view-titles">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head"><h2 data-i18n="titleMap">職稱對照（職稱 → 預設職等職級）</h2><div class="grow"></div><button class="btn small" onclick="addTitleRow()" data-i18n="addTitle">＋ 新增職稱</button><button class="btn small primary" onclick="saveTitles()" data-i18n="save">儲存</button></div>
+      <div class="panel-body"><div class="notice" data-i18n="titleNote">新進員工匯入時依職稱自動給預設職等職級與試用月數；之後個別調整走「員工薪資」。工人試用 2 個月，辦公室與管理階層 3 個月。</div></div>
+      <div class="table-wrap"><table class="edit"><thead><tr><th data-i18n="dept">部門</th><th data-i18n="titleZh">職稱（中）</th><th data-i18n="titleEn">English Title</th><th data-i18n="track">軌道</th><th data-i18n="payTrack">薪資表</th><th data-i18n="band">建議帶</th><th data-i18n="defaultGrade">預設職等</th><th data-i18n="probMonths">試用月</th><th data-i18n="promo">升等條件</th><th class="num" data-i18n="people">人數</th><th></th></tr></thead><tbody id="titleBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ Batch ═══ -->
+  <section class="view" id="view-batch">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head"><h2 data-i18n="tabBatch">批次調整</h2><span class="hint" data-i18n="batchHint">先篩選、設定動作、預覽影響，確認後才寫入；每人各留一筆生效紀錄。</span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="field"><label data-i18n="filterDept">篩選：部門</label><select id="bDept"><option value="">—</option></select></div>
+          <div class="field"><label data-i18n="filterTrack">篩選：軌道</label><select id="bTrack"><option value="">—</option><option value="prod">生產 Production</option><option value="admin">行政 Admin</option></select></div>
+          <div class="field"><label data-i18n="filterGrade">篩選：目前職等（如 3-02；留空＝全部）</label><input id="bGrade" placeholder="3-02"></div>
+          <div class="field"><label data-i18n="filterTitle">篩選：職稱包含</label><input id="bTitle" placeholder="Leader"></div>
+          <div class="field"><label data-i18n="action">動作</label><select id="bAction" onchange="batchActionChanged()">
+            <option value="levelUp" data-i18n="actLevelUp">職級 +1（01→02→03）</option>
+            <option value="setGrade" data-i18n="actSetGrade">設定職等職級</option>
+            <option value="setField" data-i18n="actSetField">設定個人加給金額（覆蓋）</option>
+            <option value="clearOverride" data-i18n="actClearOverride">清除個人覆蓋（回到級距表）</option>
+          </select></div>
+          <div class="field"><label data-i18n="actionValue">動作參數</label><div style="display:flex;gap:6px"><select id="bField" style="display:none"><option value="job">職務加給 Job</option><option value="skill">技術加給 Skill</option><option value="attendance">全勤 Attendance</option><option value="housing">交通住宿 Housing</option></select><input id="bValue" placeholder="3-02 或 金額"></div></div>
+          <div class="field"><label data-i18n="effectiveFrom">生效日</label><input type="date" id="bEffective"></div>
+          <div class="field"><label data-i18n="reason">原因</label><input id="bReason" placeholder="2027 annual review"></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="toolbar"><button class="btn primary" onclick="batchPreview()" data-i18n="preview">預覽影響</button><button class="btn" id="bApply" disabled onclick="batchApply()" data-i18n="apply">確認寫入</button><span class="hint" id="bSummary"></span></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="empId">工號</th><th data-i18n="name">姓名</th><th data-i18n="dept">部門</th><th data-i18n="position">職稱</th><th data-i18n="before">調整前</th><th data-i18n="after">調整後</th><th class="num" data-i18n="totalBefore">合計前</th><th class="num" data-i18n="totalAfter">合計後</th><th class="num" data-i18n="delta">差額</th></tr></thead><tbody id="batchBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ Compare ═══ -->
+  <section class="view" id="view-compare">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head"><h2 data-i18n="tabCompare">年度比較</h2><span class="hint" data-i18n="compareHint">以目前在職人員與職等，比較兩個年度底薪表下的月固定成本。</span>
+        <div class="grow"></div><select class="control" id="cmpA"></select><span>→</span><select class="control" id="cmpB"></select><button class="btn small primary" onclick="renderCompare()" data-i18n="run">計算</button></div>
+      <div class="cards" style="padding:14px 16px;grid-template-columns:repeat(4,minmax(150px,1fr))">
+        <div class="kpi"><div class="label" id="cmpLabelA">A</div><div class="value" id="cmpTotalA">$0</div><div class="sub" data-i18n="perMonth">每月</div></div>
+        <div class="kpi blue"><div class="label" id="cmpLabelB">B</div><div class="value" id="cmpTotalB">$0</div><div class="sub" data-i18n="perMonth">每月</div></div>
+        <div class="kpi gold"><div class="label" data-i18n="deltaMonth">每月差額</div><div class="value" id="cmpDelta">$0</div><div class="sub" id="cmpDeltaSub"></div></div>
+        <div class="kpi green"><div class="label" data-i18n="deltaYear">每年差額</div><div class="value" id="cmpDeltaYear">$0</div><div class="sub" data-i18n="x12">× 12 個月，不含加班與社保</div></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="dept">部門</th><th class="num" data-i18n="headcount">人數</th><th class="num" id="cmpColA">A</th><th class="num" id="cmpColB">B</th><th class="num" data-i18n="delta">差額</th></tr></thead><tbody id="cmpBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ Settings / Import ═══ -->
+  <section class="view" id="view-settings">
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head"><h2 data-i18n="importTitle">匯入 Excel</h2></div>
+      <div class="panel-body">
+        <div class="drop" id="dropZone"><input type="file" accept=".xlsx,.xls,.csv" multiple onchange="handleFiles(this.files)"><div style="font-size:34px">📥</div><div style="font-weight:850;margin-top:6px" data-i18n="dropTitle">拖放 Excel 到這裡</div><div class="hint" style="margin-top:4px" data-i18n="dropSub">薪資架構工作簿（行政／生產／Basic Wage／職稱對照）或員工薪資清單（工號／姓名／職稱／到職日／底薪／加給…）。匯入前先預覽差異。</div></div>
+        <div style="height:12px"></div>
+        <div id="importLog" class="hint"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="settings">規則設定</h2><div class="grow"></div><button class="btn small primary" onclick="saveSettings()" data-i18n="save">儲存</button></div>
+      <div class="panel-body form-grid">
+        <div class="field"><label data-i18n="sProbWorker">工人試用月數（生產基層）</label><input type="number" id="sProbWorker" min="0" max="12"></div>
+        <div class="field"><label data-i18n="sProbStaff">辦公室／管理階層試用月數</label><input type="number" id="sProbStaff" min="0" max="12"></div>
+        <div class="field"><label data-i18n="sTemp">臨時交通／住宿補助（獨立 pay code）</label><input type="number" id="sTemp" step="0.5"></div>
+        <div class="field"><label data-i18n="sProbAllow">試用期是否發放職務／技術加給</label><select id="sProbAllow"><option value="1" data-i18n="yes">是（只有底薪少 $2）</option><option value="0" data-i18n="no">否（試用期只領底薪＋全勤＋交通住宿）</option></select></div>
+        <div class="field full"><label data-i18n="gasUrl">雲端 GAS 網址（與其他 HRA 模組共用，通常不用填）</label><input id="sGas" placeholder="https://script.google.com/macros/s/…/exec"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="danger">資料</h2></div>
+      <div class="panel-body toolbar"><button class="btn" onclick="resetDefaults()" data-i18n="resetDefaults">重設級距表／職稱對照為 2027 預設</button><button class="btn danger" onclick="clearEmployees()" data-i18n="clearEmployees">清除所有員工資料（級距表保留）</button></div>
+    </div>
+  </section>
+</main>
+
+<!-- Employee dialog -->
+<div class="modal" id="empModal"><div class="dialog">
+  <div class="dialog-head"><h3 id="empModalTitle">員工</h3><div class="grow"></div><button class="x" onclick="closeModal('empModal')">×</button></div>
+  <div class="dialog-body">
+    <div class="form-grid">
+      <div class="field"><label data-i18n="empId">工號</label><input id="fEmpId"></div>
+      <div class="field"><label data-i18n="name">姓名</label><input id="fName"></div>
+      <div class="field"><label data-i18n="dept">部門</label><input id="fDept" list="deptList"><datalist id="deptList"></datalist></div>
+      <div class="field"><label data-i18n="section">組別</label><input id="fSection"></div>
+      <div class="field"><label data-i18n="position">職稱</label><input id="fPosition" list="titleList" oninput="empTitleHint()"><datalist id="titleList"></datalist><span class="hint" id="fTitleHint"></span></div>
+      <div class="field"><label data-i18n="payTrack">薪資表</label><select id="fTrack"><option value="prod">生產 Production</option><option value="admin">行政 Admin</option></select></div>
+      <div class="field"><label data-i18n="joinDate">到職日</label><input type="date" id="fJoin"></div>
+      <div class="field"><label data-i18n="probMonths">試用月數</label><input type="number" id="fProb" min="0" max="12"></div>
+      <div class="field"><label data-i18n="confirmDateOpt">轉正日（留空＝到職日＋試用月數）</label><input type="date" id="fConfirm"></div>
+      <div class="field"><label data-i18n="resignDate">離職日（留空＝在職）</label><input type="date" id="fResign"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="gradeAssign">職等職級</h2><span class="hint" id="fGradeHint"></span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="field"><label data-i18n="newGrade">新職等職級</label><select id="fGrade"></select></div>
+          <div class="field"><label data-i18n="effectiveFrom">生效日</label><input type="date" id="fGradeFrom"></div>
+          <div class="field full"><label data-i18n="reason">原因（經驗／表現／年資）</label><input id="fGradeReason"></div>
+        </div>
+        <div style="height:8px"></div><button class="btn small primary" onclick="addAssignment()" data-i18n="addAssignment">新增一筆職等紀錄</button>
+        <div style="height:10px"></div><div class="history" id="fAssignHistory"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="overrideTitle">個人覆蓋（只填與級距表不同的欄位）</h2></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="field"><label data-i18n="job">職務加給</label><input type="number" id="oJob" step="0.5"></div>
+          <div class="field"><label data-i18n="skill">技術加給</label><input type="number" id="oSkill" step="0.5"></div>
+          <div class="field"><label data-i18n="attendance">全勤</label><input type="number" id="oAttendance" step="0.5"></div>
+          <div class="field"><label data-i18n="housing">交通住宿</label><input type="number" id="oHousing" step="0.5"></div>
+          <div class="field"><label data-i18n="effectiveFrom">生效日</label><input type="date" id="oFrom"></div>
+          <div class="field"><label data-i18n="note">說明</label><input id="oNote"></div>
+        </div>
+        <div style="height:8px"></div><div class="toolbar"><button class="btn small primary" onclick="addOverride()" data-i18n="addOverride">新增一筆覆蓋</button><button class="btn small" onclick="clearOverrideFor()" data-i18n="clearOverride">清除覆蓋</button></div>
+        <div style="height:10px"></div><div class="history" id="fOverrideHistory"></div>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2 data-i18n="payPreview">薪資預覽（基準日）</h2></div><div class="panel-body pay-grid" id="fPayPreview"></div></div>
+  </div>
+  <div class="dialog-foot"><button class="btn danger" id="fDelete" onclick="deleteEmployee()" data-i18n="delete">刪除</button><div class="grow"></div><button class="btn" onclick="closeModal('empModal')" data-i18n="cancel">取消</button><button class="btn primary" onclick="saveEmployee()" data-i18n="save">儲存</button></div>
+</div></div>
+
+<!-- Import preview dialog -->
+<div class="modal" id="importModal"><div class="dialog">
+  <div class="dialog-head"><h3 id="importTitle">匯入預覽</h3><div class="grow"></div><button class="x" onclick="closeModal('importModal')">×</button></div>
+  <div class="dialog-body"><div class="notice" id="importSummary"></div><div style="height:10px"></div><div class="table-wrap" id="importPreview"></div></div>
+  <div class="dialog-foot"><button class="btn" onclick="closeModal('importModal')" data-i18n="cancel">取消</button><button class="btn primary" id="importApplyBtn" onclick="importApply()" data-i18n="confirmImport">確認匯入</button></div>
+</div></div>
+
+<div id="toast"></div>
+<div class="loading" id="loading"><div class="loader" id="loadingText">處理中…</div></div>
+<script type="text/x-ac-after-storage">
+/* ═══════════════════════════════════════════════════════════════
+   AC HRA Salary Structure v1.0
+   - Pay grades (track × rank × level) + statutory basic wage by year
+   - Title mapping → default grade / probation months
+   - Per-employee grade assignment history + optional per-field override
+   - Batch adjustment with preview; annual comparison
+   - Cloud: HRASmartSync tool 'salary' (no GAS change, no Telegram)
+   ═══════════════════════════════════════════════════════════════ */
+const APP_VERSION='1.0.0',DB_NAME='ac_hra_salary_v1',DB_STORE='snapshots',DB_KEY='main',META_KEY='ac_hra_salary_meta',
+      GAS_KEY='ac_hra_gas_url',GAS_SHARED_KEY='vrt_att_cloud_v1_url',LANG_KEY='ac_hra_lang',TOOL='salary';
+let LANG=localStorage.getItem(LANG_KEY)||'zh';if(LANG!=='zh'&&LANG!=='en')LANG='zh';
+let STATE=null,ACTIVE_TAB='dashboard',EDIT_EMP=null,IMPORT_PENDING=null,BATCH_PLAN=null,_applying=false,_busy=false;
+
+/* ── defaults from VRT_2027_Salary_Structure_Review_Updated.xlsx ── */
+const DEFAULTS={"basic":[{"year":2018,"probation":null,"regular":170,"note":""},{"year":2019,"probation":null,"regular":182,"note":""},{"year":2020,"probation":null,"regular":190,"note":""},{"year":2021,"probation":null,"regular":192,"note":""},{"year":2022,"probation":null,"regular":194,"note":""},{"year":2023,"probation":null,"regular":200,"note":""},{"year":2024,"probation":null,"regular":204,"note":""},{"year":2025,"probation":206,"regular":208,"note":""},{"year":2026,"probation":208,"regular":210,"note":""},{"year":2027,"probation":210,"regular":212,"note":"Effective 2027-01-01"}],"grades":[{"track":"admin","rank":5,"level":"03","title":"經理/課長","kind":"管理職","job":500,"skill":363,"attendance":10,"housing":7},{"track":"admin","rank":5,"level":"02","title":"經理/課長","kind":"管理職","job":400,"skill":301,"attendance":10,"housing":7},{"track":"admin","rank":5,"level":"01","title":"經理/課長","kind":"管理職","job":350,"skill":247,"attendance":10,"housing":7},{"track":"admin","rank":4,"level":"03","title":"大組長/特助","kind":"管理職","job":300,"skill":208,"attendance":10,"housing":7},{"track":"admin","rank":4,"level":"02","title":"大組長/特助","kind":"管理職","job":245,"skill":181,"attendance":10,"housing":7},{"track":"admin","rank":4,"level":"01","title":"大組長/特助","kind":"管理職","job":226,"skill":148,"attendance":10,"housing":7},{"track":"admin","rank":3,"level":"03","title":"組長/專員","kind":"管理/專業","job":196,"skill":117,"attendance":10,"housing":7},{"track":"admin","rank":3,"level":"02","title":"組長/專員","kind":"管理/專業","job":168,"skill":88,"attendance":10,"housing":7},{"track":"admin","rank":3,"level":"01","title":"組長/專員","kind":"管理/專業","job":147,"skill":68,"attendance":10,"housing":7},{"track":"admin","rank":2,"level":"03","title":"助理","kind":"一般/技術","job":100,"skill":48,"attendance":10,"housing":7},{"track":"admin","rank":2,"level":"02","title":"助理","kind":"一般/技術","job":49,"skill":28,"attendance":10,"housing":7},{"track":"admin","rank":2,"level":"01","title":"助理","kind":"一般/技術","job":30,"skill":15,"attendance":10,"housing":7},{"track":"admin","rank":1,"level":"01","title":"基層","kind":"一般","job":0,"skill":0,"attendance":10,"housing":7},{"track":"prod","rank":4,"level":"03","title":"大組長","kind":"管理/技術管理","job":410,"skill":265,"attendance":10,"housing":7},{"track":"prod","rank":4,"level":"02","title":"大組長","kind":"管理/技術管理","job":320,"skill":182,"attendance":10,"housing":7},{"track":"prod","rank":4,"level":"01","title":"大組長","kind":"管理/技術管理","job":216,"skill":123,"attendance":10,"housing":7},{"track":"prod","rank":3,"level":"03","title":"組長","kind":"管理/技術","job":130,"skill":93,"attendance":10,"housing":7},{"track":"prod","rank":3,"level":"02","title":"組長","kind":"管理/技術","job":95,"skill":72,"attendance":10,"housing":7},{"track":"prod","rank":3,"level":"01","title":"組長","kind":"管理/技術","job":67,"skill":48,"attendance":10,"housing":7},{"track":"prod","rank":2,"level":"03","title":"助理","kind":"一般/技術","job":46,"skill":30,"attendance":10,"housing":7},{"track":"prod","rank":2,"level":"02","title":"助理","kind":"一般/技術","job":25,"skill":15,"attendance":10,"housing":7},{"track":"prod","rank":2,"level":"01","title":"助理","kind":"一般/技術","job":10,"skill":5,"attendance":10,"housing":7},{"track":"prod","rank":1,"level":"01","title":"基層","kind":"一般","job":0,"skill":0,"attendance":10,"housing":7}],"titles":[{"dept":"行政中心","zh":"行政經理","en":"Administration Manager","track":"管理","band":"5-02～5-03","grade":"5-03","promo":"跨 HRA/GAS/Compliance、預算與全廠責任","note":"核心管理職"},{"dept":"HRA","zh":"人資課長","en":"HR Supervisor","track":"管理","band":"5-01～5-02","grade":"5-01","promo":"Payroll/法規/人力數據與帶人","note":"非僅看年資"},{"dept":"HRA","zh":"人資助理","en":"HR Assistant","track":"一般/專業","band":"2-01～3-02","grade":"2-02","promo":"能獨立 payroll/ERP/法規可轉專員 Rank3","note":"拆開一般助理與專員"},{"dept":"HRA","zh":"護士","en":"Nurse","track":"技術","band":"2-03～3-01","grade":"2-03","promo":"執照、急救、職災、醫務獨立性","note":"技術職"},{"dept":"行政","zh":"行政助理","en":"Admin Assistant","track":"一般/專業","band":"2-02～3-01","grade":"2-02","promo":"獨立行政/報表/系統能力","note":""},{"dept":"GAS","zh":"維修工","en":"ME Technician","track":"技術","band":"2-03～3-02","grade":"2-03","promo":"機電證照、獨立維修、多機種","note":"不要硬套一般助理"},{"dept":"GAS","zh":"保安隊長","en":"Security Captain","track":"管理","band":"3-03～4-01","grade":"3-03","promo":"夜班、CCTV、巡邏、事件與人員責任","note":"不建議 Rank5"},{"dept":"GAS","zh":"保安員","en":"Security Guard","track":"基層","band":"1～2-01","grade":"1","promo":"特殊職責/班別可加技術或職務加給","note":""},{"dept":"GAS","zh":"總務課長","en":"General Affair Supervisor","track":"管理","band":"5-01～5-02","grade":"5-01","promo":"設施、車輛、保安、食堂/宿舍等責任","note":""},{"dept":"GAS","zh":"總務助理","en":"GA Assistant","track":"一般/專業","band":"2-02～3-01","grade":"2-03","promo":"可獨立負責模組則轉專員","note":""},{"dept":"GAS","zh":"清潔工助理","en":"Cleaner Assistant","track":"一般","band":"2-01～2-03","grade":"2-02","promo":"帶人/區域責任","note":""},{"dept":"GAS","zh":"清潔工","en":"Cleaner","track":"基層","band":"1～2-01","grade":"1","promo":"特殊區域/帶人再升","note":""},{"dept":"GAS","zh":"司機","en":"Driver","track":"基層/技術","band":"1～2-02","grade":"1","promo":"駕照類別、長途、車輛責任","note":""},{"dept":"行政支援","zh":"會計助理","en":"Accounting Assistant","track":"專業","band":"2-03～3-02","grade":"3-01","promo":"帳務獨立性、稅務/報表能力","note":""},{"dept":"行政支援","zh":"船務助理","en":"Shipping Assistant","track":"專業","band":"2-03～3-02","grade":"3-01","promo":"出口文件、客戶/Forwarder溝通","note":""},{"dept":"行政支援","zh":"資管","en":"IT","track":"技術","band":"3-01～4-01","grade":"3-02","promo":"系統/網路/資安與單人責任範圍","note":""},{"dept":"生產","zh":"車縫主管","en":"Sewing Supervisor","track":"管理","band":"4-01～4-03","grade":"4-02","promo":"帶線數/人數、效率、品質、換款","note":""},{"dept":"生產","zh":"車縫組長","en":"Sewing Leader","track":"管理","band":"3-01～3-03","grade":"3-02","promo":"單線效率、品質、出勤與換款","note":""},{"dept":"生產","zh":"車縫助理","en":"Sewing Assistant","track":"一般","band":"2-01～2-03","grade":"2-02","promo":"可獨立代線才升 3-01","note":""},{"dept":"生產","zh":"QC主管","en":"QC Supervisor","track":"管理/專業","band":"4-01～4-03","grade":"4-02","promo":"全區品質、客訴、稽核責任","note":""},{"dept":"生產","zh":"QC組長","en":"QC Leader","track":"管理/專業","band":"3-02～3-03","grade":"3-02","promo":"區域品質與帶人","note":""},{"dept":"生產","zh":"裁剪組長","en":"Cutting Leader","track":"技術管理","band":"3-03～4-01","grade":"4-01","promo":"布耗、精度、裁剪計畫與帶人","note":""},{"dept":"生產","zh":"裁手","en":"Cutter","track":"技術","band":"2-02～3-01","grade":"2-03","promo":"裁剪技能、布耗與品質","note":""},{"dept":"生產","zh":"馬克員","en":"Marker","track":"技術","band":"3-01～3-03","grade":"3-02","promo":"排版利用率、系統能力","note":""},{"dept":"生產","zh":"機修組長","en":"Mechanic Leader","track":"技術管理","band":"4-01～4-03","grade":"4-02","promo":"設備故障率、換款與機台配置","note":""},{"dept":"生產","zh":"機修","en":"Mechanic","track":"技術","band":"2-03～3-03","grade":"3-01","promo":"獨立維修、多機種、故障時效","note":""},{"dept":"生產","zh":"倉庫組長","en":"Warehouse Leader","track":"管理/專業","band":"3-02～4-02","grade":"3-03","promo":"庫存、收發、追溯、帶人；大倉可 Rank4","note":""},{"dept":"生產","zh":"倉庫助理","en":"Warehouse Assistant","track":"一般/專業","band":"2-02～3-01","grade":"2-03","promo":"Excel/系統/盤點能力","note":""},{"dept":"生產","zh":"倉庫搬運工","en":"Warehouse Loader","track":"基層","band":"1～2-01","grade":"1","promo":"叉車/設備技能另加","note":""},{"dept":"生產","zh":"輔料助理","en":"Trim Assistant","track":"一般/專業","band":"2-02～3-01","grade":"2-03","promo":"收發、盤點、BOM/PO對應","note":""},{"dept":"生產","zh":"生管組長","en":"PC Leader","track":"管理/專業","band":"3-03～4-01","grade":"4-01","promo":"排單、交期、WIP、跨部門協調","note":""},{"dept":"生產","zh":"生管助理","en":"PC Assistant","track":"專業","band":"2-03～3-03","grade":"3-01","promo":"獨立排程/ERP/交期管理","note":""},{"dept":"生產","zh":"樣品組長","en":"Sample Leader","track":"技術管理","band":"3-03～4-01","grade":"3-03","promo":"樣品交期、工藝與帶人","note":""},{"dept":"生產","zh":"樣品車工","en":"Sample Operator","track":"技術","band":"2-03～3-02","grade":"2-03","promo":"多工序/樣品技能","note":""},{"dept":"生產","zh":"成品組長","en":"Finishing Leader","track":"管理","band":"3-02～3-03","grade":"3-02","promo":"包裝/出貨品質與帶人","note":""},{"dept":"生產","zh":"包裝助理","en":"Packing Assistant","track":"一般","band":"2-01～2-03","grade":"2-02","promo":"獨立文件/裝箱管理可升","note":""}]};
+
+/* rank-1 production titles as they appear in the Recruit / Manpower reports (not in the 2027 review sheet) */
+DEFAULTS.titles.push(
+  {dept:'生產',zh:'車工',en:'Sewing Operator',track:'基層',band:'1',grade:'1-01',promo:'',note:'rank 1 · 試用 2 個月'},
+  {dept:'生產',zh:'QC 檢驗員',en:'QC Inspector',track:'基層',band:'1',grade:'1-01',promo:'',note:'Inspector / QC A / QC B'},
+  {dept:'生產',zh:'檢驗員',en:'Inspector',track:'基層',band:'1',grade:'1-01',promo:'',note:''},
+  {dept:'生產',zh:'包裝員',en:'Packing Worker',track:'基層',band:'1',grade:'1-01',promo:'',note:'Packer'},
+  {dept:'生產',zh:'燙工',en:'Ironing Worker',track:'基層',band:'1',grade:'1-01',promo:'',note:'Presser'},
+  {dept:'生產',zh:'雜工',en:'General Worker',track:'基層',band:'1',grade:'1-01',promo:'',note:'Helper'},
+  {dept:'生產',zh:'倉庫工',en:'Warehouse Worker',track:'基層',band:'1',grade:'1-01',promo:'',note:''},
+  {dept:'生產',zh:'培訓車工',en:'Training Operator',track:'基層',band:'1',grade:'1-01',promo:'',note:'Training Line'},
+  {dept:'生產',zh:'車縫主管',en:'Line Supervisor',track:'管理',band:'4-01～4-03',grade:'4-02',promo:'',note:'= Sewing Supervisor'},
+  {dept:'生產',zh:'車縫組長',en:'Line Leader',track:'管理',band:'3-01～3-03',grade:'3-02',promo:'',note:'= Sewing Leader'},
+  {dept:'GAS',zh:'保安員',en:'Security',track:'基層',band:'1',grade:'1-01',promo:'',note:'= Security Guard'}
+);
+const I18N={
+ zh:{title:'薪資架構與職等',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',print:'列印',
+  tabDashboard:'總覽',tabEmployees:'員工薪資',tabGrades:'級距表',tabTitles:'職稱對照',tabBatch:'批次調整',tabCompare:'年度比較',tabSettings:'匯入／設定',
+  asOf:'計算基準日',today:'今天',allDepartments:'全部部門',kpiActive:'在職人數',kpiProbation:'試用期中',kpiConfirmSoon:'30 天內轉正',autoPlus2:'轉正底薪自動 +$2',kpiMonthly:'月固定薪資合計',kpiUnmatched:'未對到職等',needAssign:'需指定職等職級',
+  byDept:'部門彙總',dept:'部門',headcount:'人數',probation:'試用',regular:'正式',basicSum:'底薪合計',allowSum:'加給合計',monthlyTotal:'月固定合計',dataStatus:'資料狀態',upcoming:'近期轉正（未來 60 天）',
+  empId:'工號',name:'姓名',position:'職稱',joinDate:'到職日',confirmDate:'轉正日',probBasic:'試用底薪',regBasic:'正式底薪',section:'組別',status:'狀態',grade:'職等職級',basic:'底薪',job:'職務',skill:'技術',attendance:'全勤',housing:'交通住宿',temp:'臨時',total:'合計',
+  fActive:'在職',fProbation:'試用中',fRegular:'正式',fUnmatched:'未對到職等',fOverride:'有個人覆蓋',fResigned:'已離職',fAll:'全部',allTracks:'全部軌道',trackProd:'生產',trackAdmin:'行政',pullModules:'從其他模組帶入員工',addEmp:'＋ 新增員工',
+  basicWage:'法定底薪（每年一筆）',addYear:'＋ 新增年度',save:'儲存',basicNote:'試用期底薪 = 正式底薪 − $2。明年調薪只需新增一筆年度，所有人自動從生效日起套用新底薪；加給不變。',year:'年度',effectiveFrom:'生效日',note:'備註',
+  gradeTables:'職等職級加給表',gradeHint:'每格 = 底薪 + 職務加給 + 技術加給 + 全勤 + 交通住宿（＋獨立臨時補助）',addGrade:'＋ 新增職等',track:'軌道',previewYear:'以年度預覽',gradeTitle:'職稱',kind:'職務',rank:'職等',level:'職級',subtotal:'架構小計',withTemp:'含臨時補助',people:'人數',
+  titleMap:'職稱對照（職稱 → 預設職等職級）',addTitle:'＋ 新增職稱',titleNote:'新進員工匯入時依職稱自動給預設職等職級與試用月數；之後個別調整走「員工薪資」。工人試用 2 個月，辦公室與管理階層 3 個月。',titleZh:'職稱（中）',titleEn:'English Title',payTrack:'薪資表',band:'建議帶',defaultGrade:'預設職等',probMonths:'試用月',promo:'升等條件',
+  batchHint:'先篩選、設定動作、預覽影響，確認後才寫入；每人各留一筆生效紀錄。',filterDept:'篩選：部門',filterTrack:'篩選：軌道',filterGrade:'篩選：目前職等（如 3-02；留空＝全部）',filterTitle:'篩選：職稱包含',action:'動作',actLevelUp:'職級 +1（01→02→03）',actSetGrade:'設定職等職級',actSetField:'設定個人加給金額（覆蓋）',actClearOverride:'清除個人覆蓋（回到級距表）',actionValue:'動作參數',reason:'原因',preview:'預覽影響',apply:'確認寫入',before:'調整前',after:'調整後',totalBefore:'合計前',totalAfter:'合計後',delta:'差額',
+  compareHint:'以目前在職人員與職等，比較兩個年度底薪表下的月固定成本。',run:'計算',perMonth:'每月',deltaMonth:'每月差額',deltaYear:'每年差額',x12:'× 12 個月，不含加班與社保',
+  importTitle:'匯入 Excel',dropTitle:'拖放 Excel 到這裡',dropSub:'薪資架構工作簿（行政／生產／Basic Wage／職稱對照）或員工薪資清單（工號／姓名／職稱／到職日／底薪／加給…）。匯入前先預覽差異。',settings:'規則設定',sProbWorker:'工人試用月數（生產基層）',sProbStaff:'辦公室／管理階層試用月數',sTemp:'臨時交通／住宿補助（獨立 pay code）',sProbAllow:'試用期是否發放職務／技術加給',yes:'是（只有底薪少 $2）',no:'否（試用期只領底薪＋全勤＋交通住宿）',gasUrl:'雲端 GAS 網址（與其他 HRA 模組共用，通常不用填）',danger:'資料',resetDefaults:'重設級距表／職稱對照為 2027 預設',clearEmployees:'清除所有員工資料（級距表保留）',
+  confirmDateOpt:'轉正日（留空＝到職日＋試用月數）',resignDate:'離職日（留空＝在職）',gradeAssign:'職等職級',newGrade:'新職等職級',addAssignment:'新增一筆職等紀錄',overrideTitle:'個人覆蓋（只填與級距表不同的欄位）',addOverride:'新增一筆覆蓋',clearOverride:'清除覆蓋',payPreview:'薪資預覽（基準日）',delete:'刪除',cancel:'取消',confirmImport:'確認匯入',
+  stProbation:'試用',stRegular:'正式',stResigned:'離職',unmatched:'未對應',override:'覆蓋',gasMissing:'尚未設定雲端 GAS 網址（請先在其他 HRA 模組或入口頁設定）',cloudSent:'已上傳',cloudReceived:'已下載',saved:'已儲存',noCloud:'雲端尚無薪資資料，先用本機',
+  edit:'編輯',removed:'已刪除',restored:'已還原',needEmpId:'工號與姓名必填',confirmDeleteEmp:'刪除此員工（含職等與覆蓋紀錄）？',confirmClear:'確定清除所有員工、職等與覆蓋資料？級距表與職稱對照保留。',confirmReset:'以 2027 預設覆蓋級距表、底薪表與職稱對照？員工資料不受影響。',
+  batchNone:'沒有符合篩選的員工',batchWritten:'已寫入',invalidGrade:'職等職級格式應為 3-02',noChange:'無變動',
+  pulledFrom:'已帶入',onboardingSrc:'新進／離職（雲端）',contractSrc:'合約模組（本機）',noNewEmp:'沒有新的員工可帶入'},
+ en:{title:'Salary Structure & Grades',import:'Import Excel',cloudUp:'Upload',cloudDown:'Download',export:'Export',print:'Print',
+  tabDashboard:'Dashboard',tabEmployees:'Employees',tabGrades:'Pay Grades',tabTitles:'Title Mapping',tabBatch:'Batch Adjust',tabCompare:'Year Compare',tabSettings:'Import / Settings',
+  asOf:'As of',today:'Today',allDepartments:'All departments',kpiActive:'Active',kpiProbation:'On probation',kpiConfirmSoon:'Confirm within 30 days',autoPlus2:'Basic +$2 on confirmation',kpiMonthly:'Monthly fixed pay',kpiUnmatched:'No grade',needAssign:'Needs a grade',
+  byDept:'By department',dept:'Dept',headcount:'HC',probation:'Prob.',regular:'Regular',basicSum:'Basic',allowSum:'Allowances',monthlyTotal:'Monthly fixed',dataStatus:'Data status',upcoming:'Upcoming confirmations (next 60 days)',
+  empId:'ID',name:'Name',position:'Title',joinDate:'Join date',confirmDate:'Confirm date',probBasic:'Prob. basic',regBasic:'Regular basic',section:'Section',status:'Status',grade:'Grade',basic:'Basic',job:'Job',skill:'Skill',attendance:'Attend.',housing:'Transp/Hous',temp:'Temp',total:'Total',
+  fActive:'Active',fProbation:'Probation',fRegular:'Regular',fUnmatched:'No grade',fOverride:'Has override',fResigned:'Resigned',fAll:'All',allTracks:'All tracks',trackProd:'Production',trackAdmin:'Admin',pullModules:'Pull employees from other modules',addEmp:'+ Add employee',
+  basicWage:'Statutory basic wage (one row per year)',addYear:'+ Add year',save:'Save',basicNote:'Probation basic = regular basic − $2. For next year add one row; everyone switches on the effective date, allowances unchanged.',year:'Year',effectiveFrom:'Effective from',note:'Note',
+  gradeTables:'Grade allowance tables',gradeHint:'Cell = basic + job + skill + attendance + transport/housing (+ separate temporary allowance)',addGrade:'+ Add grade',track:'Track',previewYear:'Preview year',gradeTitle:'Title',kind:'Kind',rank:'Rank',level:'Level',subtotal:'Structure subtotal',withTemp:'With temp',people:'People',
+  titleMap:'Title mapping (title → default grade)',addTitle:'+ Add title',titleNote:'Imported employees get the default grade and probation months from their title; later changes go through Employees. Workers 2 months, office/management 3 months.',titleZh:'Title (ZH)',titleEn:'English Title',payTrack:'Pay table',band:'Band',defaultGrade:'Default grade',probMonths:'Prob. months',promo:'Promotion criteria',
+  batchHint:'Filter, choose an action, preview the impact, then confirm. One dated record per person.',filterDept:'Filter: department',filterTrack:'Filter: track',filterGrade:'Filter: current grade (e.g. 3-02; blank = all)',filterTitle:'Filter: title contains',action:'Action',actLevelUp:'Level +1 (01→02→03)',actSetGrade:'Set grade',actSetField:'Set a personal allowance (override)',actClearOverride:'Clear personal override (back to grade table)',actionValue:'Parameter',reason:'Reason',preview:'Preview',apply:'Confirm & write',before:'Before',after:'After',totalBefore:'Total before',totalAfter:'Total after',delta:'Delta',
+  compareHint:'Current active employees and grades, costed under two basic-wage years.',run:'Calculate',perMonth:'per month',deltaMonth:'Monthly delta',deltaYear:'Yearly delta',x12:'× 12 months, excl. OT and social security',
+  importTitle:'Import Excel',dropTitle:'Drop Excel here',dropSub:'Salary structure workbook (Admin / Production / Basic Wage / Title Mapping) or an employee pay list (ID / name / title / join date / basic / allowances…). Differences are previewed first.',settings:'Rules',sProbWorker:'Worker probation months (production rank 1)',sProbStaff:'Office / management probation months',sTemp:'Temporary transport/housing allowance (separate pay code)',sProbAllow:'Pay job/skill allowances during probation?',yes:'Yes (only basic is $2 lower)',no:'No (basic + attendance + transport/housing only)',gasUrl:'Cloud GAS URL (shared with other HRA modules; usually blank)',danger:'Data',resetDefaults:'Reset grades / titles to 2027 defaults',clearEmployees:'Clear all employee data (grades kept)',
+  confirmDateOpt:'Confirm date (blank = join + probation months)',resignDate:'Resign date (blank = active)',gradeAssign:'Grade',newGrade:'New grade',addAssignment:'Add grade record',overrideTitle:'Personal override (only fields that differ from the grade)',addOverride:'Add override',clearOverride:'Clear override',payPreview:'Pay preview (as-of date)',delete:'Delete',cancel:'Cancel',confirmImport:'Confirm import',
+  stProbation:'Probation',stRegular:'Regular',stResigned:'Resigned',unmatched:'No grade',override:'Override',gasMissing:'Cloud GAS URL not set (set it in another HRA module or the portal first)',cloudSent:'Uploaded',cloudReceived:'Downloaded',saved:'Saved',noCloud:'No salary data in the cloud yet; using local',
+  edit:'Edit',removed:'Removed',restored:'Restored',needEmpId:'ID and name are required',confirmDeleteEmp:'Delete this employee (with grade and override history)?',confirmClear:'Clear all employees, grades and overrides? Grade tables and title mapping are kept.',confirmReset:'Overwrite grade tables, basic wage and title mapping with the 2027 defaults? Employees are not affected.',
+  batchNone:'No employees match the filter',batchWritten:'Written',invalidGrade:'Grade must look like 3-02',noChange:'No change',
+  pulledFrom:'Pulled',onboardingSrc:'Onboarding (cloud)',contractSrc:'Contract module (local)',noNewEmp:'No new employees to pull'}
+};
+function tr(k){return (I18N[LANG]&&I18N[LANG][k])||(I18N.zh[k])||k}
+function setLang(l){LANG=l==='en'?'en':'zh';try{localStorage.setItem(LANG_KEY,LANG)}catch(_){}applyLang();renderAll()}
+function applyLang(){document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(I18N[LANG][k])el.textContent=I18N[LANG][k]});document.getElementById('langZh').classList.toggle('on',LANG==='zh');document.getElementById('langEn').classList.toggle('on',LANG==='en');document.getElementById('empSearch').placeholder=LANG==='en'?'Search ID / name / title':'搜尋工號／姓名／職稱'}
+
+/* ── utils ── */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>{if(v===null||v===undefined||v==='')return 0;const n=Number(String(v).replace(/[$,\s]/g,''));return isFinite(n)?n:0};
+const money=v=>'$'+(Math.round(num(v)*100)/100).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2});
+const nowIso=()=>new Date().toISOString();
+const todayStr=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+function pad2(n){return String(n).padStart(2,'0')}
+function normDate(v){
+  if(v===null||v===undefined||v==='')return '';
+  if(v instanceof Date){if(isNaN(v.getTime()))return '';const s=v.getHours()*3600+v.getMinutes()*60+v.getSeconds();const d=s>=86280?new Date(v.getTime()+(86400-s)*1000):v;return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
+  if(typeof v==='number'&&v>20000&&v<80000){const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}`}
+  const s=String(v).trim();let m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);if(m)return `${m[1]}-${pad2(+m[2])}-${pad2(+m[3])}`;
+  m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);if(m)return `${m[3]}-${pad2(+m[2])}-${pad2(+m[1])}`;
+  const n=Number(s);if(isFinite(n)&&n>20000&&n<80000)return normDate(n);
+  return ''
+}
+function addMonths(dateStr,n){if(!dateStr)return '';const [y,m,d]=dateStr.split('-').map(Number);const dt=new Date(y,m-1+n,d);if(dt.getDate()!==d)dt.setDate(0);return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`}
+function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)}
+function gradeCode(rank,level){return `${rank}-${String(level).padStart(2,'0')}`}
+function parseGrade(code){const s=String(code||'').trim();let m=s.match(/^(\d)\s*[-–]\s*(\d{1,2})$/);if(m)return {rank:+m[1],level:pad2(+m[2])};m=s.match(/^(\d)(?:\.0)?$/);if(m)return {rank:+m[1],level:'01'};return null}
+function uid(p){return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2600)}
+function showLoading(m){$('loadingText').textContent=m||'…';$('loading').classList.add('on')}function hideLoading(){$('loading').classList.remove('on')}
+function closeModal(id){$(id).classList.remove('open')}
+function asOf(){return $('asOfDate').value||todayStr()}
+function setToday(){$('asOfDate').value=todayStr();renderAll()}
+function gasUrlValue(){return (localStorage.getItem(GAS_SHARED_KEY)||localStorage.getItem(GAS_KEY)||'').trim()}
+
+/* ── storage (IndexedDB snapshot, like the other portal modules) ── */
+function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(DB_STORE))d.createObjectStore(DB_STORE)};r.onsuccess=e=>res(e.target.result);r.onerror=()=>rej(r.error)})}
+async function loadState(){try{const db=await openDb();const v=await new Promise((res,rej)=>{const q=db.transaction(DB_STORE,'readonly').objectStore(DB_STORE).get(DB_KEY);q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error)});db.close();return v}catch(e){console.warn('[salary] load',e);return null}}
+async function persist(reason){if(!STATE)return;STATE.updatedAt=nowIso();STATE.version=(Number(STATE.version)||0)+1;try{const db=await openDb();await new Promise((res,rej)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=res;q.onerror=()=>rej(q.error)});db.close()}catch(e){console.warn('[salary] persist',e)}
+  try{localStorage.setItem(META_KEY,JSON.stringify({count:live(STATE.employees).length,updatedAt:STATE.updatedAt,version:STATE.version}))}catch(_){}
+  if(!_applying)scheduleSync(reason)}
+function emptyState(){return {basic:[],grades:[],titles:[],employees:[],assignments:[],overrides:[],settings:{temp:2.5,probWorker:2,probStaff:3,probAllowance:true},version:0,updatedAt:''}}
+function seedDefaults(st){
+  const t=nowIso();
+  st.basic=DEFAULTS.basic.map(b=>({_k:'B|'+b.year,year:b.year,effectiveFrom:`${b.year}-01-01`,probation:(b.probation==null?num(b.regular)-2:b.probation),regular:b.regular,note:b.note||'',updatedAt:t}));
+  st.grades=DEFAULTS.grades.map(g=>({_k:`G|${g.track}|${gradeCode(g.rank,g.level)}`,track:g.track,rank:g.rank,level:g.level,title:g.title,kind:g.kind,job:g.job,skill:g.skill,attendance:g.attendance,housing:g.housing,updatedAt:t}));
+  st.titles=DEFAULTS.titles.map(x=>{const adminDepts=/行政|HRA|GAS|支援/;const payTrack=adminDepts.test(x.dept)?'admin':'prod';const g=parseGrade(x.grade);const probMonths=(payTrack==='prod'&&g&&g.rank<=1)?(st.settings.probWorker||2):(st.settings.probStaff||3);
+    return {_k:'T|'+String(x.en||x.zh).toLowerCase().replace(/[^a-z0-9㐀-鿿]+/g,'_'),dept:x.dept,zh:x.zh,en:x.en,track:x.track,payTrack,band:x.band,grade:g?gradeCode(g.rank,g.level):x.grade,probMonths,promo:x.promo||'',note:x.note||'',updatedAt:t}});
+  return st}
+function live(arr){return (arr||[]).filter(r=>r&&!r.deleted)}
+
+/* ── sync flatten / apply ── */
+const KINDS=['basic','grades','titles','employees','assignments','overrides'];
+function flat(){const out=[];KINDS.forEach(k=>(STATE[k]||[]).forEach(r=>out.push(Object.assign({},r,{_kind:k}))));out.push({_kind:'settings',_k:'S|settings',settings:STATE.settings,updatedAt:STATE.settingsUpdatedAt||STATE.updatedAt||nowIso()});return out}
+function applyRecords(records){
+  _applying=true;
+  try{
+    const groups={};KINDS.forEach(k=>groups[k]=[]);let settingsRow=null;
+    (records||[]).forEach(r=>{if(!r||typeof r!=='object')return;if(r._kind==='settings'){if(!settingsRow||String(r.updatedAt||'')>String(settingsRow.updatedAt||''))settingsRow=r;return}if(groups[r._kind])groups[r._kind].push(r)});
+    KINDS.forEach(k=>{const map=new Map();(STATE[k]||[]).forEach(r=>map.set(r._k,r));groups[k].forEach(r=>{const c=Object.assign({},r);delete c._kind;const cur=map.get(c._k);if(!cur||String(c.updatedAt||'')>=String(cur.updatedAt||''))map.set(c._k,c)});STATE[k]=[...map.values()]});
+    if(settingsRow&&settingsRow.settings&&String(settingsRow.updatedAt||'')>=String(STATE.settingsUpdatedAt||'')){STATE.settings=Object.assign({},STATE.settings,settingsRow.settings);STATE.settingsUpdatedAt=settingsRow.updatedAt||nowIso()}
+  }finally{_applying=false}
+}
+function scheduleSync(reason){if(_applying||!gasUrlValue())return;if(window.HRAAutoSync){HRAAutoSync.schedule(TOOL,reason||'change',{},900)}}
+async function cloudPush(options={}){if(!gasUrlValue())throw new Error(tr('gasMissing'));const recs=flat();const d=await HRASmartSync.push({url:gasUrlValue(),tool:TOOL,records:recs,recordCount:recs.length,summary:{employees:live(STATE.employees).length,grades:live(STATE.grades).length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&d&&d.uploaded)toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}
+async function cloudPull(options={}){if(!gasUrlValue()){if(!options.silent)toast(tr('gasMissing'));return}const res=await HRASmartSync.pullReliable({url:gasUrlValue(),tool:TOOL,localRecords:flat()});if(res&&res.noCloud){if(!options.silent)toast(tr('noCloud'));return res}if(res&&res.records&&res.records.length){applyRecords(res.records);_applying=true;try{await persist('pull')}finally{_applying=false}renderAll()}if(!options.silent&&res&&res.downloaded)toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}
+
+/* ── pay calculation ── */
+function basicRow(date){const rows=live(STATE.basic).filter(b=>b.effectiveFrom&&b.effectiveFrom<=date).sort((a,b)=>a.effectiveFrom<b.effectiveFrom?-1:1);return rows[rows.length-1]||null}
+function basicRowForYear(year){return live(STATE.basic).find(b=>String(b.year)===String(year))||null}
+function gradeRow(track,code){const g=parseGrade(code);if(!g)return null;return live(STATE.grades).find(r=>r.track===track&&+r.rank===g.rank&&String(r.level).padStart(2,'0')===g.level)||null}
+function gradesFor(track){return live(STATE.grades).filter(g=>g.track===track).sort((a,b)=>(b.rank-a.rank)||(String(b.level)<String(a.level)?-1:1))}
+function normTitle(s){return String(s||'').toLowerCase().replace(/[\s_\-\/()（）.,]+/g,'').replace(/line\d+$/,'')}
+function titleFor(position){
+  const p=normTitle(position);if(!p)return null;const rows=live(STATE.titles);
+  let hit=rows.find(t=>normTitle(t.en)===p||normTitle(t.zh)===p);if(hit)return hit;
+  hit=rows.find(t=>(t.en&&normTitle(t.en).length>=6&&p.includes(normTitle(t.en)))||(t.zh&&normTitle(t.zh).length>=2&&p.includes(normTitle(t.zh))));if(hit)return hit;
+  hit=rows.filter(t=>t.en).sort((a,b)=>a.en.length-b.en.length).find(t=>normTitle(t.en).includes(p)&&p.length>=5);return hit||null}
+function empProbMonths(e){if(e.probMonths!==undefined&&e.probMonths!==null&&e.probMonths!=='')return Number(e.probMonths);const t=titleFor(e.position);if(t&&t.probMonths!=null)return Number(t.probMonths);const a=currentAssignment(e.empId,asOf());const g=a?parseGrade(a.grade):null;return (e.payTrack||'prod')==='prod'&&(!g||g.rank<=1)?Number(STATE.settings.probWorker||2):Number(STATE.settings.probStaff||3)}
+function confirmDateOf(e){if(e.confirmDate)return e.confirmDate;if(!e.joinDate)return '';return addMonths(e.joinDate,empProbMonths(e))}
+function empStatus(e,date){if(e.resignDate&&e.resignDate<=date)return 'resigned';if(e.joinDate&&e.joinDate>date)return 'future';const c=confirmDateOf(e);if(c&&date<c)return 'probation';return 'regular'}
+function currentAssignment(empId,date){const rows=live(STATE.assignments).filter(a=>a.empId===empId&&(!a.effectiveFrom||a.effectiveFrom<=date)).sort((a,b)=>(a.effectiveFrom||'')<(b.effectiveFrom||'')?-1:(a.effectiveFrom||'')>(b.effectiveFrom||'')?1:String(a.updatedAt)<String(b.updatedAt)?-1:1);return rows[rows.length-1]||null}
+function currentOverride(empId,date){const rows=live(STATE.overrides).filter(o=>o.empId===empId&&(!o.effectiveFrom||o.effectiveFrom<=date)).sort((a,b)=>(a.effectiveFrom||'')<(b.effectiveFrom||'')?-1:(a.effectiveFrom||'')>(b.effectiveFrom||'')?1:String(a.updatedAt)<String(b.updatedAt)?-1:1);const o=rows[rows.length-1];return (o&&!o.cleared)?o:null}
+function payFor(e,date,opts){
+  opts=opts||{};const date2=date||asOf();const status=empStatus(e,date2);const track=e.payTrack||'prod';
+  const b=opts.basicRow||basicRow(date2);const basic=b?(status==='probation'?num(b.probation):num(b.regular)):0;
+  const a=currentAssignment(e.empId,date2);const g=a?gradeRow(track,a.grade):null;const o=currentOverride(e.empId,date2);
+  const probAllow=STATE.settings.probAllowance!==false;
+  let job=g?num(g.job):0,skill=g?num(g.skill):0,attendance=g?num(g.attendance):(num(STATE.settings.attendanceDefault)||10),housing=g?num(g.housing):(num(STATE.settings.housingDefault)||7);
+  if(status==='probation'&&!probAllow){job=0;skill=0}
+  let overridden=false;if(o){['job','skill','attendance','housing'].forEach(k=>{if(o[k]!==undefined&&o[k]!==null&&o[k]!==''){overridden=true;if(k==='job')job=num(o.job);if(k==='skill')skill=num(o.skill);if(k==='attendance')attendance=num(o.attendance);if(k==='housing')housing=num(o.housing)}})}
+  const temp=num(STATE.settings.temp);const subtotal=basic+job+skill+attendance+housing;
+  return {status,track,grade:a?a.grade:'',gradeRow:g,matched:!!g,basic,job,skill,attendance,housing,subtotal,temp,total:subtotal+temp,overridden,confirmDate:confirmDateOf(e),probMonths:empProbMonths(e)}
+}
+function statusBadge(st){const m={probation:['b-probation',tr('stProbation')],regular:['b-regular',tr('stRegular')],resigned:['b-resigned',tr('stResigned')],future:['b-resigned','—']};const x=m[st]||m.future;return `<span class="badge ${x[0]}">${x[1]}</span>`}
+function activeEmployees(date){return live(STATE.employees).filter(e=>{const s=empStatus(e,date);return s==='probation'||s==='regular'})}
+function deptFilterOk(e){const d=$('globalDept').value;return !d||String(e.dept||'')===d}
+
+/* ── render ── */
+function renderAll(){if(!STATE)return;fillDeptSelects();renderDashboard();renderEmployees();renderGrades();renderTitles();renderCompareOptions();renderSettings();$('dataHint').textContent=`${live(STATE.employees).length} emp · ${live(STATE.grades).length} grades · v${STATE.version||0}`}
+function fillDeptSelects(){const depts=[...new Set(live(STATE.employees).map(e=>String(e.dept||'').trim()).filter(Boolean))].sort();['globalDept','bDept'].forEach(id=>{const sel=$(id);const cur=sel.value;sel.innerHTML=`<option value="">${id==='globalDept'?tr('allDepartments'):'—'}</option>`+depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');sel.value=cur});$('deptList').innerHTML=depts.map(d=>`<option value="${esc(d)}">`).join('');$('titleList').innerHTML=live(STATE.titles).map(t=>`<option value="${esc(t.en)}">${esc(t.zh)}</option>`).join('')}
+function renderDashboard(){
+  const date=asOf();const emps=activeEmployees(date).filter(deptFilterOk);let prob=0,soon=0,total=0,unmatched=0,basicSum=0;const byDept={};const upcoming=[];
+  emps.forEach(e=>{const p=payFor(e,date);if(p.status==='probation'){prob++;const c=p.confirmDate;if(c&&daysBetween(date,c)<=30&&daysBetween(date,c)>=0)soon++;if(c&&daysBetween(date,c)<=60&&daysBetween(date,c)>=0)upcoming.push({e,p})}
+    if(!p.matched)unmatched++;total+=p.total;basicSum+=p.basic;const d=String(e.dept||'—');byDept[d]=byDept[d]||{hc:0,prob:0,reg:0,basic:0,allow:0,total:0};const x=byDept[d];x.hc++;if(p.status==='probation')x.prob++;else x.reg++;x.basic+=p.basic;x.allow+=p.job+p.skill+p.attendance+p.housing;x.total+=p.total});
+  $('kActive').textContent=emps.length;$('kActiveSub').textContent=`${tr('stRegular')} ${emps.length-prob} · ${tr('stProbation')} ${prob}`;$('kProbation').textContent=prob;$('kProbationSub').textContent=LANG==='en'?'basic −$2 until confirmed':'轉正前底薪少 $2';$('kConfirmSoon').textContent=soon;$('kMonthly').textContent=money(total);$('kMonthlySub').textContent=`${tr('basic')} ${money(basicSum)} · ${tr('temp')} ${money(emps.length*num(STATE.settings.temp))}`;$('kUnmatched').textContent=unmatched;$('dashAsOf').textContent=date;
+  $('dashDeptBody').innerHTML=Object.keys(byDept).sort().map(d=>{const x=byDept[d];return `<tr><td>${esc(d)}</td><td class="num">${x.hc}</td><td class="num">${x.prob}</td><td class="num">${x.reg}</td><td class="num">${money(x.basic)}</td><td class="num">${money(x.allow)}</td><td class="num"><b>${money(x.total)}</b></td></tr>`}).join('')||`<tr><td colspan="7" class="empty">${LANG==='en'?'No employees yet — import or pull from other modules':'尚無員工資料 — 請匯入或從其他模組帶入'}</td></tr>`;
+  const b=basicRow(date);const nextB=live(STATE.basic).filter(x=>x.effectiveFrom>date).sort((a,c)=>a.effectiveFrom<c.effectiveFrom?-1:1)[0];
+  $('dataStatusNote').innerHTML=`${LANG==='en'?'Basic wage in force':'目前適用底薪'}：<b>${b?`${b.year} · ${tr('regular')} ${money(b.regular)} / ${tr('probation')} ${money(b.probation)}`:'—'}</b>${nextB?`<br>${LANG==='en'?'Next':'下一次'}：${nextB.year} · ${money(nextB.regular)} / ${money(nextB.probation)} · ${nextB.effectiveFrom}`:''}<br>${LANG==='en'?'Last saved':'最後儲存'}：${STATE.updatedAt?STATE.updatedAt.slice(0,16).replace('T',' '):'—'} · v${STATE.version||0}<br>${LANG==='en'?'Cloud':'雲端'}：${gasUrlValue()?'✅':'⚠ '+tr('gasMissing')}`;
+  $('ruleNote').innerHTML=LANG==='en'?`Rules: probation → regular basic +$2 · workers ${STATE.settings.probWorker} months, office/management ${STATE.settings.probStaff} months · temp allowance ${money(STATE.settings.temp)} separate pay code · probation allowances: ${STATE.settings.probAllowance!==false?'paid':'not paid'}`:`規則：試用轉正底薪 +$2 · 工人 ${STATE.settings.probWorker} 個月、辦公室／管理 ${STATE.settings.probStaff} 個月 · 臨時補助 ${money(STATE.settings.temp)} 獨立 pay code · 試用期加給：${STATE.settings.probAllowance!==false?'照發':'不發'}`;
+  upcoming.sort((a,b)=>a.p.confirmDate<b.p.confirmDate?-1:1);const rb=basicRow(date);
+  $('upcomingBody').innerHTML=upcoming.map(({e,p})=>`<tr><td class="mono">${esc(e.empId)}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td><td class="mono">${esc(e.joinDate)}</td><td class="mono"><b>${esc(p.confirmDate)}</b></td><td class="num">${money(rb?rb.probation:0)}</td><td class="num diff-up">${money(rb?rb.regular:0)}</td></tr>`).join('')||`<tr><td colspan="8" class="empty">—</td></tr>`;
+}
+function renderEmployees(){
+  const date=asOf(),q=normTitle($('empSearch').value),f=$('empStatusFilter').value,tk=$('empTrackFilter').value;
+  const rows=live(STATE.employees).map(e=>({e,p:payFor(e,date)})).filter(({e,p})=>{
+    if(!deptFilterOk(e))return false;if(tk&&(e.payTrack||'prod')!==tk)return false;
+    if(f==='active'&&!(p.status==='probation'||p.status==='regular'))return false;if(f==='probation'&&p.status!=='probation')return false;if(f==='regular'&&p.status!=='regular')return false;if(f==='resigned'&&p.status!=='resigned')return false;if(f==='unmatched'&&(p.matched||p.status==='resigned'))return false;if(f==='override'&&!p.overridden)return false;
+    if(q&&!(normTitle(e.empId).includes(q)||normTitle(e.name).includes(q)||normTitle(e.position).includes(q)))return false;return true}).sort((a,b)=>String(a.e.empId).localeCompare(String(b.e.empId),undefined,{numeric:true}));
+  $('empBody').innerHTML=rows.map(({e,p})=>`<tr>
+    <td class="mono">${esc(e.empId)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.dept)}</td><td>${esc(e.section)}</td><td>${esc(e.position)}</td><td class="mono">${esc(e.joinDate)}</td>
+    <td>${statusBadge(p.status)}${p.status==='probation'&&p.confirmDate?`<div class="hint">→ ${p.confirmDate}</div>`:''}</td>
+    <td>${p.grade?`<b>${esc(p.grade)}</b>${p.matched?'':` <span class="badge b-nomatch">${tr('unmatched')}</span>`}`:`<span class="badge b-nomatch">${tr('unmatched')}</span>`}${p.overridden?` <span class="badge b-override">${tr('override')}</span>`:''}</td>
+    <td class="num">${money(p.basic)}</td><td class="num">${money(p.job)}</td><td class="num">${money(p.skill)}</td><td class="num">${money(p.attendance)}</td><td class="num">${money(p.housing)}</td><td class="num muted">${money(p.temp)}</td><td class="num"><b>${money(p.total)}</b></td>
+    <td><button class="btn small" onclick="openEmpForm('${esc(e._k)}')">${tr('edit')}</button></td></tr>`).join('')||`<tr><td colspan="16" class="empty"><div class="ico">👥</div>${LANG==='en'?'No employees match':'沒有符合的員工'}</td></tr>`;
+  const sum=rows.reduce((s,r)=>s+r.p.total,0);$('empCount').textContent=`${rows.length} ${LANG==='en'?'employees':'人'} · ${tr('total')} ${money(sum)} / ${LANG==='en'?'month':'月'} · ${LANG==='en'?'as of':'基準日'} ${date}`;
+}
+function gradeOptions(track,selected){return gradesFor(track).map(g=>{const c=gradeCode(g.rank,g.level);return `<option value="${c}" ${c===selected?'selected':''}>${c} · ${esc(g.title)} (${money(num(g.job)+num(g.skill))})</option>`}).join('')}
+function renderGrades(){
+  const yearSel=$('gradeYear');const years=live(STATE.basic).map(b=>b.year).sort();if(!yearSel.options.length||yearSel.options.length!==years.length){const cur=yearSel.value;yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');yearSel.value=years.includes(+cur)?cur:(years.includes(new Date().getFullYear())?String(new Date().getFullYear()):String(years[years.length-1]||''))}
+  const track=$('gradeTrack').value,b=basicRowForYear(yearSel.value),basic=b?num(b.regular):0,temp=num(STATE.settings.temp);
+  const counts={};activeEmployees(asOf()).forEach(e=>{const a=currentAssignment(e.empId,asOf());if(a&&(e.payTrack||'prod')===track)counts[a.grade]=(counts[a.grade]||0)+1});
+  $('gradeBody').innerHTML=gradesFor(track).map(g=>{const c=gradeCode(g.rank,g.level),sub=basic+num(g.job)+num(g.skill)+num(g.attendance)+num(g.housing);return `<tr data-k="${esc(g._k)}">
+    <td><input data-f="title" value="${esc(g.title)}"></td><td><input data-f="kind" value="${esc(g.kind)}"></td><td><input class="num" data-f="rank" value="${esc(g.rank)}" style="min-width:50px"></td><td><input class="num" data-f="level" value="${esc(g.level)}" style="min-width:50px"></td>
+    <td class="num muted">${money(basic)}</td><td><input class="num" data-f="job" value="${esc(g.job)}"></td><td><input class="num" data-f="skill" value="${esc(g.skill)}"></td><td><input class="num" data-f="attendance" value="${esc(g.attendance)}"></td><td><input class="num" data-f="housing" value="${esc(g.housing)}"></td>
+    <td class="num"><b>${money(sub)}</b></td><td class="num">${money(sub+temp)}</td><td class="num">${counts[c]||0}</td><td><button class="btn small danger" onclick="removeGrade('${esc(g._k)}')">×</button></td></tr>`}).join('');
+  $('basicBody').innerHTML=live(STATE.basic).sort((a,b)=>a.year-b.year).map(b=>`<tr data-k="${esc(b._k)}"><td><input class="num" data-f="year" value="${esc(b.year)}" style="min-width:70px"></td><td><input type="date" data-f="effectiveFrom" value="${esc(b.effectiveFrom)}"></td><td><input class="num" data-f="probation" value="${esc(b.probation)}"></td><td><input class="num" data-f="regular" value="${esc(b.regular)}" oninput="this.closest('tr').querySelector('[data-f=probation]').value=(num(this.value)-2)"></td><td><input data-f="note" value="${esc(b.note)}"></td><td><button class="btn small danger" onclick="removeBasic('${esc(b._k)}')">×</button></td></tr>`).join('');
+}
+function renderTitles(){
+  const counts={};live(STATE.employees).forEach(e=>{const t=titleFor(e.position);if(t)counts[t._k]=(counts[t._k]||0)+1});
+  $('titleBody').innerHTML=live(STATE.titles).sort((a,b)=>String(a.dept).localeCompare(String(b.dept))||String(a.zh).localeCompare(String(b.zh))).map(t=>`<tr data-k="${esc(t._k)}">
+    <td><input data-f="dept" value="${esc(t.dept)}" style="min-width:80px"></td><td><input data-f="zh" value="${esc(t.zh)}"></td><td><input data-f="en" value="${esc(t.en)}" style="min-width:150px"></td><td><input data-f="track" value="${esc(t.track)}" style="min-width:70px"></td>
+    <td><select data-f="payTrack"><option value="prod" ${t.payTrack==='prod'?'selected':''}>Production</option><option value="admin" ${t.payTrack==='admin'?'selected':''}>Admin</option></select></td>
+    <td><input data-f="band" value="${esc(t.band)}" style="min-width:80px"></td><td><input data-f="grade" value="${esc(t.grade)}" style="min-width:60px"></td><td><input class="num" data-f="probMonths" value="${esc(t.probMonths)}" style="min-width:50px"></td><td><input data-f="promo" value="${esc(t.promo)}" style="min-width:200px"></td><td class="num">${counts[t._k]||0}</td><td><button class="btn small danger" onclick="removeTitle('${esc(t._k)}')">×</button></td></tr>`).join('');
+}
+function renderSettings(){$('sProbWorker').value=STATE.settings.probWorker;$('sProbStaff').value=STATE.settings.probStaff;$('sTemp').value=STATE.settings.temp;$('sProbAllow').value=STATE.settings.probAllowance===false?'0':'1';$('sGas').value=gasUrlValue()}
+function renderCompareOptions(){const years=live(STATE.basic).map(b=>String(b.year)).sort();['cmpA','cmpB'].forEach((id,i)=>{const s=$(id);const cur=s.value;s.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');if(years.includes(cur))s.value=cur;else s.value=i===0?(years.includes(String(new Date().getFullYear()))?String(new Date().getFullYear()):years[Math.max(0,years.length-2)]):years[years.length-1]})}
+
+/* ── table editing: grades / basic / titles / settings ── */
+function readEditRows(tbodyId){return [...$(tbodyId).querySelectorAll('tr[data-k]')].map(tr=>{const o={_k:tr.getAttribute('data-k')};tr.querySelectorAll('[data-f]').forEach(i=>o[i.getAttribute('data-f')]=i.value.trim());return o})}
+async function saveGrades(){const t=nowIso();const edited=readEditRows('gradeBody');const track=$('gradeTrack').value;const map=new Map(STATE.grades.map(g=>[g._k,g]));
+  edited.forEach(r=>{const cur=map.get(r._k)||{_k:r._k,track};const rank=+r.rank||0,level=pad2(+r.level||1);Object.assign(cur,{track,title:r.title,kind:r.kind,rank,level,job:num(r.job),skill:num(r.skill),attendance:num(r.attendance),housing:num(r.housing),updatedAt:t});const nk=`G|${track}|${gradeCode(rank,level)}`;if(nk!==cur._k){map.delete(cur._k);const old=map.get(nk);if(old&&old!==cur)old.deleted=true;cur._k=nk}map.set(cur._k,cur)});
+  STATE.grades=[...map.values()];await persist('grades');toast(tr('saved'));renderAll()}
+function addGradeRow(){const track=$('gradeTrack').value;const k='G|'+track+'|new|'+uid();STATE.grades.push({_k:k,track,title:'',kind:'',rank:1,level:'01',job:0,skill:0,attendance:10,housing:7,updatedAt:nowIso()});renderGrades()}
+async function removeGrade(k){const g=STATE.grades.find(x=>x._k===k);if(!g)return;if(!confirm(`${tr('delete')} ${gradeCode(g.rank,g.level)}?`))return;g.deleted=true;g.updatedAt=nowIso();await persist('grade-delete');renderAll()}
+async function saveBasic(){const t=nowIso();const edited=readEditRows('basicBody');const map=new Map(STATE.basic.map(b=>[b._k,b]));
+  edited.forEach(r=>{const cur=map.get(r._k)||{_k:r._k};const year=+r.year||0;Object.assign(cur,{year,effectiveFrom:r.effectiveFrom||`${year}-01-01`,probation:num(r.probation),regular:num(r.regular),note:r.note,updatedAt:t});const nk='B|'+year;if(nk!==cur._k){map.delete(cur._k);const old=map.get(nk);if(old&&old!==cur)old.deleted=true;cur._k=nk}map.set(cur._k,cur)});
+  STATE.basic=[...map.values()];await persist('basic');toast(tr('saved'));renderAll()}
+function addBasicYear(){const last=live(STATE.basic).sort((a,b)=>a.year-b.year).slice(-1)[0];const year=last?last.year+1:new Date().getFullYear();STATE.basic.push({_k:'B|'+year,year,effectiveFrom:`${year}-01-01`,probation:last?num(last.probation)+2:0,regular:last?num(last.regular)+2:0,note:'',updatedAt:nowIso()});renderGrades()}
+async function removeBasic(k){const b=STATE.basic.find(x=>x._k===k);if(!b)return;if(!confirm(`${tr('delete')} ${b.year}?`))return;b.deleted=true;b.updatedAt=nowIso();await persist('basic-delete');renderAll()}
+async function saveTitles(){const t=nowIso();const edited=readEditRows('titleBody');const map=new Map(STATE.titles.map(x=>[x._k,x]));edited.forEach(r=>{const cur=map.get(r._k)||{_k:r._k};Object.assign(cur,{dept:r.dept,zh:r.zh,en:r.en,track:r.track,payTrack:r.payTrack||'prod',band:r.band,grade:r.grade,probMonths:r.probMonths===''?null:num(r.probMonths),promo:r.promo,updatedAt:t});map.set(cur._k,cur)});STATE.titles=[...map.values()];await persist('titles');toast(tr('saved'));renderAll()}
+function addTitleRow(){STATE.titles.push({_k:'T|new_'+uid(),dept:'',zh:'',en:'',track:'',payTrack:'prod',band:'',grade:'1-01',probMonths:2,promo:'',updatedAt:nowIso()});renderTitles()}
+async function removeTitle(k){const t=STATE.titles.find(x=>x._k===k);if(!t)return;if(!confirm(`${tr('delete')} ${t.en||t.zh}?`))return;t.deleted=true;t.updatedAt=nowIso();await persist('title-delete');renderAll()}
+async function saveSettings(){STATE.settings=Object.assign({},STATE.settings,{probWorker:num($('sProbWorker').value),probStaff:num($('sProbStaff').value),temp:num($('sTemp').value),probAllowance:$('sProbAllow').value==='1'});STATE.settingsUpdatedAt=nowIso();const g=$('sGas').value.trim();if(g&&/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(g)){try{localStorage.setItem(GAS_KEY,g);localStorage.setItem(GAS_SHARED_KEY,g)}catch(_){}}await persist('settings');toast(tr('saved'));renderAll()}
+async function resetDefaults(){if(!confirm(tr('confirmReset')))return;const t=nowIso();STATE.basic.forEach(b=>{b.deleted=true;b.updatedAt=t});STATE.grades.forEach(g=>{g.deleted=true;g.updatedAt=t});STATE.titles.forEach(x=>{x.deleted=true;x.updatedAt=t});const fresh=seedDefaults(emptyState());const t2=new Date(Date.now()+1000).toISOString();[['basic',fresh.basic],['grades',fresh.grades],['titles',fresh.titles]].forEach(([k,rows])=>{const map=new Map(STATE[k].map(r=>[r._k,r]));rows.forEach(r=>{r.updatedAt=t2;map.set(r._k,r)});STATE[k]=[...map.values()]});await persist('reset');renderAll();toast(tr('saved'))}
+async function clearEmployees(){if(!confirm(tr('confirmClear')))return;const t=nowIso();['employees','assignments','overrides'].forEach(k=>STATE[k].forEach(r=>{r.deleted=true;r.updatedAt=t}));await persist('clear');renderAll()}
+
+/* ── employee form ── */
+function empTitleHint(){const t=titleFor($('fPosition').value);$('fTitleHint').textContent=t?`→ ${t.zh} · ${t.payTrack} · ${tr('defaultGrade')} ${t.grade} · ${tr('probMonths')} ${t.probMonths}`:'';if(t&&!EDIT_EMP){$('fTrack').value=t.payTrack;$('fProb').value=t.probMonths;$('fGrade').innerHTML=gradeOptions(t.payTrack,t.grade)}}
+function openEmpForm(k){
+  EDIT_EMP=k?STATE.employees.find(e=>e._k===k):null;const e=EDIT_EMP||{};
+  $('empModalTitle').textContent=EDIT_EMP?`${e.empId} · ${e.name}`:tr('addEmp');$('fEmpId').value=e.empId||'';$('fEmpId').disabled=!!EDIT_EMP;$('fName').value=e.name||'';$('fDept').value=e.dept||'';$('fSection').value=e.section||'';$('fPosition').value=e.position||'';$('fTrack').value=e.payTrack||'prod';$('fJoin').value=e.joinDate||'';$('fProb').value=e.probMonths!=null?e.probMonths:'';$('fConfirm').value=e.confirmDate||'';$('fResign').value=e.resignDate||'';
+  $('fDelete').style.display=EDIT_EMP?'':'none';$('fGradeFrom').value=asOf();$('fGradeReason').value='';$('oFrom').value=asOf();['oJob','oSkill','oAttendance','oHousing','oNote'].forEach(id=>$(id).value='');
+  $('fTrack').onchange=()=>{$('fGrade').innerHTML=gradeOptions($('fTrack').value,'')};
+  const a=EDIT_EMP?currentAssignment(e.empId,asOf()):null;$('fGrade').innerHTML=gradeOptions(e.payTrack||'prod',a?a.grade:'');if(!EDIT_EMP)$('fTitleHint').textContent='';else empTitleHint();
+  renderEmpHistory();$('empModal').classList.add('open')}
+function renderEmpHistory(){
+  if(!EDIT_EMP){$('fAssignHistory').innerHTML='';$('fOverrideHistory').innerHTML='';$('fPayPreview').innerHTML='';$('fGradeHint').textContent='';return}
+  const id=EDIT_EMP.empId;const cur=currentAssignment(id,asOf());$('fGradeHint').textContent=cur?`${LANG==='en'?'current':'目前'} ${cur.grade} (${cur.effectiveFrom})`:tr('unmatched');
+  $('fAssignHistory').innerHTML=live(STATE.assignments).filter(a=>a.empId===id).sort((a,b)=>a.effectiveFrom<b.effectiveFrom?1:-1).map(a=>`<div><b>${esc(a.grade)}</b><span class="mono">${esc(a.effectiveFrom)}</span><span class="muted">${esc(a.reason||'')}</span><div class="grow"></div><button class="btn small danger" onclick="removeAssignment('${esc(a._k)}')">×</button></div>`).join('')||`<div class="muted">—</div>`;
+  $('fOverrideHistory').innerHTML=live(STATE.overrides).filter(o=>o.empId===id).sort((a,b)=>a.effectiveFrom<b.effectiveFrom?1:-1).map(o=>`<div>${o.cleared?`<b>${tr('clearOverride')}</b>`:['job','skill','attendance','housing'].filter(k=>o[k]!==undefined&&o[k]!==null&&o[k]!=='').map(k=>`<b>${tr(k)} ${money(o[k])}</b>`).join(' ')}<span class="mono">${esc(o.effectiveFrom)}</span><span class="muted">${esc(o.note||'')}</span><div class="grow"></div><button class="btn small danger" onclick="removeOverride('${esc(o._k)}')">×</button></div>`).join('')||`<div class="muted">—</div>`;
+  const p=payFor(EDIT_EMP,asOf());$('fPayPreview').innerHTML=[['status',statusBadge(p.status)+(p.confirmDate?`<div class="hint">→ ${p.confirmDate}</div>`:'')],['grade',p.grade||'—'],['basic',money(p.basic)],['job',money(p.job)],['skill',money(p.skill)],['attendance',money(p.attendance)],['housing',money(p.housing)],['temp',money(p.temp)]].map(([k,v])=>`<div class="pay-cell"><b>${tr(k)}</b><span>${v}</span></div>`).join('')+`<div class="pay-cell total"><b>${tr('total')}</b><span>${money(p.total)}</span></div>`}
+async function saveEmployee(){
+  const empId=$('fEmpId').value.trim(),name=$('fName').value.trim();if(!empId||!name){toast(tr('needEmpId'));return}
+  const t=nowIso();let e=EDIT_EMP;const isNew=!e;if(!e){e=STATE.employees.find(x=>x.empId===empId);if(e){e.deleted=false}else{e={_k:'E|'+empId,empId};STATE.employees.push(e)}}
+  Object.assign(e,{name,dept:$('fDept').value.trim(),section:$('fSection').value.trim(),position:$('fPosition').value.trim(),payTrack:$('fTrack').value,joinDate:$('fJoin').value,probMonths:$('fProb').value===''?null:num($('fProb').value),confirmDate:$('fConfirm').value,resignDate:$('fResign').value,updatedAt:t});
+  if(isNew){const g=$('fGrade').value;if(g){STATE.assignments.push({_k:`A|${empId}|${$('fGradeFrom').value||e.joinDate||asOf()}`,empId,grade:g,effectiveFrom:$('fGradeFrom').value||e.joinDate||asOf(),reason:$('fGradeReason').value.trim()||'initial',updatedAt:t})}}
+  await persist('employee');closeModal('empModal');renderAll();toast(tr('saved'))}
+async function addAssignment(){if(!EDIT_EMP){toast(LANG==='en'?'Save the employee first':'請先儲存員工');return}const g=$('fGrade').value,from=$('fGradeFrom').value||asOf();if(!parseGrade(g)){toast(tr('invalidGrade'));return}const k=`A|${EDIT_EMP.empId}|${from}`;const cur=STATE.assignments.find(a=>a._k===k);const row={_k:k,empId:EDIT_EMP.empId,grade:g,effectiveFrom:from,reason:$('fGradeReason').value.trim(),updatedAt:nowIso(),deleted:false};if(cur)Object.assign(cur,row);else STATE.assignments.push(row);await persist('assignment');renderEmpHistory();renderAll();toast(tr('saved'))}
+async function removeAssignment(k){const a=STATE.assignments.find(x=>x._k===k);if(!a)return;a.deleted=true;a.updatedAt=nowIso();await persist('assignment-delete');renderEmpHistory();renderAll()}
+async function addOverride(){if(!EDIT_EMP)return;const from=$('oFrom').value||asOf();const o={_k:`O|${EDIT_EMP.empId}|${from}`,empId:EDIT_EMP.empId,effectiveFrom:from,note:$('oNote').value.trim(),updatedAt:nowIso(),deleted:false,cleared:false};let any=false;[['job','oJob'],['skill','oSkill'],['attendance','oAttendance'],['housing','oHousing']].forEach(([k,id])=>{const v=$(id).value;if(v!==''){o[k]=num(v);any=true}});if(!any){toast(tr('noChange'));return}const cur=STATE.overrides.find(x=>x._k===o._k);if(cur)Object.assign(cur,o);else STATE.overrides.push(o);await persist('override');renderEmpHistory();renderAll();toast(tr('saved'))}
+async function clearOverrideFor(){if(!EDIT_EMP)return;const from=$('oFrom').value||asOf();const o={_k:`O|${EDIT_EMP.empId}|${from}`,empId:EDIT_EMP.empId,effectiveFrom:from,cleared:true,note:$('oNote').value.trim(),updatedAt:nowIso(),deleted:false};const cur=STATE.overrides.find(x=>x._k===o._k);if(cur)Object.assign(cur,o);else STATE.overrides.push(o);await persist('override-clear');renderEmpHistory();renderAll()}
+async function removeOverride(k){const o=STATE.overrides.find(x=>x._k===k);if(!o)return;o.deleted=true;o.updatedAt=nowIso();await persist('override-delete');renderEmpHistory();renderAll()}
+async function deleteEmployee(){if(!EDIT_EMP||!confirm(tr('confirmDeleteEmp')))return;const t=nowIso(),id=EDIT_EMP.empId;EDIT_EMP.deleted=true;EDIT_EMP.updatedAt=t;STATE.assignments.filter(a=>a.empId===id).forEach(a=>{a.deleted=true;a.updatedAt=t});STATE.overrides.filter(o=>o.empId===id).forEach(o=>{o.deleted=true;o.updatedAt=t});await persist('employee-delete');closeModal('empModal');renderAll();toast(tr('removed'))}
+
+/* ── upsert employees from any source (import / other modules) ── */
+function upsertEmployees(list,source){
+  const t=nowIso();let added=0,updated=0,assigned=0;const byId=new Map(live(STATE.employees).map(e=>[String(e.empId),e]));
+  list.forEach(x=>{const empId=String(x.empId||'').trim();if(!empId)return;let e=byId.get(empId);const title=titleFor(x.position);
+    const patch={name:x.name,dept:x.dept,section:x.section,position:x.position,joinDate:x.joinDate,resignDate:x.resignDate};Object.keys(patch).forEach(k=>{if(patch[k]===undefined||patch[k]===null||patch[k]==='')delete patch[k]});
+    if(!e){e={_k:'E|'+empId,empId,payTrack:x.payTrack||(title?title.payTrack:'prod'),probMonths:x.probMonths!=null?x.probMonths:null,source,updatedAt:t};Object.assign(e,patch);STATE.employees.push(e);byId.set(empId,e);added++}
+    else{let ch=false;Object.keys(patch).forEach(k=>{if(String(e[k]||'')!==String(patch[k])){e[k]=patch[k];ch=true}});if(e.deleted){e.deleted=false;ch=true}if(x.payTrack&&e.payTrack!==x.payTrack){e.payTrack=x.payTrack;ch=true}if(ch){e.updatedAt=t;updated++}}
+    const gp=parseGrade(x.grade||(title?title.grade:''));const grade=gp?gradeCode(gp.rank,gp.level):'';if(grade&&!live(STATE.assignments).some(a=>a.empId===empId)){STATE.assignments.push({_k:`A|${empId}|${e.joinDate||'1900-01-01'}`,empId,grade,effectiveFrom:e.joinDate||'1900-01-01',reason:x.gradeReason||(title?'title default':'import'),updatedAt:t});assigned++}
+    if(x.override){const from=x.override.effectiveFrom||asOf();const o=Object.assign({_k:`O|${empId}|${from}`,empId,effectiveFrom:from,note:x.override.note||source,updatedAt:t,deleted:false,cleared:false},x.override.fields);const cur=STATE.overrides.find(r=>r._k===o._k);if(cur)Object.assign(cur,o);else STATE.overrides.push(o)}
+  });
+  return {added,updated,assigned}}
+async function pullOtherModules(){
+  showLoading(LANG==='en'?'Reading other modules…':'讀取其他模組…');const list=[];const notes=[];
+  try{
+    if(gasUrlValue()&&window.HRASmartSync&&HRASmartSync.pullDirect){
+      try{const r=await HRASmartSync.pullDirect(gasUrlValue(),'onboarding',m=>$('loadingText').textContent=m);const joins=new Map(),resigns=new Map(),deletedKeys=new Set();
+        (r.records||[]).forEach(x=>{if(x._kind==='movement_state'&&x.deleted&&x.targetKey)deletedKeys.add(x.targetKey);});
+        (r.records||[]).forEach(x=>{if(x._kind==='join'&&x.empId&&!deletedKeys.has(x._k))joins.set(String(x.empId),x);if(x._kind==='resign'&&x.empId&&!deletedKeys.has(x._k))resigns.set(String(x.empId),x)});
+        joins.forEach((j,id)=>{const rs=resigns.get(id);list.push({empId:id,name:j.name,dept:j.dept,section:j.section,position:j.position,joinDate:normDate(j.joinDate),resignDate:rs&&normDate(rs.resignDate)>=normDate(j.joinDate)?normDate(rs.resignDate):''})});
+        resigns.forEach((rs,id)=>{if(!joins.has(id)&&rs.name)list.push({empId:id,name:rs.name,dept:rs.dept,section:rs.section,position:rs.position,joinDate:normDate(rs.joinDate),resignDate:normDate(rs.resignDate)})});
+        notes.push(`${tr('onboardingSrc')} ${joins.size}+${resigns.size}`)}catch(e){notes.push('onboarding ✗ '+(e.message||e))}}
+    try{const ce=JSON.parse(localStorage.getItem('vrt_contract_employees')||'[]');let n=0;(Array.isArray(ce)?ce:[]).forEach(c=>{const id=String(c.factoryId||c.vrtCode||c.employeeId||c.empId||'').trim();if(!id)return;n++;list.push({empId:id,name:c.name||c.nameEn,dept:c.dept||c.department,section:c.section,position:c.position,joinDate:normDate(c.joinDate||c.startDate)})});if(n)notes.push(`${tr('contractSrc')} ${n}`)}catch(_){}
+    const merged=new Map();list.forEach(x=>{const cur=merged.get(x.empId)||{};Object.keys(x).forEach(k=>{if(x[k]!==undefined&&x[k]!==null&&x[k]!=='')cur[k]=x[k]});cur.empId=x.empId;merged.set(x.empId,cur)});
+    const res=upsertEmployees([...merged.values()],'modules');await persist('pull-modules');renderAll();
+    toast(`${tr('pulledFrom')} ${notes.join(' · ')||'—'} → +${res.added} / ${res.updated} ${LANG==='en'?'updated':'更新'} / ${res.assigned} ${LANG==='en'?'graded':'給職等'}`);
+  }finally{hideLoading()}}
+
+/* ── batch ── */
+function batchActionChanged(){const a=$('bAction').value;$('bField').style.display=a==='setField'?'':'none';$('bValue').style.display=a==='clearOverride'?'none':'';$('bValue').placeholder=a==='setGrade'?'3-02':a==='setField'?'50':'';$('bValue').disabled=a==='levelUp'}
+function batchTargets(){const date=asOf(),dept=$('bDept').value,tk=$('bTrack').value,g=$('bGrade').value.trim(),tt=normTitle($('bTitle').value);return activeEmployees(date).filter(e=>{if(dept&&String(e.dept||'')!==dept)return false;if(tk&&(e.payTrack||'prod')!==tk)return false;const a=currentAssignment(e.empId,date);if(g&&(!a||a.grade!==g))return false;if(tt&&!normTitle(e.position).includes(tt))return false;return true})}
+function batchPreview(){
+  const date=asOf(),action=$('bAction').value,value=$('bValue').value.trim(),from=$('bEffective').value||date,field=$('bField').value;const targets=batchTargets();BATCH_PLAN=null;$('bApply').disabled=true;
+  if(!targets.length){$('bSummary').textContent=tr('batchNone');$('batchBody').innerHTML='';return}
+  if(action==='setGrade'&&!parseGrade(value)){toast(tr('invalidGrade'));return}
+  const plan=[];let delta=0;
+  targets.forEach(e=>{const before=payFor(e,from);const a=currentAssignment(e.empId,from);let change=null;
+    if(action==='levelUp'){if(!a)return;const g=parseGrade(a.grade);if(!g)return;const next=gradeCode(g.rank,pad2(Math.min(3,+g.level+1)));if(next===a.grade||!gradeRow(e.payTrack||'prod',next))return;change={type:'assign',grade:next}}
+    else if(action==='setGrade'){if(a&&a.grade===value)return;if(!gradeRow(e.payTrack||'prod',value))return;change={type:'assign',grade:value}}
+    else if(action==='setField'){change={type:'override',fields:{[field]:num(value)}}}
+    else if(action==='clearOverride'){if(!currentOverride(e.empId,from))return;change={type:'clear'}}
+    if(!change)return;
+    const after=simulate(e,from,change);plan.push({e,before,after,change});delta+=after.total-before.total});
+  BATCH_PLAN={plan,from,reason:$('bReason').value.trim()||action};$('bApply').disabled=!plan.length;
+  $('bSummary').textContent=`${plan.length} ${LANG==='en'?'affected':'人受影響'} · ${LANG==='en'?'monthly delta':'每月差額'} ${delta>=0?'+':''}${money(delta)} · ${LANG==='en'?'effective':'生效'} ${from}`;
+  $('batchBody').innerHTML=plan.map(({e,before,after,change})=>`<tr><td class="mono">${esc(e.empId)}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td><td>${esc(before.grade||'—')}${before.overridden?' ·'+tr('override'):''}</td><td><b>${change.type==='assign'?esc(change.grade):change.type==='override'?esc(field)+' '+money(change.fields[field]):tr('clearOverride')}</b></td><td class="num">${money(before.total)}</td><td class="num">${money(after.total)}</td><td class="num ${after.total-before.total>=0?'diff-up':'diff-down'}">${after.total-before.total>=0?'+':''}${money(after.total-before.total)}</td></tr>`).join('')||`<tr><td colspan="9" class="empty">${tr('noChange')}</td></tr>`}
+function simulate(e,date,change){
+  const saveA=STATE.assignments,saveO=STATE.overrides;try{
+    if(change.type==='assign')STATE.assignments=saveA.concat([{_k:'sim',empId:e.empId,grade:change.grade,effectiveFrom:date,updatedAt:'9999'}]);
+    if(change.type==='override')STATE.overrides=saveO.concat([Object.assign({_k:'sim',empId:e.empId,effectiveFrom:date,updatedAt:'9999'},change.fields)]);
+    if(change.type==='clear')STATE.overrides=saveO.concat([{_k:'sim',empId:e.empId,effectiveFrom:date,updatedAt:'9999',cleared:true}]);
+    return payFor(e,date)}finally{STATE.assignments=saveA;STATE.overrides=saveO}}
+async function batchApply(){if(!BATCH_PLAN||!BATCH_PLAN.plan.length)return;const {plan,from,reason}=BATCH_PLAN;if(!confirm(`${plan.length} × ${from}?`))return;const t=nowIso();
+  plan.forEach(({e,change})=>{if(change.type==='assign'){const k=`A|${e.empId}|${from}`;const cur=STATE.assignments.find(a=>a._k===k);const row={_k:k,empId:e.empId,grade:change.grade,effectiveFrom:from,reason,updatedAt:t,deleted:false};if(cur)Object.assign(cur,row);else STATE.assignments.push(row)}
+    else{const k=`O|${e.empId}|${from}`;const cur=STATE.overrides.find(o=>o._k===k);const base=cur&&!cur.cleared?cur:{};const row=Object.assign({},base,{_k:k,empId:e.empId,effectiveFrom:from,note:reason,updatedAt:t,deleted:false,cleared:change.type==='clear'},change.type==='override'?change.fields:{});if(cur)Object.assign(cur,row);else STATE.overrides.push(row)}});
+  await persist('batch-save');BATCH_PLAN=null;$('bApply').disabled=true;$('batchBody').innerHTML='';$('bSummary').textContent=`${tr('batchWritten')} ${plan.length}`;renderAll();toast(`${tr('batchWritten')} ${plan.length}`)}
+
+/* ── compare ── */
+function renderCompare(){
+  const ya=$('cmpA').value,yb=$('cmpB').value,ba=basicRowForYear(ya),bb=basicRowForYear(yb);if(!ba||!bb)return;const date=asOf();const emps=activeEmployees(date).filter(deptFilterOk);const byDept={};let ta=0,tb=0;
+  emps.forEach(e=>{const pa=payFor(e,date,{basicRow:ba}),pb=payFor(e,date,{basicRow:bb});const d=String(e.dept||'—');byDept[d]=byDept[d]||{hc:0,a:0,b:0};byDept[d].hc++;byDept[d].a+=pa.total;byDept[d].b+=pb.total;ta+=pa.total;tb+=pb.total});
+  $('cmpLabelA').textContent=`${ya} (${money(ba.regular)}/${money(ba.probation)})`;$('cmpLabelB').textContent=`${yb} (${money(bb.regular)}/${money(bb.probation)})`;$('cmpColA').textContent=ya;$('cmpColB').textContent=yb;$('cmpTotalA').textContent=money(ta);$('cmpTotalB').textContent=money(tb);$('cmpDelta').textContent=(tb-ta>=0?'+':'')+money(tb-ta);$('cmpDeltaSub').textContent=`${emps.length} ${LANG==='en'?'people':'人'} · ${LANG==='en'?'avg':'平均'} ${emps.length?money((tb-ta)/emps.length):'$0'}`;$('cmpDeltaYear').textContent=(tb-ta>=0?'+':'')+money((tb-ta)*12);
+  $('cmpBody').innerHTML=Object.keys(byDept).sort().map(d=>{const x=byDept[d];return `<tr><td>${esc(d)}</td><td class="num">${x.hc}</td><td class="num">${money(x.a)}</td><td class="num">${money(x.b)}</td><td class="num ${x.b-x.a>=0?'diff-up':'diff-down'}">${x.b-x.a>=0?'+':''}${money(x.b-x.a)}</td></tr>`}).join('')}
+
+/* ── import ── */
+function handleFiles(files){[...files].forEach(f=>importFile(f))}
+async function importFile(f){
+  showLoading(`📥 ${f.name}`);try{const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:true});const names=wb.SheetNames.map(s=>s.toLowerCase());
+    const isStructure=names.some(n=>/basic wage/.test(n))||names.some(n=>/admin|行政/.test(n))&&names.some(n=>/production|生產/.test(n));
+    if(isStructure)previewStructure(wb,f.name);else previewEmployeeList(wb,f.name)}
+  catch(e){console.error(e);toast('❌ '+(e.message||e))}finally{hideLoading()}}
+function sheetRows(ws){return XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true})}
+function previewStructure(wb,fname){
+  const out={basic:[],grades:[],titles:[]};
+  wb.SheetNames.forEach(sn=>{const rows=sheetRows(wb.Sheets[sn]);const n=sn.toLowerCase();
+    if(/basic wage/.test(n)){rows.forEach(r=>{const y=+r[0];if(y>=2000&&y<2100){let prob=num(r[1]),reg=num(r[2]);if(!reg){reg=prob;prob=reg-2}out.basic.push({year:y,probation:prob,regular:reg,note:String(r[3]||'')})}})}
+    else if(/admin|行政/.test(n)||/production|生產/.test(n)){const track=/admin|行政/.test(n)?'admin':'prod';rows.forEach(r=>{const rank=+r[2];if(!(rank>=1&&rank<=9))return;const level=r[3]===''||r[3]==null?'01':pad2(+r[3]||1);const hasBasic=num(r[4])>100;const o=hasBasic?4:3;out.grades.push({track,rank,level,title:String(r[0]||''),kind:String(r[1]||''),job:num(r[o+1]),skill:num(r[o+2]),attendance:num(r[o+3]),housing:num(r[o+4])})})}
+    else if(/title|職稱/.test(n)){rows.forEach(r=>{if(!r[1]||!r[5]||!parseGrade(String(r[5])))return;out.titles.push({dept:String(r[0]||''),zh:String(r[1]||''),en:String(r[2]||''),track:String(r[3]||''),band:String(r[4]||''),grade:String(r[5]),promo:String(r[6]||''),note:String(r[7]||'')})})}});
+  IMPORT_PENDING={type:'structure',data:out,fname};
+  $('importTitle').textContent=`${fname}`;$('importSummary').innerHTML=`${LANG==='en'?'Salary structure workbook':'薪資架構工作簿'}：Basic Wage ${out.basic.length} · ${LANG==='en'?'grades':'職等'} ${out.grades.length} · ${LANG==='en'?'titles':'職稱'} ${out.titles.length}<br>${LANG==='en'?'Rows found replace the matching rows; nothing else is touched.':'找到的列會覆蓋對應的列，其餘不動。'}`;
+  $('importPreview').innerHTML=`<table><thead><tr><th>Track</th><th>Grade</th><th>Title</th><th class="num">Job</th><th class="num">Skill</th><th class="num">Att</th><th class="num">Hous</th></tr></thead><tbody>${out.grades.map(g=>`<tr><td>${g.track}</td><td>${gradeCode(g.rank,g.level)}</td><td>${esc(g.title)}</td><td class="num">${g.job}</td><td class="num">${g.skill}</td><td class="num">${g.attendance}</td><td class="num">${g.housing}</td></tr>`).join('')}</tbody></table>`;
+  $('importModal').classList.add('open')}
+function headerIndex(hdr){const H=hdr.map(h=>String(h||'').toLowerCase().replace(/\s+/g,' ').trim());const find=(...pats)=>{for(const p of pats){const i=H.findIndex(h=>p.test(h));if(i>=0)return i}return -1};
+  return {id:find(/^(id|工號|employee ?id|emp ?id|factory ?id|id ?no|staff ?id|員工編號)/,/工號|id no|employee id/),name:find(/^name|姓名|full ?name|employee name/),dept:find(/^dept|部門|department/),section:find(/section|組別|line$|^line\b/),position:find(/position|職稱|職務|title|job/),join:find(/join|到職|入職|start ?date|hire/),resign:find(/resign|離職/),
+    rank:find(/^rank|職等/),level:find(/^level|職級/),grade:find(/grade|職等職級/),basic:find(/basic|基本|底薪/),job:find(/job ?allow|職務加給|job$/),skill:find(/skill|技術/),attendance:find(/attend|全勤/),housing:find(/transport|housing|交通|住宿|accom/),track:find(/track|薪資表|pay ?table/),prob:find(/probation ?month|試用月/)}}
+function previewEmployeeList(wb,fname){
+  const list=[];let hdrInfo=null;
+  wb.SheetNames.forEach(sn=>{const rows=sheetRows(wb.Sheets[sn]);let hi=-1,hx=null;for(let i=0;i<Math.min(rows.length,15);i++){const x=headerIndex(rows[i]);if(x.id>=0&&x.name>=0){hi=i;hx=x;break}}if(hi<0)return;hdrInfo=hx;
+    for(let i=hi+1;i<rows.length;i++){const r=rows[i];const empId=String(r[hx.id]||'').replace(/\.0$/,'').trim();const name=String(r[hx.name]||'').trim();if(!empId||!name||!/\d/.test(empId))continue;
+      const x={empId,name,dept:hx.dept>=0?String(r[hx.dept]||'').trim():'',section:hx.section>=0?String(r[hx.section]||'').trim():'',position:hx.position>=0?String(r[hx.position]||'').trim():'',joinDate:hx.join>=0?normDate(r[hx.join]):'',resignDate:hx.resign>=0?normDate(r[hx.resign]):''};
+      if(hx.track>=0){const tv=String(r[hx.track]||'').toLowerCase();if(/admin|行政/.test(tv))x.payTrack='admin';else if(/prod|生產/.test(tv))x.payTrack='prod'}
+      if(hx.prob>=0&&r[hx.prob]!=='')x.probMonths=num(r[hx.prob]);
+      if(hx.grade>=0&&parseGrade(String(r[hx.grade])))x.grade=gradeCode(parseGrade(String(r[hx.grade])).rank,parseGrade(String(r[hx.grade])).level);else if(hx.rank>=0&&r[hx.rank]!==''){x.grade=gradeCode(+r[hx.rank],pad2(hx.level>=0&&r[hx.level]!==''?+r[hx.level]:1))}
+      const amounts={};[['job',hx.job],['skill',hx.skill],['attendance',hx.attendance],['housing',hx.housing]].forEach(([k,i])=>{if(i>=0&&r[i]!=='')amounts[k]=num(r[i])});
+      if(Object.keys(amounts).length){const title=titleFor(x.position);const track=x.payTrack||(title?title.payTrack:'prod');
+        // Try to recognise the grade from the amounts; otherwise keep the amounts as a personal override
+        const hit=gradesFor(track).find(g=>(amounts.job===undefined||num(g.job)===amounts.job)&&(amounts.skill===undefined||num(g.skill)===amounts.skill));
+        if(hit&&!x.grade){x.grade=gradeCode(hit.rank,hit.level);x.gradeReason='import (amounts matched)'}
+        const gcode=x.grade||(title?title.grade:'');const g=gcode?gradeRow(track,gcode):null;const diff={};Object.keys(amounts).forEach(k=>{if(!g||num(g[k])!==amounts[k])diff[k]=amounts[k]});
+        if(Object.keys(diff).length)x.override={fields:diff,effectiveFrom:x.joinDate||asOf(),note:'import '+fname}}
+      list.push(x)}});
+  if(!list.length){toast(LANG==='en'?'No employee rows recognised (need ID + Name columns)':'未識別到員工列（需要 工號 + 姓名 欄）');return}
+  const byId=new Map(live(STATE.employees).map(e=>[String(e.empId),e]));let nw=0,ch=0,same=0;const rows=list.map(x=>{const e=byId.get(x.empId);let st;if(!e){st='new';nw++}else{const changed=['name','dept','section','position','joinDate','resignDate'].some(k=>x[k]&&String(e[k]||'')!==String(x[k]))||!!x.override||(x.grade&&!(currentAssignment(x.empId,asOf())||{}).grade);st=changed?'changed':'same';if(changed)ch++;else same++}return {x,st}});
+  IMPORT_PENDING={type:'employees',data:list,fname};
+  $('importTitle').textContent=fname;$('importSummary').innerHTML=`${LANG==='en'?'Employee list':'員工清單'}：${list.length} ${LANG==='en'?'rows':'列'} · <b>${LANG==='en'?'new':'新增'} ${nw}</b> · ${LANG==='en'?'changed':'變更'} ${ch} · ${LANG==='en'?'unchanged':'不變'} ${same}<br>${LANG==='en'?'Columns':'欄位'}：${Object.keys(hdrInfo||{}).filter(k=>hdrInfo[k]>=0).join(', ')}<br>${LANG==='en'?'Only new and changed rows are written. Amounts that differ from the grade table become a personal override.':'只寫入新增與變更列；與級距表不同的金額會變成個人覆蓋。'}`;
+  $('importPreview').innerHTML=`<table><thead><tr><th>#</th><th>${tr('empId')}</th><th>${tr('name')}</th><th>${tr('dept')}</th><th>${tr('position')}</th><th>${tr('joinDate')}</th><th>${tr('grade')}</th><th>${tr('override')}</th></tr></thead><tbody>${rows.map(({x,st})=>`<tr><td><span class="badge ${st==='new'?'b-regular':st==='changed'?'b-probation':'b-resigned'}">${st}</span></td><td class="mono">${esc(x.empId)}</td><td>${esc(x.name)}</td><td>${esc(x.dept)}</td><td>${esc(x.position)}</td><td class="mono">${esc(x.joinDate)}</td><td>${esc(x.grade||(titleFor(x.position)||{}).grade||'—')}</td><td>${x.override?esc(Object.entries(x.override.fields).map(([k,v])=>k+' '+v).join(', ')):''}</td></tr>`).join('')}</tbody></table>`;
+  $('importModal').classList.add('open')}
+async function importApply(){
+  if(!IMPORT_PENDING)return;const p=IMPORT_PENDING;IMPORT_PENDING=null;closeModal('importModal');const t=nowIso();
+  if(p.type==='structure'){const d=p.data;
+    d.basic.forEach(b=>{const k='B|'+b.year;const cur=STATE.basic.find(x=>x._k===k);const row={_k:k,year:b.year,effectiveFrom:`${b.year}-01-01`,probation:b.probation,regular:b.regular,note:b.note,updatedAt:t,deleted:false};if(cur)Object.assign(cur,row);else STATE.basic.push(row)});
+    d.grades.forEach(g=>{const k=`G|${g.track}|${gradeCode(g.rank,g.level)}`;const cur=STATE.grades.find(x=>x._k===k);const row=Object.assign({_k:k,updatedAt:t,deleted:false},g);if(cur)Object.assign(cur,row);else STATE.grades.push(row)});
+    d.titles.forEach(x=>{const k='T|'+String(x.en||x.zh).toLowerCase().replace(/[^a-z0-9㐀-鿿]+/g,'_');const cur=STATE.titles.find(r=>r._k===k);const payTrack=cur?cur.payTrack:(/行政|HRA|GAS|支援/.test(x.dept)?'admin':'prod');const g=parseGrade(x.grade);const probMonths=cur&&cur.probMonths!=null?cur.probMonths:((payTrack==='prod'&&g&&g.rank<=1)?STATE.settings.probWorker:STATE.settings.probStaff);const row=Object.assign({_k:k,updatedAt:t,deleted:false,payTrack,probMonths},x);if(cur)Object.assign(cur,row);else STATE.titles.push(row)});
+    await persist('import');renderAll();toast(`✅ ${p.fname}`)}
+  else{const res=upsertEmployees(p.data,'import '+p.fname);await persist('import');renderAll();toast(`✅ +${res.added} / ${res.updated} ${LANG==='en'?'updated':'更新'} / ${res.assigned} ${LANG==='en'?'graded':'給職等'}`);$('importLog').textContent=`${p.fname} → +${res.added} / ${res.updated} / ${res.assigned}`}}
+function openImport(){switchTab('settings');window.scrollTo({top:0})}
+
+/* ── export ── */
+function exportExcel(){const date=asOf();const rows=live(STATE.employees).filter(deptFilterOk).map(e=>{const p=payFor(e,date);return {ID:e.empId,Name:e.name,Dept:e.dept,Section:e.section,Position:e.position,'Pay Track':e.payTrack||'prod','Join Date':e.joinDate,'Confirm Date':p.confirmDate,'Resign Date':e.resignDate||'',Status:p.status,Grade:p.grade,Basic:p.basic,'Job Allowance':p.job,'Skill Allowance':p.skill,Attendance:p.attendance,'Transport/Housing':p.housing,'Structure Subtotal':p.subtotal,'Temp Allowance':p.temp,'Total':p.total,Override:p.overridden?'Y':''}});
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Employees '+date);
+  ['admin','prod'].forEach(tk=>{const b=basicRow(date);XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gradesFor(tk).map(g=>({Title:g.title,Kind:g.kind,Rank:g.rank,Level:g.level,Basic:b?b.regular:0,Job:g.job,Skill:g.skill,Attendance:g.attendance,'Transport/Housing':g.housing,Subtotal:(b?num(b.regular):0)+num(g.job)+num(g.skill)+num(g.attendance)+num(g.housing),'With Temp':(b?num(b.regular):0)+num(g.job)+num(g.skill)+num(g.attendance)+num(g.housing)+num(STATE.settings.temp)}))),tk==='admin'?'Admin':'Production')});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(live(STATE.basic).map(b=>({Year:b.year,'Effective From':b.effectiveFrom,'Probation Basic':b.probation,'Regular Basic':b.regular,Note:b.note}))),'Basic Wage');
+  XLSX.writeFile(wb,`VRT_Salary_${date}.xlsx`)}
+
+/* ── tabs / init ── */
+function switchTab(id){ACTIVE_TAB=id;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.getAttribute('data-tab')===id));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+id));if(id==='compare')renderCompare()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.getAttribute('data-tab'))));
+(function(){const dz=$('dropZone');['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag')}));dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files))})();
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+(async function init(){
+  $('asOfDate').value=todayStr();$('bEffective').value=todayStr();batchActionChanged();
+  STATE=await loadState();if(!STATE||!STATE.grades){STATE=seedDefaults(emptyState());_applying=true;try{await persist('seed')}finally{_applying=false}}
+  if(!STATE.settings)STATE.settings={temp:2.5,probWorker:2,probStaff:3,probAllowance:true};
+  applyLang();renderAll();
+  if(window.HRAAutoSync)HRAAutoSync.install({key:TOOL,pull:cloudPull,push:cloudPush,canSync:function(){return !!gasUrlValue()},startDelay:450,downId:'btn-cloud-down',upId:'btn-cloud-up'});
+})();
+
+</script>
+</body>
+</html>

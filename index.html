@@ -76,6 +76,8 @@ footer a{color:var(--sub);}
   <div class="grid" style="margin-top:14px">
     <a class="card" href="./seniority.html"><div class="ic">🌿</div><div class="ci"><h3 data-i="m10">Seniority</h3><p data-i="m10d">半年年資、各組人均／天數、核可</p></div></a>
     <a class="card" href="./nssf.html"><div class="ic">🛡</div><div class="ci"><h3 data-i="m11">NSSF</h3><p data-i="m11d">E-Form、各組美元成本、核可與 PDF</p></div></a>
+    <!-- 2026-10-27 薪資架構／職等 從 HRA Portal 搬來（只搬位置，資料仍是同一份：雲端 tool salary、同網域本機資料） -->
+    <a class="card" href="./ac_hra_salary_v1.html"><div class="ic">📐</div><div class="ci"><h3 data-i="m12">薪資架構／職等 Salary Structure</h3><p data-i="m12d">職等與職稱對照、試用 +$2、年度調薪</p></div></a>
   </div>
 
   <div class="sect" data-i="s2">人事管理 HR Management</div>
@@ -111,19 +113,22 @@ const I18N={
   m3:'餐費 Meal Fee',m3d:'上／下半月雙批發放、匯率換算、異常偵測',m4:'OT / Bonus / Special OT',m4d:'一般加班、獎金與另行現金 Special OT 分開管理',
   m5:'員工 HR',m5d:'員工主檔、工號／姓名／部門對照',m6:'職位異動 Transfer',m6d:'調職／調薪申請與核可流程（Telegram 通知）',
   m7:'警告 Warning',m7d:'警告信登錄、失效追蹤、核可／退件',m8:'停工 Shutdown',m8d:'停工事件登錄與年度統計',
-  m9:'總覽 Summary Center',m9d:'跨模組 Projection 交叉核對與異常清單'},
+  m9:'總覽 Summary Center',m9d:'跨模組 Projection 交叉核對與異常清單',
+  m12:'薪資架構／職等 Salary Structure',m12d:'職等與職稱對照、試用 +$2、年度調薪'},
  en:{m10:'Seniority',m10d:'Half-year payment, Payroll audit and annual leave calculator',m11:'NSSF',m11d:'E-Form import, factory-paid contributions and PDF reconciliation',sub:'HR & Payroll Analytics Platform · Vantage River Textiles Co., Ltd.',s1:'Payroll Core',s2:'HR Management',s3:'Overview',
   m1:'Payroll',m1d:'Advance + monthly import, cross-audit, projection export',m2:'Advance Pay',m2d:'First-phase payment (inside Payroll Stage 1)',
   m3:'Meal Fee',m3d:'Semi-monthly batches, FX conversion, anomaly detection',m4:'OT / Bonus / Special OT',m4d:'Separate normal OT, bonus and separately paid Special OT cash',
   m5:'Employee HR',m5d:'Employee master: ID / name / department',m6:'Transfer',m6d:'Position & salary change approval (Telegram notify)',
   m7:'Warning',m7d:'Warning letters, expiry tracking, approval flow',m8:'Shutdown',m8d:'Shutdown events & yearly statistics',
-  m9:'Summary Center',m9d:'Cross-module projection reconciliation'},
+  m9:'Summary Center',m9d:'Cross-module projection reconciliation',
+  m12:'Salary Structure & Grades',m12d:'Pay grades, title mapping, probation +$2, annual adjustment'},
  km:{m10:'អតីតភាពការងារ',m10d:'ទូទាត់រៀងរាល់ឆមាស ផ្ទៀងផ្ទាត់ប្រាក់ខែ និងថ្ងៃឈប់សម្រាក',m11:'ប.ស.ស. NSSF',m11d:'នាំចូល E-Form រោងចក្របង់ទាំងស្រុង និងផ្ទៀងផ្ទាត់ PDF',sub:'វេទិកាវិភាគប្រាក់ខែ · Vantage River Textiles Co., Ltd.',s1:'ស្នូលប្រាក់ខែ',s2:'ការគ្រប់គ្រងធនធានមនុស្ស',s3:'ទិដ្ឋភាពរួម',
   m1:'ប្រាក់ខែ Payroll',m1d:'នាំចូលឯកសារ បុរេប្រទាន+ប្រចាំខែ និងសវនកម្ម',m2:'បុរេប្រទាន Advance',m2d:'ការទូទាត់ដំណាក់កាលទី១ (ក្នុង Payroll)',
   m3:'ថ្លៃអាហារ Meal Fee',m3d:'ការទូទាត់ពីរដងក្នុងមួយខែ និងអត្រាប្តូរប្រាក់',m4:'OT / Bonus / Special OT',m4d:'គ្រប់គ្រង OT, Bonus និង Special OT ដាច់ដោយឡែក',
   m5:'បុគ្គលិក HR',m5d:'ទិន្នន័យបុគ្គលិក: លេខ / ឈ្មោះ / ផ្នែក',m6:'ផ្លាស់ប្តូរតំណែង',m6d:'ការស្នើសុំ និងអនុម័ត (ជូនដំណឹង Telegram)',
   m7:'ការព្រមាន Warning',m7d:'លិខិតព្រមាន និងការតាមដាន',m8:'ការផ្អាកការងារ',m8d:'ព្រឹត្តិការណ៍ផ្អាក និងស្ថិតិប្រចាំឆ្នាំ',
-  m9:'មជ្ឈមណ្ឌលសង្ខេប',m9d:'ការផ្ទៀងផ្ទាត់ទិន្នន័យឆ្លងម៉ូឌុល'}
+  m9:'មជ្ឈមណ្ឌលសង្ខេប',m9d:'ការផ្ទៀងផ្ទាត់ទិន្នន័យឆ្លងម៉ូឌុល',
+  m12:'រចនាសម្ព័ន្ធប្រាក់ខែ',m12d:'កម្រិតប្រាក់ខែ មុខតំណែង និងការដំឡើងប្រចាំឆ្នាំ'}
 };
 function setLang(l){
   if(!I18N[l])l="tc";
@@ -146,7 +151,8 @@ if(window.HomeSync)HomeSync.mount(document.getElementById('home-sync'),{
     {id:'employee', page:'employee_hr.html', kind:'hrpay', key:'employee', name:{tc:'👥 員工 HR',en:'👥 Employee HR',km:'👥 បុគ្គលិក'}},
     {id:'transfer', page:'transfer.html', kind:'hrpay', key:'transfer', name:{tc:'🔄 職位異動 Transfer',en:'🔄 Transfer',km:'🔄 ផ្លាស់ប្តូរតំណែង'}},
     {id:'warning', page:'warning.html', kind:'hrpay', key:'warning', name:{tc:'⚠️ 警告 Warning',en:'⚠️ Warning',km:'⚠️ ការព្រមាន'}},
-    {id:'shutdown', page:'shutdown.html', kind:'hrpay', key:'shutdown', name:{tc:'🛑 停工 Shutdown',en:'🛑 Shutdown',km:'🛑 ការផ្អាកការងារ'}}
+    {id:'shutdown', page:'shutdown.html', kind:'hrpay', key:'shutdown', name:{tc:'🛑 停工 Shutdown',en:'🛑 Shutdown',km:'🛑 ការផ្អាកការងារ'}},
+    {id:'salary', page:'ac_hra_salary_v1.html', kind:'hra', key:'salary', name:{tc:'📐 薪資架構／職等 Salary',en:'📐 Salary Structure',km:'📐 រចនាសម្ព័ន្ធប្រាក់ខែ'}}
   ]
 });
 setLang(localStorage.getItem('hrpay_lang')||'tc');
