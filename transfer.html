@@ -357,8 +357,8 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div><label class="rl" data-t="f_id">工號 ID *</label><input id="i-emp" class="ri jmono"></div>
         <div><label class="rl" data-t="f_name">姓名 Name *</label><input id="i-name" class="ri"></div>
-        <div><label class="rl" data-t="f_join">到職日 Join Date</label><input id="i-join" type="date" class="ri"></div>
-        <div><label class="rl" data-t="f_eff">生效日 Effective *</label><input id="i-eff" type="date" class="ri"></div>
+        <div><label class="rl" data-t="f_join">到職日 Join Date</label><input id="i-join" type="date" class="ri"><div class="text-[11px] text-slate-500 mt-0.5" id="i-join-rb"></div></div>
+        <div><label class="rl" data-t="f_eff">生效日 Effective *</label><input id="i-eff" type="date" class="ri"><div class="text-[11px] text-slate-500 mt-0.5" id="i-eff-rb"></div></div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div><label class="rl" data-t="f_od">原部門 From *</label><input id="i-od" list="dl-dept" class="ri"></div>
@@ -411,7 +411,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
         <div><label class="rl" data-t="f_op">原職務 Position</label><input id="g-op" list="dl-pos" class="ri"></div>
         <div><label class="rl" data-t="f_ndd">新部門（預設）</label><input id="g-nd" list="dl-dept" oninput="grpSync()" class="ri"></div>
         <div><label class="rl" data-t="f_np">新職務 Position</label><input id="g-np" list="dl-pos" class="ri"></div>
-        <div><label class="rl" data-t="f_eff">生效日 Effective *</label><input id="g-eff" type="date" class="ri"></div>
+        <div><label class="rl" data-t="f_eff">生效日 Effective *</label><input id="g-eff" type="date" class="ri"><div class="text-[11px] text-slate-500 mt-0.5" id="g-eff-rb"></div></div>
       </div>
       <div><label class="rl" data-t="f_rsd">異動原因（預設）*</label><input id="g-reason" list="dl-reason" oninput="grpSync()" class="ri"></div>
       <div class="border border-slate-200 rounded-xl overflow-hidden">
@@ -554,6 +554,18 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 function escapeHtml(s){return esc(s);}
 function uid(p){return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function lds(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
+/* 2026-10-29：日期欄是瀏覽器格式（常見 月/日/年），容易把 11/01 當成 1 月 11 日。
+   在欄位下方用英文月份重念一次，生效日太舊或太遠也提醒（不擋）。 */
+function dateReadback(id){
+  var n=document.getElementById(id), o=document.getElementById(id+'-rb'); if(!n||!o)return;
+  var v=n.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){o.textContent='';return;}
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], a=v.split('-'), txt='= '+(+a[2])+' '+M[+a[1]-1]+' '+a[0]+'（'+(+a[0])+' 年 '+(+a[1])+' 月 '+(+a[2])+' 日）';
+  var days=Math.round((new Date(v+'T00:00:00')-new Date(new Date().toDateString()))/86400000), warn='';
+  if(id!=='i-join'&&(days<-60||days>120))warn=' ⚠️ '+(days<0?'比今天早 '+(-days)+' 天':'比今天晚 '+days+' 天')+'，請確認月／日沒有顛倒';
+  o.textContent=txt+warn; o.style.color=warn?'#b45309':'';
+}
+document.addEventListener('input',function(e){ var t=e.target; if(t&&/^(i-join|i-eff|g-eff)$/.test(t.id))dateReadback(t.id); });
+document.addEventListener('change',function(e){ var t=e.target; if(t&&/^(i-join|i-eff|g-eff)$/.test(t.id))dateReadback(t.id); });
 function nowStr(){var d=new Date();return lds(d)+' '+p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());}
 function today(){return lds(new Date());}
 function addMonths(d,n){var x=new Date(d.getFullYear(),d.getMonth()+n,1);
@@ -1869,7 +1881,7 @@ function renderAppr(){
    +'<th class="text-right">'+L('人數','Head','នាក់')+'</th><th class="text-right">'+L('調薪額','Adj.','ប្រាក់កែ')+'</th>'
    +'<th>'+L('狀態','Status','ស្ថានភាព')+'</th><th>'+L('可核可','Approvable','អាចអនុម័ត')+'</th><th></th></tr></thead><tbody>';
   U.forEach(function(u){
-    var ok=needsApproval(u.kind==='group'?u.key:u.eff);
+    var ok=needsApproval(u.kind==='group'?u.key:tgSingleApprovalPeriod(u.recs&&u.recs[0]));
     var apPeriod=u.kind==='group'?u.key:tgSingleApprovalPeriod(u.recs&&u.recs[0]);
     var apSt=APPROVALS[MODULE_CODE+'|'+apPeriod]||'';
     var apRv=APPROVALS['rv|'+apPeriod]||'';
@@ -1889,7 +1901,7 @@ function renderAppr(){
 function apprToggle(id,on){ if(on)_apprSel[id]=1; else delete _apprSel[id]; }
 function apprSelectAll(on){
   var U=apprUnits(); _apprSel={};
-  if(on)U.forEach(function(u){ if(needsApproval(u.kind==='group'?u.key:u.eff))_apprSel[u.id]=1; });
+  if(on)U.forEach(function(u){ if(needsApproval(u.kind==='group'?u.key:tgSingleApprovalPeriod(u.recs&&u.recs[0])))_apprSel[u.id]=1; });
   renderAppr();
 }
 async function apprSend(route){
@@ -1945,7 +1957,7 @@ function openInd(id){
   el('ind-id').value=r?r.id:'';
   setTxt('ind-title',r?L('編輯個人調職','Edit Individual Transfer','កែផ្លាស់ប្តូរបុគ្គល'):L('新增個人調職','New Individual Transfer','បន្ថែមផ្លាស់ប្តូរបុគ្គល'));
   el('i-emp').value=r?r.empId:''; el('i-name').value=r?r.name:'';
-  el('i-join').value=r?r.joinDate:''; el('i-eff').value=r?r.effDate:today();
+  el('i-join').value=r?r.joinDate:''; el('i-eff').value=r?r.effDate:today(); dateReadback('i-join'); dateReadback('i-eff');
   el('i-od').value=r?r.origDept:''; el('i-op').value=r?r.origPos:'';
   el('i-nd').value=r?r.newDept:'';  el('i-np').value=r?r.newPos:'';
   el('i-reason').value=r?r.reason:''; el('i-note').value=r?(r.note||''):'';
@@ -2033,7 +2045,7 @@ function openGrp(key){
   el('g-od').value=b?b.origDept:''; el('g-op').value=b?(b.origPos||''):'';
   el('g-nd').value=b?(b.dests.length===1?b.dests[0]:''):'';
   el('g-np').value=b?(b.recs[0].newPos||''):'';
-  el('g-eff').value=b?b.eff:today();
+  el('g-eff').value=b?b.eff:today(); dateReadback('g-eff');
   el('g-reason').value=b?(b.reason||''):'';
   el('g-rows').innerHTML=''; _gSeq=0;
   if(b)b.recs.forEach(function(r){grpAdd({empId:r.empId,name:r.name,newDept:r.newDept,reason:r.reason});});
@@ -2128,7 +2140,14 @@ function hrpPreviewText(text,kind){
 
 var TG_LIMIT=3600;
 function keyMonth(k){var m=String(k||'').match(/(\d{4})-(\d{2})/);return m?m[1]+'-'+m[2]:'';}
-function needsApproval(k){ return keyMonth(k)>=APPROVAL_FROM; }
+/* 2026-10-29（Paul）：分界線只擋舊的匯入資料；線上新填的（src:'form'）不管生效日都能送核可 */
+function onlineEntryKey(k){
+  var s=String(k||'');
+  if(/^I:/.test(s)){ var rid=s.split(':')[3]||''; return RECS.some(function(r){return r.src==='form'&&String(r.id||'').replace(/[^A-Za-z0-9_-]/g,'').slice(-12)===rid;}); }
+  var b=(typeof BATCHES!=='undefined'&&BATCHES)?BATCHES[s]:null;
+  return !!(b&&(b.recs||[]).some(function(r){return r.src==='form';}));
+}
+function needsApproval(k){ return keyMonth(k)>=APPROVAL_FROM||onlineEntryKey(k); }
 function tgTypeCode(t){return t==='day'?'D':t==='week'?'W':t==='year'?'Y':'M';}
 function tgTypeFromCode(c){return c==='D'?'day':c==='W'?'week':c==='Y'?'year':'month';}
 function tgWeekKey(ds){
