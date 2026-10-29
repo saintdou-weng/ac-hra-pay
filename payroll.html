@@ -71,7 +71,7 @@ body{font-family:'DM Sans',sans-serif;}
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
-<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -1748,9 +1748,10 @@ async function payUnsentCheck(){
     if(!/^20\d{2}-\d{2}$/.test(k)||k<'2026-07')return;
     const e=STORE[k]||{};
     [['pay','payrollRecords','payroll',sp,'正式薪資'],['adv','advanceRecords','advance',sa,'預付薪資']].forEach(([w,f,m,set,lab])=>{
-      const rows=e[f]||[]; if(!rows.length||set[k])return;
-      const since=e.updatedAt||HRAUnsent.firstSeen('pay_'+m,k);
-      items.push({key:m+'|'+k,name:lab+' '+labelFromKey(k),detail:rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since),which:w});
+      const rows=e[f]||[]; if(!rows.length)return;
+      const since=e.updatedAt||HRAUnsent.firstSeen('pay_'+m,k), it={key:m+'|'+k,name:lab+' '+labelFromKey(k),detail:rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since),which:w};
+      if(set[k]){ if(!HRAUnsent.isDecided(set[k].status)){const ww=HRAUnsent.waitingItem(it,set[k].at);if(ww)items.push(ww);} return; }
+      items.push(it);
     });
   });
   HRAUnsent.update({module:'hrpay_payroll',label:'HRA-PAY 薪資／預付',platform:'hrpay',page:'ac-hra-pay/payroll.html',items,box:'unsent-box',lang:LANG,onSend:x=>sendSummaryTG(x.which)});

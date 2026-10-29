@@ -70,7 +70,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
-<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -2631,9 +2631,15 @@ function transferUnsent(){
   RECS.forEach(function(r){
     if(r.kind!=='individual'||r.status!=='pending')return;
     var key=tgSingleApprovalPeriod(r); if(!needsApproval(key))return;
-    if(tgStatusForRecord(r,APPROVAL_ROWS))return;   /* 已送出（含期間送出的） */
+    var st=tgStatusForRecord(r,APPROVAL_ROWS);
     var since=r.createdAt||r.updatedAt||'', warn=r.src==='form'&&window.HRAUnsent?HRAUnsent.dateGapWarn(r.effDate,since,LANG):'';
-    out.push({key:key,name:r.empId+' '+(r.name||''),detail:(r.origDept||'—')+'/'+(r.origPos||'—')+' → '+(r.newDept||'—')+'/'+(r.newPos||'—'),date:r.effDate,since:since,days:window.HRAUnsent?HRAUnsent.daysSince(since):0,warn:warn,rid:r.id});
+    var it={key:key,name:r.empId+' '+(r.name||''),detail:(r.origDept||'—')+'/'+(r.origPos||'—')+' → '+(r.newDept||'—')+'/'+(r.newPos||'—'),date:r.effDate,since:since,days:window.HRAUnsent?HRAUnsent.daysSince(since):0,warn:warn,rid:r.id};
+    if(st){   /* 已送出：還沒核可且送出超過 3 天 → 待核提醒 */
+      if(window.HRAUnsent&&HRAUnsent.isDecided(st))return;
+      var row=APPROVAL_ROWS.filter(function(x){var p=String(x.period||''),inf=tgApprovalPeriodInfo(p);return p===key||(inf&&inf.scope==='ind'&&tgDateInPeriod(r.effDate,inf.type,inf.key));})[0];
+      var w=row&&window.HRAUnsent?HRAUnsent.waitingItem(it,row.requestedAt||row.reviewedAt):null; if(w)out.push(w); return;
+    }
+    out.push(it);
   });
   Object.keys(BATCHES||{}).forEach(function(k){
     var b=BATCHES[k]; if(!b||b.status!=='pending'||!needsApproval(k)||APPROVALS[MODULE_CODE+'|'+k])return;

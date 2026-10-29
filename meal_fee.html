@@ -31,7 +31,7 @@
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
-<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=2"></script>
 </head>
 <body class="text-slate-800">
 
@@ -869,9 +869,9 @@ async function mealUnsentCheck(){
   const items=[];
   Object.keys(STORE).sort().forEach(k=>{
     const e=STORE[k]; if(String(k).slice(0,7)<'2026-07'||!(e&&e.meal&&(e.meal.rows||[]).length))return;
-    if(sent[k])return;
-    const since=e.updatedAt||HRAUnsent.firstSeen('meal',k);
-    items.push({key:k,name:'餐費 '+bLabel(k),detail:e.meal.rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since)});
+    const since=e.updatedAt||HRAUnsent.firstSeen('meal',k), it={key:k,name:'餐費 '+bLabel(k),detail:e.meal.rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since)};
+    if(sent[k]){ if(!HRAUnsent.isDecided(sent[k].status)){const w=HRAUnsent.waitingItem(it,sent[k].at);if(w)items.push(w);} return; }   /* 已送出：超過 3 天沒核可＝待核 */
+    items.push(it);
   });
   HRAUnsent.update({module:'hrpay_meal',label:'HRA-PAY 餐費',platform:'hrpay',page:'ac-hra-pay/meal_fee.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTgModal()});
 }
