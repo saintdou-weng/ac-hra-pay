@@ -64,6 +64,7 @@ footer a{color:var(--sub);}
 </header>
 
 <main>
+  <div id="unsent-home" style="display:none"></div>
 
   <div class="sect" data-i="s1">薪資核心 Payroll Core</div>
   <div class="grid">
@@ -171,5 +172,9 @@ if(window.HRPayHub)HRPayHub.mountEmbed(document.getElementById('home-import'));
   }catch(e){dot.className='dot err';const l=localStorage.getItem('hrpay_lang')||'tc';txt.textContent={tc:'GAS 離線',en:'GAS offline',km:'GAS គ្មានអ៊ីនធឺណិត'}[l]||'GAS 離線';}
 })();
 </script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
+<script>/* 2026-10-29 首頁：HRA-PAY 未送核可彙總 */
+(function(){function run(){try{var l=(localStorage.getItem('hrpay_lang')||localStorage.getItem('ac_hra_lang')||'zh');HRAUnsent.homePanel('unsent-home',{platform:'hrpay',lang:l==='en'?'en':l==='km'?'km':'zh'});}catch(e){}}
+window.addEventListener('load',function(){setTimeout(run,1500);setInterval(run,600000);});})();</script>
 </body>
 </html>

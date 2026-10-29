@@ -70,6 +70,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -162,6 +163,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 
 <!-- ────────── 總覽 ────────── -->
 <section id="pn-ov" class="pane space-y-4">
+  <div id="unsent-box-ov" style="display:none"></div>
   <div id="nav-ov"></div>
   <div id="ov-kpi" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -318,6 +320,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 
 <!-- ────────── 核可 ────────── -->
 <section id="pn-appr" class="pane space-y-4" style="display:none">
+  <div id="unsent-box-appr" style="display:none"></div>
   <div id="nav-appr"></div>
   <div class="sect p-3 flex flex-wrap gap-2 items-center no-print">
     <select id="appr-kind" onchange="renderAppr()" class="fsel">
@@ -561,7 +564,7 @@ function dateReadback(id){
   var v=n.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){o.textContent='';return;}
   var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], a=v.split('-'), txt='= '+(+a[2])+' '+M[+a[1]-1]+' '+a[0]+'（'+(+a[0])+' 年 '+(+a[1])+' 月 '+(+a[2])+' 日）';
   var days=Math.round((new Date(v+'T00:00:00')-new Date(new Date().toDateString()))/86400000), warn='';
-  if(id!=='i-join'&&(days<-60||days>120))warn=' ⚠️ '+(days<0?'比今天早 '+(-days)+' 天':'比今天晚 '+days+' 天')+'，請確認月／日沒有顛倒';
+  if(id!=='i-join'&&(days<-40||days>40))warn=' ⚠️ '+(days<0?'比今天早 '+(-days)+' 天':'比今天晚 '+days+' 天')+'，請確認月／日沒有顛倒';
   o.textContent=txt+warn; o.style.color=warn?'#b45309':'';
 }
 document.addEventListener('input',function(e){ var t=e.target; if(t&&/^(i-join|i-eff|g-eff)$/.test(t.id))dateReadback(t.id); });
@@ -1985,7 +1988,7 @@ function saveInd(){
     RECS.forEach(function(x,ix){if(dedupKey(x)===k)found=ix;});
     if(found>=0){RECS[found]=Object.assign({},RECS[found],base);
       toast(L('同工號／同日／同路線已存在，已覆蓋','Existing record overwritten','បានសរសេរជាន់'),'warning');}
-    else RECS.push(Object.assign({id:uid('t_'),status:'pending'},base));
+    else RECS.push(Object.assign({id:uid('t_'),status:'pending',createdAt:nowStr()},base));
   }
   idbSaveAll(); rebuild(); closeM('m-ind'); showApp(); renderAll();
   scheduleAutoCloudSync(id?'edit':'add');
@@ -2489,7 +2492,7 @@ async function refreshApprovalStatus(silent){
       var d=await r.json();
       arr=(d&&d.data&&d.data.records)||(d&&(d.data||d.rows||d.list))||[];
     }
-    APPROVALS={}; DOCS={}; APPROVAL_ROWS=Array.isArray(arr)?arr:[];
+    APPROVALS={}; DOCS={}; APPROVAL_ROWS=Array.isArray(arr)?arr:[]; window._apprLoaded=true;
     APPROVAL_ROWS.forEach(function(x){
       var p=x.period||x.Period; if(!p)return;
       APPROVALS[MODULE_CODE+'|'+p]=x.code||x.status||x.Status||'';
@@ -2621,8 +2624,33 @@ function setTab(t){
   renderAll();
 }
 function showApp(){ if(RECS.length){el('app').style.display=''; el('empty-state').style.display='none';} }
+/* 2026-10-29 未送核可提醒（Paul）：Pending、可送核、從沒送出（沒有核可卡／結果）、超過 3 天 → 提醒；
+   線上填的生效日和填寫日相差 40 天以上也提醒（可能月／日顛倒）。每天 08:00 也會在群組提醒一次（HRA Portal GAS）。 */
+function transferUnsent(){
+  var out=[];
+  RECS.forEach(function(r){
+    if(r.kind!=='individual'||r.status!=='pending')return;
+    var key=tgSingleApprovalPeriod(r); if(!needsApproval(key))return;
+    if(tgStatusForRecord(r,APPROVAL_ROWS))return;   /* 已送出（含期間送出的） */
+    var since=r.createdAt||r.updatedAt||'', warn=r.src==='form'&&window.HRAUnsent?HRAUnsent.dateGapWarn(r.effDate,since,LANG):'';
+    out.push({key:key,name:r.empId+' '+(r.name||''),detail:(r.origDept||'—')+'/'+(r.origPos||'—')+' → '+(r.newDept||'—')+'/'+(r.newPos||'—'),date:r.effDate,since:since,days:window.HRAUnsent?HRAUnsent.daysSince(since):0,warn:warn,rid:r.id});
+  });
+  Object.keys(BATCHES||{}).forEach(function(k){
+    var b=BATCHES[k]; if(!b||b.status!=='pending'||!needsApproval(k)||APPROVALS[MODULE_CODE+'|'+k])return;
+    var since=(b.recs||[]).map(function(r){return r.createdAt||r.updatedAt||'';}).filter(Boolean).sort()[0]||'';
+    out.push({key:k,name:(b.origDept||'—')+' → '+((b.dests||[]).join('/')||'—'),detail:(b.recs||[]).length+L(' 人',' ppl',' នាក់'),date:b.eff,since:since,days:window.HRAUnsent?HRAUnsent.daysSince(since):0,warn:'',batch:k});
+  });
+  return out;
+}
+function renderUnsent(){
+  if(!window.HRAUnsent||!window._apprLoaded)return;   /* 還沒拿到核可狀態前不判斷，免得把已送的也算進去 */
+  var items=transferUnsent(), onSend=function(x){ if(x.batch)openTgFor('batch',x.batch); else openTgFor('ind',x.date,x.rid); };
+  HRAUnsent.render('unsent-box-ov',items,LANG,onSend);
+  HRAUnsent.update({module:'hrpay_transfer',label:'HRA-PAY 調職',platform:'hrpay',page:'ac-hra-pay/transfer.html',items:items,box:'unsent-box-appr',lang:LANG,onSend:onSend});
+}
 function renderAll(){
   if(!RECS.length){ el('app').style.display='none'; el('empty-state').style.display=''; return; }
+  try{renderUnsent();}catch(e){console.warn('[unsent]',e);}
   showApp();
   TABS.forEach(function(k){renderNav(k);});
   var pend=RECS.filter(function(r){return r.status==='pending';}).length;
@@ -2659,6 +2687,7 @@ async function init(){
   if(RECS.length){ TABS.forEach(function(k){pLatest(k);}); showApp(); }
   setDimVal('count'); setMetric('total');
   renderAll(); setupDZ();
+  if(GAS_URL)setTimeout(function(){refreshApprovalStatus(true);},2500);   /* 2026-10-29：開頁先抓核可狀態，未送核可提醒才算得準 */
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape')['m-ind','m-grp','m-emp','m-tg'].forEach(closeM);
     var tg=e.target.tagName;

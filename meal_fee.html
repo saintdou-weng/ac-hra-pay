@@ -31,6 +31,7 @@
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
 </head>
 <body class="text-slate-800">
 
@@ -117,6 +118,7 @@
   <p class="text-slate-300 text-xs mt-2" data-en="Both file types are auto-detected — no need to sort them yourself.">兩種檔案都會自動辨識，不用自己分類</p>
 </div>
 
+<div id="unsent-box" style="display:none"></div>
 <div id="app" class="hidden">
 
   <!-- ══ 期間導覽 ══ -->
@@ -856,7 +858,25 @@ function showApp(){
 }
 
 // ━━━━━━━━━━━━ 主渲染 ━━━━━━━━━━━━
+/* 2026-10-29 未送核可提醒（Paul）：2026-07 起的期間，資料已匯入但超過 3 天還沒送審查／核可 → 頁面紅框＋每天 08:00 群組提醒。
+   「已送出」以 PAY GAS 的核可紀錄為準（待審、待核、已核、退回都算送過）；查不到 GAS 時不判斷。 */
+let _unsentT=null;
+function scheduleUnsent(){clearTimeout(_unsentT);_unsentT=setTimeout(mealUnsentCheck,2500);}
+window.addEventListener('load',function(){setTimeout(function(){try{scheduleUnsent();}catch(e){}},6000);});
+async function mealUnsentCheck(){
+  if(!window.HRAUnsent||!GAS_URL)return;
+  const sent=await HRAUnsent.payPeriods(GAS_URL,'meal'); if(!sent)return;
+  const items=[];
+  Object.keys(STORE).sort().forEach(k=>{
+    const e=STORE[k]; if(String(k).slice(0,7)<'2026-07'||!(e&&e.meal&&(e.meal.rows||[]).length))return;
+    if(sent[k])return;
+    const since=e.updatedAt||HRAUnsent.firstSeen('meal',k);
+    items.push({key:k,name:'餐費 '+bLabel(k),detail:e.meal.rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since)});
+  });
+  HRAUnsent.update({module:'hrpay_meal',label:'HRA-PAY 餐費',platform:'hrpay',page:'ac-hra-pay/meal_fee.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTgModal()});
+}
 function renderAll(){
+  scheduleUnsent();
   if(!Object.keys(STORE).length){showApp();return;}
   if(!ACTIVE) ACTIVE=STORE[sortedKeys().slice(-1)[0]];
   showApp();

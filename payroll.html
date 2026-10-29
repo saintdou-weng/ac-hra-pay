@@ -71,6 +71,7 @@ body{font-family:'DM Sans',sans-serif;}
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -244,6 +245,7 @@ body{font-family:'DM Sans',sans-serif;}
 
 <!-- ═══════════ MAIN ═══════════ -->
 <main class="max-w-screen-2xl mx-auto px-4 py-5">
+<div id="unsent-box" style="display:none"></div>
 
 <!-- ────── DASHBOARD PANE ────── -->
 <div id="pane-dashboard" class="tab-pane">
@@ -1733,7 +1735,28 @@ function syncUploadZoneUI(){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  RENDER ALL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* 2026-10-29 未送核可提醒（Paul）：2026-07 起的期間，資料已匯入但超過 3 天還沒送審查／核可 → 頁面紅框＋每天 08:00 群組提醒。
+   「已送出」以 PAY GAS 的核可紀錄為準（待審、待核、已核、退回都算送過）；查不到 GAS 時不判斷。 */
+let _unsentT=null;
+function scheduleUnsent(){clearTimeout(_unsentT);_unsentT=setTimeout(payUnsentCheck,2500);}
+window.addEventListener('load',function(){setTimeout(function(){try{scheduleUnsent();}catch(e){}},6000);});
+async function payUnsentCheck(){
+  if(!window.HRAUnsent||!GAS_URL)return;
+  const sp=await HRAUnsent.payPeriods(GAS_URL,'payroll'), sa=await HRAUnsent.payPeriods(GAS_URL,'advance'); if(!sp||!sa)return;
+  const items=[];
+  Object.keys(STORE).sort().forEach(k=>{
+    if(!/^20\d{2}-\d{2}$/.test(k)||k<'2026-07')return;
+    const e=STORE[k]||{};
+    [['pay','payrollRecords','payroll',sp,'正式薪資'],['adv','advanceRecords','advance',sa,'預付薪資']].forEach(([w,f,m,set,lab])=>{
+      const rows=e[f]||[]; if(!rows.length||set[k])return;
+      const since=e.updatedAt||HRAUnsent.firstSeen('pay_'+m,k);
+      items.push({key:m+'|'+k,name:lab+' '+labelFromKey(k),detail:rows.length+' 人',date:k,since,days:HRAUnsent.daysSince(since),which:w});
+    });
+  });
+  HRAUnsent.update({module:'hrpay_payroll',label:'HRA-PAY 薪資／預付',platform:'hrpay',page:'ac-hra-pay/payroll.html',items,box:'unsent-box',lang:LANG,onSend:x=>sendSummaryTG(x.which)});
+}
 function renderAll(){
+  scheduleUnsent();
   if(!ACTIVE||!ACTIVE.mergedRecords||!ACTIVE.mergedRecords.length)return;
   renderDashboard();
   renderCost();

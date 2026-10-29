@@ -26,6 +26,7 @@
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
+<script src="../ac-hra-portal/shared/hra-unsent.js?v=1"></script>
 </head>
 <body class="text-slate-800">
 
@@ -98,6 +99,7 @@
   <p class="text-slate-300 text-xs mt-2" data-en="All supported file types are auto-detected — no need to sort them yourself.">加班、獎金與 Special OT 都會自動辨識，不用自己分類</p>
 </div>
 
+<div id="unsent-box" style="display:none"></div>
 <div id="app" class="hidden">
 
   <!-- 操作台 -->
@@ -815,7 +817,28 @@ function showApp(){
 function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
 
 // ━━━━━━━━━ 主渲染 ━━━━━━━━━
+/* 2026-10-29 未送核可提醒（Paul）：2026-07 起的期間，資料已匯入但超過 3 天還沒送審查／核可 → 頁面紅框＋每天 08:00 群組提醒。
+   「已送出」以 PAY GAS 的核可紀錄為準（待審、待核、已核、退回都算送過）；查不到 GAS 時不判斷。 */
+let _unsentT=null;
+function scheduleUnsent(){clearTimeout(_unsentT);_unsentT=setTimeout(otUnsentCheck,2500);}
+window.addEventListener('load',function(){setTimeout(function(){try{scheduleUnsent();}catch(e){}},6000);});
+async function otUnsentCheck(){
+  if(!window.HRAUnsent||!GAS_URL)return;
+  const T2={ot:['ot_bonus','加班費'],bonus:['bonus','獎金'],special:['special_ot','特別加班']}, items=[];
+  for(const t of Object.keys(T2)){
+    const sent=await HRAUnsent.payPeriods(GAS_URL,T2[t][0]); if(!sent)return;
+    [...new Set(RECS.filter(r=>r.type===t).map(r=>`${r.year}-${pad(r.month)}`))].sort().forEach(p=>{
+      if(p<'2026-07'||sent[p])return;
+      const recs=RECS.filter(r=>r.type===t&&`${r.year}-${pad(r.month)}`===p), amt=recs.reduce((a,r)=>a+(+r.expense||0),0);
+      if(!recs.length)return;
+      const since=HRAUnsent.firstSeen('ot_'+t,p);
+      items.push({key:t+'|'+p,name:T2[t][1]+' '+p,detail:'$'+amt.toFixed(2),date:p,since,days:HRAUnsent.daysSince(since)});
+    });
+  }
+  HRAUnsent.update({module:'hrpay_otbonus',label:'HRA-PAY 加班／獎金',platform:'hrpay',page:'ac-hra-pay/ot_bonus.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTgModal()});
+}
 function renderAll(){
+  scheduleUnsent();
   if(!RECS.length){showApp();return;}
   showApp();
   buildDeptSelect();
