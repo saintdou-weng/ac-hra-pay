@@ -1,0 +1,5 @@
+AC-HRA-PAY v3.9.28（2026-11-03）Paul 決定：NSSF 公司付，退休金、所得稅照政府規定
+
+- NSSF 職災 0.8%、健保 2.6% 由公司付；退休金公司 2%＋員工 2%，員工的 2% 從薪資扣（滿 60 歲不繳）；所得稅照政府規定。
+- NSSF 頁：每人另列「從員工薪資扣的退休金」（employeeDeduction）與「公司實際負擔」（employerCost）；匯出欄位改為 Pension worker KHR (deducted from wages)、Factory cost KHR。
+- 薪資比對：員工退休金扣款和當月規定相符才算吻合；沒扣（例：5966 Khaem Tola 7–9 月）、扣錯金額、滿 60 歲卻有扣都列為差異。

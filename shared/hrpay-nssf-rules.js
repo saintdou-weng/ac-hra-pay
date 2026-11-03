@@ -1,4 +1,5 @@
-/* AC-HRA-PAY v3.9.27 | NSSF 依月份生效的上下限＋薪資防呆（交通 $7＋$2.50、最低工資）
+/* AC-HRA-PAY v3.9.28 | Paul 2026-11-03：NSSF（職災、健保）公司付；退休金、所得稅照政府規定（員工退休金 2% 從薪資扣）。
+   NSSF 依月份生效的上下限＋薪資防呆（交通 $7＋$2.50、最低工資）
    NSSF 第 3135/26 號通知（部際部長令 234/26）：自 2026-11 計薪月起，繳費工資下限 600,000៛、上限 1,500,000៛
    （舊制 400,000／1,200,000）；費率不變：職災 0.8%、健保 2.6%（公司付）、退休金公司 2%＋員工 2%。
    10 月以前的月份照舊制，不回溯。退休金 2027-10 起推估各 4%（推估，正式公告後再確認）。
@@ -26,7 +27,7 @@ function grossOf(r){return (+r.subtotal||0)+(+r.otTotal||0)+Math.abs(+r.advDeduc
 /* r：HRA-PAY 正式薪資一筆（subtotal 小計、otTotal 加班、advDeduction 預支、nssf 員工扣款、travel 交通住宿、basicRate 底薪、workDays 計薪天） */
 function checkPay(r,p,o){o=o||{};const out=[];p=ym(p);const g=grossOf(r),nssf=Math.abs(+r.nssf||0);
   if(g>0&&!o.over60){const b=bandAt(p),exp=employeeUSD(g,p,0,b),pb=prevBand(p),old=employeeUSD(g,p,0,pb);
-    if(nssf<0.005)out.push({k:'nssf0',sev:'warn',zh:'沒扣員工 NSSF 退休金 2%（公司代付或漏扣？）',en:'No employee NSSF pension deducted (company-paid or missed?)'});
+    if(nssf<0.005)out.push({k:'nssf0',sev:'warn',zh:'沒扣員工退休金 2%（依規定員工要扣，滿 60 歲才免）',en:'No employee pension 2% deducted (required by law unless aged 60+)'});
     else if(Math.abs(nssf-exp)>0.06){const stale=pb!==b&&Math.abs(nssf-old)<=0.06;out.push({k:'nssf',sev:'crit',exp,zh:`NSSF 扣 $${nssf.toFixed(2)}，${p} 規定應為 $${exp.toFixed(2)}${stale?'（還在用舊上下限 40–120 萬៛）':''}`,en:`NSSF deducted $${nssf.toFixed(2)}; ${p} rule gives $${exp.toFixed(2)}${stale?' (still the old 400k–1.2M floor/ceiling)':''}`});}}
   if(p>=TRANS.from&&(+r.workDays||0)>=TRANS.minDays&&r.travel!=null&&(+r.travel||0)<TRANS.base+TRANS.extra-0.005)out.push({k:'trans',sev:'warn',zh:`交通／住宿 $${(+r.travel||0).toFixed(2)}，少於 $${TRANS.base}＋$${TRANS.extra}`,en:`Transport/housing $${(+r.travel||0).toFixed(2)} is below $${TRANS.base} + $${TRANS.extra}`});
   const mw=minWageAt(p),br=+r.basicRate||0;if(mw!=null&&br>0&&br<mw-2-0.005)out.push({k:'minw',sev:'crit',zh:`底薪 $${br} 低於 ${p.slice(0,4)} 最低工資 $${mw}（試用期 $${mw-2}）`,en:`Basic $${br} is below the ${p.slice(0,4)} minimum wage $${mw} (probation $${mw-2})`});
