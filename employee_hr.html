@@ -1034,10 +1034,11 @@ function renderDeptHist(){
 let RO_FLAG='';
 function nameEnMap(){const m={};snapKeys().forEach(k=>(SNAPS[k].rows||[]).forEach(r=>{if(r.nameEn)m[String(r.id)]=r.nameEn;}));return m;}
 function rowFlags(r){const f=[];
-  if(r.titlePending)f.push(['pending',T('待確認','To confirm'),'bg-amber-100 text-amber-700',T('新人職務待確認（PSJHR 建議）','New hire: title suggested from PSJHR, please confirm')]);
+  if(r.titlePending==='待確認')f.push(['pending',T('待確認','To confirm'),'bg-amber-100 text-amber-700',T('新人職務待確認（PSJHR 建議）','New hire: title suggested from PSJHR, please confirm')]);
   if(r.leaveStatus||r.empStatus==='留職停薪')f.push(['lsp',T('留職停薪','Leave w/o pay'),'bg-rose-50 text-rose-600',(r.lspFrom?r.lspFrom+' → '+(r.lspTo||''):'')+(r.lspReason?' · '+r.lspReason:'')]);
   if(r.lactFrom?(!r.lactTo||!ACTIVE||r.lactTo>=ACTIVE+'-01'):r.lactation==='Yes')f.push(['lact',T('哺乳期','Nursing'),'bg-pink-50 text-pink-600',(r.lactFrom||'')+' → '+(r.lactTo||'')+(r.nurseMode?' · '+r.nurseMode:'')]);
-  if(r.pregnant==='Yes')f.push(['preg',T('懷孕','Pregnant'),'bg-fuchsia-50 text-fuchsia-600','']);
+  if(r.matLeave==='Yes')f.push(['mat',T('產假','Maternity'),'bg-violet-50 text-violet-600',(r.matFrom||'')+' → '+(r.matTo||'')+(r.edd?' · '+T('預產期 ','EDD ')+r.edd:'')]);
+  if(r.pregnant==='Yes')f.push(['preg',T('懷孕','Pregnant'),'bg-fuchsia-50 text-fuchsia-600',r.edd?T('預產期 ','EDD ')+r.edd+T('（HRA Portal 孕婦登記）',' (HRA Portal register)'):'']);
   return f;}
 function setRoFlag(k){RO_FLAG=RO_FLAG===k?'':k;renderRoster();}
 function renderRoster(){
@@ -1046,7 +1047,7 @@ function renderRoster(){
   const q=(qs('#ro-q').value||'').trim().toLowerCase();
   if(q)list=list.filter(r=>(r.id+' '+r.name+' '+r.nameKm+' '+enOf(r)+' '+r.dept+' '+r.section+' '+r.position).toLowerCase().includes(q));
   const cnt={};list.forEach(r=>rowFlags(r).forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));
-  const FL=[['pending',T('待確認','To confirm')],['lsp',T('留職停薪','Leave w/o pay')],['lact',T('哺乳期','Nursing')],['preg',T('懷孕','Pregnant')]];
+  const FL=[['pending',T('待確認','To confirm')],['preg',T('懷孕','Pregnant')],['mat',T('產假','Maternity')],['lact',T('哺乳期','Nursing')],['lsp',T('留職停薪','Leave w/o pay')]];
   qs('#ro-flags').innerHTML=FL.filter(f=>cnt[f[0]]).map(f=>`<button onclick="setRoFlag('${f[0]}')" class="text-[11px] px-2 py-1 rounded-full border ${RO_FLAG===f[0]?'bg-violet-600 text-white border-violet-600':'border-slate-200 text-slate-600 hover:bg-slate-50'}">${f[1]} ${cnt[f[0]]}</button>`).join('');
   if(RO_FLAG)list=list.filter(r=>rowFlags(r).some(f=>f[0]===RO_FLAG));
   const sort=qs('#ro-sort').value;
