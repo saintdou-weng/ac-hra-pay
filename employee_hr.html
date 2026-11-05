@@ -244,6 +244,7 @@
           <option value="id" data-en="Sort: ID">排序：工號</option>
         </select>
         <span id="ro-count" class="text-[11px] text-slate-400"></span>
+        <span id="ro-flags" class="flex flex-wrap gap-1"></span>
         <button onclick="exportCSV('roster')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
       </div>
       <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
@@ -729,12 +730,12 @@ function renderNav(){
   const ks=snapshotChoices(), sel=qs('#nav-snap');
   sel.innerHTML=ks.slice().reverse().map(k=>{
     const s=SNAPS[k];
-    return `<option value="${k}">${snapScopeKey(k)} · ${T('快照','Snapshot')} ${s.label} · ${s.rows.length} ${T('人','staff')}</option>`;}).join('');
+    return `<option value="${k}">${snapScopeKey(k)} · ${T('快照','Snapshot')} ${s.label} · ${s.rows.length} ${T('人','staff')}${s.format==='psjhr-est'?T('（推算）',' (est.)'):''}</option>`;}).join('');
   if(ACTIVE)sel.value=ACTIVE;
   const i=ks.indexOf(ACTIVE), s=SNAPS[ACTIVE];
   qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ks.length}</span>
-    <span class="ml-1 ${s.format==='new'?'text-violet-600':s.format==='classic'?'text-amber-600':'text-sky-600'}">${
-      s.format==='new'?T('新版格式','New'):s.format==='classic'?T('早期格式','Classic'):T('舊版格式','Legacy')}</span>`;
+    <span class="ml-1 ${s.format==='psjhr'?'text-emerald-600':s.format==='psjhr-est'?'text-orange-600':s.format==='new'?'text-violet-600':s.format==='classic'?'text-amber-600':'text-sky-600'}" title="${esc(s.src||'')}">${
+      s.format==='psjhr'?T('PSJHR 自動','PSJHR auto'):s.format==='psjhr-est'?T('PSJHR 推算','PSJHR estimate'):s.format==='new'?T('新版格式','New'):s.format==='classic'?T('早期格式','Classic'):T('舊版格式','Legacy')}</span>`;
 }
 function buildFilters(){
   const rows=baseRows();
@@ -1029,10 +1030,25 @@ function renderDeptHist(){
     +`<td class="px-3 py-2 text-right jmono">${per.length>1?((per[0].n-per[1].n>0?'+':'')+(per[0].n-per[1].n)):'—'}</td>`;
 }
 
+// v3.9.27：英文名對照（任何快照有 nameEn 都可拿來補舊快照）、特殊狀態標籤
+let RO_FLAG='';
+function nameEnMap(){const m={};snapKeys().forEach(k=>(SNAPS[k].rows||[]).forEach(r=>{if(r.nameEn)m[String(r.id)]=r.nameEn;}));return m;}
+function rowFlags(r){const f=[];
+  if(r.titlePending)f.push(['pending',T('待確認','To confirm'),'bg-amber-100 text-amber-700',T('新人職務待確認（PSJHR 建議）','New hire: title suggested from PSJHR, please confirm')]);
+  if(r.leaveStatus||r.empStatus==='留職停薪')f.push(['lsp',T('留職停薪','Leave w/o pay'),'bg-rose-50 text-rose-600',(r.lspFrom?r.lspFrom+' → '+(r.lspTo||''):'')+(r.lspReason?' · '+r.lspReason:'')]);
+  if(r.lactFrom?(!r.lactTo||!ACTIVE||r.lactTo>=ACTIVE+'-01'):r.lactation==='Yes')f.push(['lact',T('哺乳期','Nursing'),'bg-pink-50 text-pink-600',(r.lactFrom||'')+' → '+(r.lactTo||'')+(r.nurseMode?' · '+r.nurseMode:'')]);
+  if(r.pregnant==='Yes')f.push(['preg',T('懷孕','Pregnant'),'bg-fuchsia-50 text-fuchsia-600','']);
+  return f;}
+function setRoFlag(k){RO_FLAG=RO_FLAG===k?'':k;renderRoster();}
 function renderRoster(){
   let list=filtered();
+  const EN=nameEnMap(), enOf=r=>r.nameEn||EN[String(r.id)]||'';
   const q=(qs('#ro-q').value||'').trim().toLowerCase();
-  if(q)list=list.filter(r=>(r.id+' '+r.name+' '+r.nameKm+' '+r.dept+' '+r.section+' '+r.position).toLowerCase().includes(q));
+  if(q)list=list.filter(r=>(r.id+' '+r.name+' '+r.nameKm+' '+enOf(r)+' '+r.dept+' '+r.section+' '+r.position).toLowerCase().includes(q));
+  const cnt={};list.forEach(r=>rowFlags(r).forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));
+  const FL=[['pending',T('待確認','To confirm')],['lsp',T('留職停薪','Leave w/o pay')],['lact',T('哺乳期','Nursing')],['preg',T('懷孕','Pregnant')]];
+  qs('#ro-flags').innerHTML=FL.filter(f=>cnt[f[0]]).map(f=>`<button onclick="setRoFlag('${f[0]}')" class="text-[11px] px-2 py-1 rounded-full border ${RO_FLAG===f[0]?'bg-violet-600 text-white border-violet-600':'border-slate-200 text-slate-600 hover:bg-slate-50'}">${f[1]} ${cnt[f[0]]}</button>`).join('');
+  if(RO_FLAG)list=list.filter(r=>rowFlags(r).some(f=>f[0]===RO_FLAG));
   const sort=qs('#ro-sort').value;
   if(sort==='tenure')list=list.slice().sort((a,b)=>tenureOf(b)-tenureOf(a));
   else if(sort==='age')list=list.slice().sort((a,b)=>ageOf(b)-ageOf(a));
@@ -1040,23 +1056,25 @@ function renderRoster(){
   else list=list.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
   qs('#ro-count').textContent=`${list.length} ${T('人','staff')}`;
   qs('#ro-thead').innerHTML=[T('工號','ID'),T('姓名','Name'),T('性別','Sex'),T('年齡','Age'),
-    T('到職日','Join date'),T('年資','Tenure'),T('部門','Dept'),T('組別','Section'),T('職務','Position'),'']
+    T('到職日','Join date'),T('年資','Tenure'),T('合約','Contract'),T('部門','Dept'),T('組別','Section'),T('職務','Position'),T('狀態','Status'),'']
     .map((h,i)=>`<th class="px-3 py-2 ${i>2&&i<6?'text-right':'text-left'} font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
-  qs('#ro-tbody').innerHTML=list.slice(0,600).map(r=>`
+  qs('#ro-tbody').innerHTML=list.slice(0,600).map(r=>{const en=enOf(r),c=r.contract||(/^(UDC|FDC)$/.test(r.workStatus||'')?r.workStatus:'');return `
     <tr class="border-b border-slate-50 hover:bg-slate-50">
       <td class="px-3 py-2 jmono text-slate-500">${esc(r.id)}</td>
-      <td class="px-3 py-2"><div class="text-slate-700">${esc(r.name)}</div>${r.nameKm?`<div class="km text-[10px] text-slate-400">${esc(r.nameKm)}</div>`:''}</td>
+      <td class="px-3 py-2"><div class="text-slate-700">${esc(r.name)}</div>${r.nameKm||en?`<div class="text-[10px] text-slate-400">${r.nameKm?`<span class="km">${esc(r.nameKm)}</span>`:''}${r.nameKm&&en?' · ':''}${en?`<span>${esc(en)}</span>`:''}</div>`:''}</td>
       <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full ${r.gender==='F'?'bg-pink-50 text-pink-600':r.gender==='M'?'bg-sky-50 text-sky-600':'bg-slate-100 text-slate-400'}">${r.gender||'—'}</span></td>
       <td class="px-3 py-2 text-right jmono">${ageOf(r)?Math.round(ageOf(r)):'—'}</td>
       <td class="px-3 py-2 text-right jmono text-slate-500">${esc(r.join||'—')}</td>
-      <td class="px-3 py-2 text-right jmono">${tenureOf(r)?tenureOf(r).toFixed(1):'—'}</td>
+      <td class="px-3 py-2 text-right jmono" title="${r.seniority?esc(T('BEST 年資 ','BEST seniority ')+r.seniority):''}">${tenureOf(r)?tenureOf(r).toFixed(1):'—'}</td>
+      <td class="px-3 py-2">${c?`<span class="text-[10px] px-2 py-0.5 rounded-full ${c==='UDC'?'bg-emerald-50 text-emerald-700':'bg-sky-50 text-sky-700'}" title="${r.contractInferred?esc(T('BEST 未填，依年資推定','Not set in BEST; inferred from tenure')):''}">${c}${r.contractInferred?'*':''}</span>`:'<span class="text-slate-300">—</span>'}</td>
       <td class="px-3 py-2 text-slate-600">${esc(r.dept)}</td>
       <td class="px-3 py-2 text-slate-500">${esc(r.section)}</td>
       <td class="px-3 py-2 text-slate-500">${esc(r.position)}</td>
+      <td class="px-3 py-2 whitespace-nowrap">${rowFlags(r).map(f=>`<span class="text-[10px] px-2 py-0.5 rounded-full mr-1 ${f[2]}" title="${esc(f[3])}">${f[1]}</span>`).join('')}</td>
       <td class="px-3 py-2"><button onclick="openEdit('${esc(r.id)}')" class="text-[11px] text-violet-600 hover:underline">${T('編輯','Edit')}</button></td>
-    </tr>`).join('')||`<tr><td colspan="10" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
+    </tr>`;}).join('')||`<tr><td colspan="12" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
   if(list.length>600)qs('#ro-tbody').insertAdjacentHTML('beforeend',
-    `<tr><td colspan="10" class="px-3 py-3 text-center text-slate-400 text-[11px]">${T(`僅顯示前 600 筆，共 ${list.length} 筆`,`Showing 600 of ${list.length}`)}</td></tr>`);
+    `<tr><td colspan="12" class="px-3 py-3 text-center text-slate-400 text-[11px]">${T(`僅顯示前 600 筆，共 ${list.length} 筆`,`Showing 600 of ${list.length}`)}</td></tr>`);
 }
 
 function renderDiff(){
@@ -1190,15 +1208,21 @@ const ED_FIELDS=[
   ['id',T('工號 Factory ID','Factory ID'),'text'],
   ['name',T('英文姓名 Name','Name'),'text'],
   ['nameKm',T('柬文姓名 Khmer','Khmer name'),'text'],
+  ['nameEn',T('英文全名（PSJHR）','English full name (PSJHR)'),'text'],
   ['gender',T('性別 Gender','Gender'),'select'],
   ['birth',T('出生日期 Birth','Birth date'),'date'],
   ['join',T('到職日 Join date','Join date'),'date'],
   ['dept',T('部門 Department','Department'),'text'],
   ['section',T('組別 Section','Section'),'text'],
   ['position',T('職務 Position','Position'),'text'],
+  ['titlePending',T('職務待確認（確認後請清空）','Title to confirm (clear when confirmed)'),'text'],
   ['nationality',T('國籍 Nationality','Nationality'),'text'],
   ['province',T('籍貫 Province','Province'),'text'],
-  ['workStatus',T('聘用性質：Permanent / Contract / Probation','Employment: Permanent / Contract / Probation'),'text'],
+  ['workStatus',T('聘用性質：UDC / FDC / Probation','Employment: UDC / FDC / Probation'),'text'],
+  ['contract',T('合約 UDC / FDC','Contract UDC / FDC'),'text'],
+  ['leaveStatus',T('留職停薪（空白＝無）','Leave without pay (blank = none)'),'text'],
+  ['lactFrom',T('哺乳期 起','Nursing from'),'date'],
+  ['lactTo',T('哺乳期 迄','Nursing to'),'date'],
   ['pregnant',T('懷孕：Yes / No（空白＝未知）','Pregnant: Yes / No (blank = unknown)'),'text'],
   ['maternity',T('產假：Yes / No（空白＝未知）','Maternity: Yes / No (blank = unknown)'),'text'],
   ['resignDate',T('離職日（如有）','Resignation date, if recorded'),'date'],
