@@ -91,7 +91,7 @@
     <button id="tab-dept"    onclick="goTab('dept')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🏭 By Department">🏭 部門分析</button>
     <button id="tab-roster"  onclick="goTab('roster')"  class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="👤 Employee List">👤 員工名單</button>
     <button id="tab-diff"    onclick="goTab('diff')"    class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔄 Snapshot Compare">🔄 快照比對</button>
-    <button id="tab-trend"   onclick="goTab('trend')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📈 Trend">📈 歷年趨勢</button>
+    <button id="tab-trend"   onclick="goTab('trend')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Day / week / month / year">📅 日週月年報表</button>
   </div>
 </div>
 
@@ -107,12 +107,12 @@
 
   <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
     <div class="flex flex-wrap items-center gap-2">
-      <button onclick="stepSnap(-1)" title="上一份快照"
+      <button onclick="navStep(-1)" title="上一期 Previous"
         class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-violet-400 transition flex items-center justify-center text-slate-500 shrink-0">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
-      <select id="nav-snap" onchange="jumpSnap(this.value)"
+      <select id="nav-snap" onchange="navSet(this.value)"
         class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200 min-w-[190px] text-center"></select>
-      <button onclick="stepSnap(1)" title="下一份快照"
+      <button onclick="navStep(1)" title="下一期 Next"
         class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-violet-400 transition flex items-center justify-center text-slate-500 shrink-0">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
       <span id="nav-hint" class="text-[11px] ml-1 text-slate-400"></span>
@@ -136,11 +136,13 @@
         <button id="gb-pos"  onclick="setGroup('position')" data-en="Position" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">職務</button>
         <button id="gb-prov" onclick="setGroup('province')" data-en="Province" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">籍貫</button>
       </div>
-      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider ml-2" data-en="Trend by">趨勢</span>
-      <div class="flex bg-slate-100 rounded-lg p-0.5">
-        <button id="tu-month"   onclick="setTUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每月</button>
-        <button id="tu-quarter" onclick="setTUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
-        <button id="tu-year"    onclick="setTUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-violet-700 transition">每年</button>
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider ml-2" data-en="Time">時間</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5" id="pt-seg">
+        <button id="pt-D" onclick="setPT('D')" data-en="Daily"     class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+        <button id="pt-W" onclick="setPT('W')" data-en="Weekly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+        <button id="pt-M" onclick="setPT('M')" data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每月</button>
+        <button id="pt-Q" onclick="setPT('Q')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
+        <button id="pt-Y" onclick="setPT('Y')" data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
       </div>
       <span id="scope-txt" class="text-[11px] text-slate-400 ml-auto"></span>
     </div>
@@ -148,6 +150,7 @@
 
   <!-- DASHBOARD -->
   <div id="pane-dash" class="pane">
+    <div id="flow-strip" class="mb-4"></div>
     <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
       <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
         <p class="text-[11px] text-slate-400 font-medium" data-en="HEADCOUNT">總人數 HEADCOUNT</p>
@@ -328,7 +331,11 @@ const IDB_NAME='ac_hra_emp', IDB_VER=1, IDB_STORE='snapshots';
 const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PALETTE=['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#f43f5e','#84cc16','#8b5cf6'];
 
-let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='year', charts={};
+let LANG='zh', SNAPS={}, ACTIVE=null, GROUP='dept', TUNIT='month', charts={};
+// v3.9.30：期間選擇跟 PSJHR／Sewing 一樣 —— ◀ 期間 ▶ ＋ 每日／每週／每月／每季／每年
+let PT='M', ANCHOR='', TR='', FLOW=null;
+try{const nv=JSON.parse(localStorage.getItem('hrpay_emp_nav')||'{}');if(/^[DWMQY]$/.test(nv.pt||''))PT=nv.pt;if(nv.a)ANCHOR=nv.a;if(/^[DWMY]$/.test(nv.tr||''))TR=nv.tr;}catch(e){}
+try{FLOW=JSON.parse(localStorage.getItem('hrpay_empflow_v1')||'null');}catch(e){FLOW=null;}
 
 const qs=s=>document.querySelector(s);
 const N=v=>{const n=parseFloat((typeof v==='string'?v.replace(/[,\s$៛]/g,'').replace(/^\((.*)\)$/,'-$1'):v));return isFinite(n)?n:0;};
@@ -693,14 +700,95 @@ function setGroup(g){GROUP=g;
 function snapScopeKey(k){const [y,m]=k.split('-').map(Number);return TUNIT==='year'?String(y):TUNIT==='quarter'?y+'-Q'+(Math.floor(((m||1)-1)/3)+1):k;}
 function snapshotChoices(){const groups=new Map();snapKeys().forEach(k=>groups.set(snapScopeKey(k),k));return [...groups.values()];}
 function selectedSnapshotKeys(){return snapKeys().filter(k=>snapScopeKey(k)===snapScopeKey(ACTIVE||''));}
-function setTUnit(u){TUNIT=u;const matches=selectedSnapshotKeys();if(matches.length)ACTIVE=matches[matches.length-1];
-  ['month','quarter','year'].forEach(k=>qs('#tu-'+k).className=_btn(k===u,'violet'));renderAll();}
-function jumpSnap(k){if(SNAPS[k]){ACTIVE=k;renderAll();}}
-function stepSnap(dir){
-  const ks=snapshotChoices(); if(!ks.length)return;
-  const i=ks.indexOf(ACTIVE);
-  const n=Math.min(ks.length-1,Math.max(0,(i<0?ks.length-1:i)+dir));
-  if(n!==i)jumpSnap(ks[n]);
+// ━━━━ 期間（日／週／月／季／年） ━━━━
+const P2=n=>('0'+n).slice(-2);
+const ymdOf=d=>d.getFullYear()+'-'+P2(d.getMonth()+1)+'-'+P2(d.getDate());
+const parseYmd=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);return m?new Date(+m[1],+m[2]-1,+(m[3]||1)):null;};
+const addDays=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
+const monday=d=>addDays(d,-((d.getDay()+6)%7));
+function isoWeek(d){const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dn=(t.getUTCDay()+6)%7;t.setUTCDate(t.getUTCDate()-dn+3);const y=t.getUTCFullYear();const f=new Date(Date.UTC(y,0,4));return {y,w:1+Math.round(((t-f)/864e5-3+((f.getUTCDay()+6)%7))/7)};}
+function rangeFor(pt,d){
+  d=d||new Date(); const y=d.getFullYear(), m=d.getMonth();
+  if(pt==='D')return {from:d,to:d};
+  if(pt==='W'){const a=monday(d);return {from:a,to:addDays(a,6)};}
+  if(pt==='Q'){const q=Math.floor(m/3)*3;return {from:new Date(y,q,1),to:new Date(y,q+3,0)};}
+  if(pt==='Y')return {from:new Date(y,0,1),to:new Date(y,11,31)};
+  return {from:new Date(y,m,1),to:new Date(y,m+1,0)};
+}
+const WDN=()=>LANG==='en'?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['日','一','二','三','四','五','六'];
+function periodLabel(pt,R){
+  const f=R.from;
+  if(pt==='D')return ymdOf(f)+T('（週'+WDN()[f.getDay()]+'）',' '+WDN()[f.getDay()]);
+  if(pt==='W'){const w=isoWeek(f);return w.y+'-W'+P2(w.w)+' · '+(f.getMonth()+1)+'/'+f.getDate()+'–'+(R.to.getMonth()+1)+'/'+R.to.getDate();}
+  if(pt==='Q')return f.getFullYear()+' Q'+(Math.floor(f.getMonth()/3)+1);
+  if(pt==='Y')return String(f.getFullYear());
+  return MS[f.getMonth()]+' '+f.getFullYear();
+}
+function dataEnd(){const a=FLOW&&FLOW.asOf?parseYmd(FLOW.asOf):null;const ks=snapKeys();const k=ks.length?ks[ks.length-1]:'';const b=k?new Date(+k.slice(0,4),+k.slice(5,7),0):null;return a&&b?(a>b?a:b):(a||b||new Date());}
+function dataStart(){const ks=snapKeys();const a=ks.length?parseYmd(ks[0]):null;let b=null;if(FLOW&&FLOW.people&&FLOW.people.length){b=parseYmd('2014-01-01');}return a&&b?(a<b?a:b):(a||b||new Date());}
+function periodOpts(pt){
+  const end=dataEnd(), out=[], seen={};
+  const push=d=>{const R=rangeFor(pt,d),v=ymdOf(R.from);if(!seen[v]){seen[v]=1;out.push({v,l:periodLabel(pt,R)});}};
+  if(pt==='D'){if(!FLOW)return out;for(let i=0;i<190;i++)push(addDays(end,-i));}
+  else if(pt==='W'){if(!FLOW)return out;for(let i=0;i<110;i++)push(addDays(end,-7*i));}
+  else{
+    if(FLOW){const st=parseYmd('2019-01-01');for(let d=new Date(end.getFullYear(),end.getMonth(),1);d>=st;d=new Date(d.getFullYear(),d.getMonth()-1,1))push(d);}
+    snapKeys().forEach(k=>push(parseYmd(k)));
+  }
+  return out.sort((a,b)=>a.v<b.v?-1:1);
+}
+function saveNav(){try{localStorage.setItem('hrpay_emp_nav',JSON.stringify({pt:PT,a:ANCHOR,tr:TR}));}catch(e){}}
+function curRange(){return rangeFor(PT,parseYmd(ANCHOR)||dataEnd());}
+// 名冊（HRA-PAY 每月一份）：期間結束當月或之前最近的一份
+function syncActive(){
+  const ks=snapKeys(); if(!ks.length)return;
+  const R=curRange(), endM=ymdOf(R.to).slice(0,7);
+  const before=ks.filter(k=>k<=endM);
+  ACTIVE=before.length?before[before.length-1]:ks[0];
+  TUNIT=PT==='Y'?'year':PT==='Q'?'quarter':'month';
+}
+function navSet(v){ANCHOR=v;saveNav();renderAll();}
+function navStep(n){const os=periodOpts(PT);if(!os.length)return;const cur=ymdOf(curRange().from);let i=os.findIndex(x=>x.v===cur);
+  if(i<0)i=n>0?os.findIndex(x=>x.v>cur)-1:os.length;const j=Math.min(os.length-1,Math.max(0,i+n));if(os[j]&&os[j].v!==cur)navSet(os[j].v);}
+function setPT(p){if((p==='D'||p==='W')&&!FLOW){toast(T('日／週資料還在下載，請稍候','Daily / weekly data still loading'),'warning');loadFlow(true);return;}
+  const d=parseYmd(ANCHOR)||dataEnd();PT=p;const os=periodOpts(p),v=ymdOf(rangeFor(p,d).from);
+  if(os.length&&!os.some(x=>x.v===v))ANCHOR=os[os.length-1].v;else ANCHOR=v;
+  if(p==='D'||p==='W'){const e=dataEnd();if(parseYmd(ANCHOR)>e)ANCHOR=ymdOf(rangeFor(p,e).from);}
+  saveNav();renderAll();}
+function jumpSnap(k){if(!SNAPS[k])return;if(PT==='D'||PT==='W')PT='M';ANCHOR=ymdOf(rangeFor(PT,parseYmd(k)).from);saveNav();renderAll();}
+function stepSnap(dir){navStep(dir);}
+// ━━━━ 日週人數：PSJHR 每個人的到職／離職日（GAS 每週三、六＋每月 3 日更新） ━━━━
+let FLOW_LOADING=null;
+function loadFlow(force){
+  if(FLOW_LOADING)return FLOW_LOADING;
+  if(!force&&FLOW&&FLOW._at&&Date.now()-FLOW._at<30*60*1000)return Promise.resolve(FLOW);
+  FLOW_LOADING=fetch(GAS_URL+(GAS_URL.indexOf('?')>=0?'&':'?')+'action=empFlow',{cache:'no-store'}).then(r=>r.json()).then(j=>{
+    const d=j&&j.data!==undefined?j.data:j; if(!d||!Array.isArray(d.people))throw new Error('no flow');
+    d._at=Date.now(); FLOW=d; try{localStorage.setItem('hrpay_empflow_v1',JSON.stringify(d));}catch(e){}
+    FLOW_LOADING=null; if(Object.keys(SNAPS).length)renderAll(); return d;
+  }).catch(e=>{FLOW_LOADING=null;console.warn('[empFlow]',e);return FLOW;});
+  return FLOW_LOADING;
+}
+let DEPT_MAP=null,DEPT_MAP_K='';
+function deptMap(){const ks=snapKeys(),k=ks.join(',')+'|'+ks.map(x=>SNAPS[x].rows.length).join(',');if(DEPT_MAP&&DEPT_MAP_K===k)return DEPT_MAP;
+  const m={};ks.forEach(x=>SNAPS[x].rows.forEach(r=>{m[String(r.id)]={dept:r.dept,section:r.section,name:r.name,nameKm:r.nameKm};}));DEPT_MAP=m;DEPT_MAP_K=k;return m;}
+// 期間統計：期末在職、期間新進、期間離職（跟上方部門／組別／性別篩選一致）
+function flowStats(from,to){
+  if(!FLOW||!FLOW.people)return null;
+  const f=ymdOf(from),t=ymdOf(to),dm=deptMap();
+  const d=qs('#sel-dept')?qs('#sel-dept').value:'',sv=qs('#sel-sec')?qs('#sel-sec').value:'',g=qs('#sel-gender')?qs('#sel-gender').value:'';
+  let head=0,hf=0,jn=0,lv=0,lsp=0;const joins=[],leaves=[];
+  FLOW.people.forEach(p=>{
+    if(g&&p[1]!==g)return;
+    if(d||sv){const x=dm[p[0]];if(!x||(d&&x.dept!==d)||(sv&&x.section!==sv))return;}
+    const j=p[2],l=p[3];
+    if(j<=t&&(!l||l>t)){head++;if(p[1]==='F')hf++;}
+    if(j>=f&&j<=t){jn++;joins.push(p);}
+    if(l&&l>=f&&l<=t){lv++;leaves.push(p);}
+  });
+  const s0=ymdOf(addDays(from,-1));let h0=0;
+  FLOW.people.forEach(p=>{if(g&&p[1]!==g)return;if(d||sv){const x=dm[p[0]];if(!x||(d&&x.dept!==d)||(sv&&x.section!==sv))return;}if(p[2]<=s0&&(!p[3]||p[3]>s0))h0++;});
+  return {head,hf,hm:head-hf,jn,lv,net:head-h0,h0,turn:(h0+head)?lv/((h0+head)/2)*100:0,joins,leaves,future:f>FLOW.asOf};
 }
 const TABS=['dash','profile','dept','roster','diff','trend'];
 function goTab(name){
@@ -721,21 +809,44 @@ function renderAll(){
   if(!Object.keys(SNAPS).length){showApp();return;}
   showApp();
   const ks=snapKeys();
+  if(!ANCHOR){const k=ks[ks.length-1];ANCHOR=k+'-01';}
+  if((PT==='D'||PT==='W')&&!FLOW){PT='M';}
+  syncActive();
   if(!ACTIVE||!SNAPS[ACTIVE])ACTIVE=ks[ks.length-1];
-  const latest=selectedSnapshotKeys();if(TUNIT!=='month'&&latest.length)ACTIVE=latest[latest.length-1];
-  renderNav(); buildFilters(); renderDash(); renderProfile();
+  renderNav(); renderFlowStrip(); buildFilters(); renderDash(); renderProfile();
   renderDept(); renderRoster(); renderDiff(); renderTrend();
 }
 function renderNav(){
-  const ks=snapshotChoices(), sel=qs('#nav-snap');
-  sel.innerHTML=ks.slice().reverse().map(k=>{
-    const s=SNAPS[k];
-    return `<option value="${k}">${snapScopeKey(k)} · ${T('快照','Snapshot')} ${s.label} · ${s.rows.length} ${T('人','staff')}${s.format==='psjhr-est'?T('（推算）',' (est.)'):''}</option>`;}).join('');
-  if(ACTIVE)sel.value=ACTIVE;
-  const i=ks.indexOf(ACTIVE), s=SNAPS[ACTIVE];
-  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ks.length}</span>
-    <span class="ml-1 ${s.format==='psjhr'?'text-emerald-600':s.format==='psjhr-est'?'text-orange-600':s.format==='new'?'text-violet-600':s.format==='classic'?'text-amber-600':'text-sky-600'}" title="${esc(s.src||'')}">${
-      s.format==='psjhr'?T('PSJHR 自動','PSJHR auto'):s.format==='psjhr-est'?T('PSJHR 推算','PSJHR estimate'):s.format==='new'?T('新版格式','New'):s.format==='classic'?T('早期格式','Classic'):T('舊版格式','Legacy')}</span>`;
+  const sel=qs('#nav-snap'), os=periodOpts(PT), R=curRange(), cur=ymdOf(R.from);
+  const list=os.slice(); if(!list.some(x=>x.v===cur))list.push({v:cur,l:periodLabel(PT,R)+T(' · 無資料',' · no data')});
+  list.sort((a,b)=>a.v<b.v?-1:1);
+  sel.innerHTML=list.slice().reverse().map(x=>`<option value="${x.v}">${esc(x.l)}</option>`).join('');
+  sel.value=cur;
+  ['D','W','M','Q','Y'].forEach(p=>{const b=qs('#pt-'+p);if(b){b.className=_btn(p===PT,'violet')+((p==='D'||p==='W')&&!FLOW?' opacity-50':'');}});
+  const s=SNAPS[ACTIVE]||{}, endM=ymdOf(R.to).slice(0,7), inP=ACTIVE&&ACTIVE>=ymdOf(R.from).slice(0,7)&&ACTIVE<=endM;
+  const fmtTag=s.format==='psjhr'?(s.partial?T('PSJHR 本月目前','PSJHR month to date'):T('PSJHR 自動','PSJHR auto')):s.format==='psjhr-est'?T('推算','estimate'):T('上傳檔','uploaded file');
+  qs('#nav-hint').innerHTML=`<span class="text-slate-500">${esc(periodLabel(PT,R))} · ${T('時點值，不加總','point-in-time')}</span>
+    <span class="ml-2 ${inP?'text-emerald-600':'text-amber-600'}" title="${esc(s.src||'')}">📋 ${T('名冊','Roster')} ${esc(s.label||'')}（${fmtTag}${inP?'':T('，此期間沒有名冊，用最近一份',', nearest earlier roster')}）</span>
+    ${FLOW?`<span class="ml-2 text-sky-600">👥 ${T('人數依 PSJHR 入離職日，資料至 ','Headcount from PSJHR join/leave, data to ')}${esc(FLOW.asOf||'')}</span>`:`<span class="ml-2 text-slate-400">${T('日／週資料下載中…','Loading daily data…')}</span>`}`;
+}
+// 儀表板最上方：這個期間的人力異動（跟 PSJHR 一樣：期末在職、期間新進、期間離職）
+function renderFlowStrip(){
+  const box=qs('#flow-strip'); if(!box)return;
+  const R=curRange(), st=flowStats(R.from,R.to), roster=filtered().length;
+  const card=(lbl,val,sub,cls)=>`<div class="bg-white border border-slate-100 shadow-sm rounded-xl p-3"><p class="text-[11px] text-slate-400 font-medium">${lbl}</p><p class="text-xl font-bold jmono mt-0.5 ${cls||'text-slate-700'}">${val}</p>${sub?`<p class="text-[10px] text-slate-400 mt-0.5">${sub}</p>`:''}</div>`;
+  if(!st){box.innerHTML=`<div class="text-[11px] text-slate-400">${T('日／週人數資料下載中…','Loading headcount flow…')}</div>`;return;}
+  const sign=n=>n>0?'+'+n:String(n);
+  box.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-2">📅 ${esc(periodLabel(PT,R))} ${T('人力異動','workforce movement')} <span class="font-normal text-slate-400">${T('（PSJHR 入離職日；點「日週月年報表」看每一天／週／月）','(PSJHR join/leave dates; see the day/week/month/year report)')}</span></p>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    ${card(T('期末在職','Headcount at end'),int(st.head),T('女 ','F ')+st.hf+T(' · 男 ',' · M ')+st.hm,'text-violet-700')}
+    ${card(T('期間新進','Joiners'),int(st.jn),'','text-emerald-600')}
+    ${card(T('期間離職','Leavers'),int(st.lv),'','text-rose-600')}
+    ${card(T('淨增減','Net change'),sign(st.net),T('期初 ','start ')+st.h0,st.net>=0?'text-emerald-600':'text-rose-600')}
+    ${card(T('離職率','Turnover'),st.turn.toFixed(1)+'%',T('離職 ÷ 平均在職','leavers ÷ avg headcount'))}
+    ${card(T('名冊人數','Roster'),int(roster),esc((SNAPS[ACTIVE]||{}).label||''))}
+  </div>
+  ${st.joins.length||st.leaves.length?`<details class="mt-2 text-xs"><summary class="cursor-pointer text-slate-500">${T('看名單','Show names')}（${T('新進','joiners')} ${st.jn} · ${T('離職','leavers')} ${st.lv}）</summary>
+    <div class="grid sm:grid-cols-2 gap-3 mt-2">${[['joins',T('🟢 新進','🟢 Joiners'),2],['leaves',T('🔴 離職','🔴 Leavers'),3]].map(([k,lbl,ix])=>`<div class="bg-white border border-slate-100 rounded-lg p-2 max-h-56 overflow-y-auto"><p class="font-semibold mb-1">${lbl}</p>${st[k].slice().sort((a,b)=>a[ix]<b[ix]?-1:1).map(p=>{const x=deptMap()[p[0]]||{};return `<div class="flex gap-2 py-0.5 border-b border-slate-50"><span class="jmono text-slate-500 w-20">${esc(p[ix])}</span><span class="jmono w-12">${esc(p[0])}</span><span class="flex-1">${esc(x.name||p[4]||'')}</span><span class="text-slate-400">${esc(x.section||'')}</span></div>`;}).join('')||'<span class="text-slate-400">—</span>'}</div>`).join('')}</div></details>`:''}`;
 }
 function buildFilters(){
   const rows=baseRows();
@@ -1142,66 +1253,73 @@ function renderDiff(){
   ${tbl(T('🔵 部門／職務異動','🔵 Department / Position Changed'),moved,'text-sky-700',C)}`;
 }
 
+function trendUnit(){return TR||(PT==='Q'?'M':PT);}
+function setTR(u){TR=u;saveNav();renderTrend();}
+function trendKeys(u){
+  const R=curRange(), end=dataEnd(), a=R.from, out=[];
+  if(u==='D'){const m0=new Date(a.getFullYear(),a.getMonth(),1),m1=new Date(a.getFullYear(),a.getMonth()+1,0);for(let d=m0;d<=m1&&d<=end;d=addDays(d,1))out.push(rangeFor('D',d));}
+  else if(u==='W'){const y=a.getFullYear();for(let d=monday(new Date(y,0,4));d.getFullYear()<=y&&d<=end;d=addDays(d,7))out.push(rangeFor('W',d));}
+  else if(u==='M'){const y=a.getFullYear();for(let m=0;m<12;m++){const d=new Date(y,m,1);if(d>end)break;out.push(rangeFor('M',d));}}
+  else{const y0=FLOW?2019:+snapKeys()[0].slice(0,4);for(let y=y0;y<=end.getFullYear();y++)out.push(rangeFor('Y',new Date(y,0,1)));}
+  return out;
+}
 function renderTrend(){
-  const ks=selectedSnapshotKeys();
-  const box=qs('#trend-body');
-  const g={};
-  ks.forEach(k=>{
-    const s=SNAPS[k];
-    const [y,mo]=k.split('-').map(Number),m=mo||1;
-    let gk,label;
-    if(TUNIT==='year'){gk=String(y);label=String(y);}
-    else if(TUNIT==='quarter'){const q=Math.floor((m-1)/3)+1;gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
-    else{gk=k;label=`${MS[m-1]} ${y}`;}
+  const box=qs('#trend-body'); const u=trendUnit();
+  const units=[['D',T('日報','Daily')],['W',T('週報','Weekly')],['M',T('月報','Monthly')],['Y',T('年報','Yearly')]];
+  const hint=u==='D'?T('列出上方所選月份的每一天','Every day of the month picked above'):u==='W'?T('列出上方所選年份的每一週','Every week of the year picked above'):u==='M'?T('列出上方所選年份的每個月','Every month of the year picked above'):T('列出每一年','Every year');
+  const R0=curRange(), curKey={D:ymdOf(R0.from),W:ymdOf(monday(R0.from)),M:ymdOf(R0.from).slice(0,7),Y:ymdOf(R0.from).slice(0,4)};
+  const rows=trendKeys(u).map(R=>{
+    const st=flowStats(R.from,R.to);
+    const endM=ymdOf(R.to).slice(0,7), sk=(u==='M'||u==='Y')?snapKeys().filter(k=>k>=ymdOf(R.from).slice(0,7)&&k<=endM).pop():null;
     const d=qs('#sel-dept').value, sv=qs('#sel-sec').value, gv=qs('#sel-gender').value;
-    const rows=s.rows.filter(r=>(!d||r.dept===d)&&(!sv||r.section===sv)&&(!gv||r.gender===gv));
-    const f=rows.filter(r=>r.gender==='F').length;
-    const ages=rows.map(r=>r.age||0).filter(a=>a>5&&a<80);
-    g[gk]={key:gk,label,n:rows.length,f,
-      age:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,
-      depts:new Set(rows.map(r=>r.dept)).size, snaps:(g[gk]?g[gk].snaps:0)+1};
+    const ros=sk?SNAPS[sk].rows.filter(r=>(!d||r.dept===d)&&(!sv||r.section===sv)&&(!gv||r.gender===gv)).length:null;
+    const key=u==='D'?ymdOf(R.from):u==='W'?ymdOf(R.from):u==='M'?ymdOf(R.from).slice(0,7):String(R.from.getFullYear());
+    return {R,st,ros,sk,key,lbl:periodLabel(u,R),isCur:key===(u==='W'?ymdOf(monday(R0.from)):u==='D'?curKey.D:u==='M'?curKey.M:curKey.Y)};
   });
-  const list=Object.values(g).sort((a,b)=>a.key<b.key?-1:1);
-  box.innerHTML=`
-  <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 mb-4">
-    <p class="text-sm font-semibold text-slate-700 mb-1">${T('人數與性別結構趨勢','Headcount & Gender Trend')}</p>
-    <p class="text-[11px] text-slate-400 mb-3">${T(`以「${TUNIT==='year'?'每年':TUNIT==='quarter'?'每季':'每月'}」彙總 · 選定範圍 ${snapScopeKey(ACTIVE)} · 共 ${list.length} 組快照（取各期最後一份，不加總人數）`,`${list.length} snapshot groups`)}</p>
+  const noFlow=!FLOW;
+  box.innerHTML=`<div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 mb-4">
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <p class="text-sm font-semibold text-slate-700 mr-2">📅 ${u==='D'?T('日別報表','Daily report'):u==='W'?T('週別報表','Weekly report'):u==='M'?T('月別報表','Monthly report'):T('年別報表','Yearly report')}</p>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">${units.map(([v,l])=>`<button onclick="setTR('${v}')" class="${_btn(v===u,'violet')}${(v==='D'||v==='W')&&noFlow?' opacity-50':''}">${l}</button>`).join('')}</div>
+      <span class="text-[11px] text-slate-400">${hint}；${T('點一列看那個期間','tap a row to open that period')}</span>
+    </div>
+    ${noFlow?`<p class="text-[11px] text-amber-600 mb-2">${T('日週人數資料下載中，暫時只顯示名冊人數。','Headcount flow still loading; roster counts only.')}</p>`:''}
     <div class="ch300"><canvas id="trend-chart"></canvas></div>
+    <p class="text-[10px] text-slate-400 mt-1">${T('柱＝期末在職（女／男）；線＝期間新進、期間離職（右邊刻度）','Bars = headcount at end (F/M); lines = joiners / leavers (right axis)')}</p>
   </div>
   <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
-    <div class="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">${T('歷年人力概況','Workforce by Period')}</div>
     <div class="overflow-x-auto"><table class="w-full text-xs">
-      <thead class="bg-slate-50 text-slate-500"><tr>
-        ${[T('區間','Period'),T('總人數','Headcount'),T('增減','Change'),T('女','F'),T('男','M'),T('女性比','Female %'),T('平均年齡','Avg age'),T('部門數','Depts')]
-          .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}
-      </tr></thead><tbody>
-      ${list.slice().reverse().map((x,i,arr)=>{
-        const prev=arr[i+1];
-        const ch=prev?x.n-prev.n:null;
-        return `<tr class="border-b border-slate-50 hover:bg-slate-50">
-          <td class="px-3 py-2 font-semibold text-slate-700">${x.label}</td>
-          <td class="px-3 py-2 text-right jmono font-semibold text-violet-700">${int(x.n)}</td>
-          <td class="px-3 py-2 text-right jmono ${ch==null?'text-slate-300':ch>=0?'text-emerald-600':'text-rose-600'}">${ch==null?'—':(ch>0?'+':'')+ch}</td>
-          <td class="px-3 py-2 text-right jmono text-pink-600">${x.f}</td>
-          <td class="px-3 py-2 text-right jmono text-sky-600">${x.n-x.f}</td>
-          <td class="px-3 py-2 text-right jmono">${x.n?(x.f/x.n*100).toFixed(0):0}%</td>
-          <td class="px-3 py-2 text-right jmono">${x.age?x.age.toFixed(1):'—'}</td>
-          <td class="px-3 py-2 text-right jmono">${x.depts}</td></tr>`;}).join('')
-        ||`<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}
-      </tbody></table></div>
-  </div>`;
+      <thead class="bg-slate-50 text-slate-500"><tr>${[T('期間','Period'),T('期末在職','Headcount'),T('新進','Joiners'),T('離職','Leavers'),T('淨增減','Net'),T('離職率','Turnover'),T('女','F'),T('男','M')].concat(u==='M'||u==='Y'?[T('名冊人數','Roster')]:[]).map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows.slice().reverse().map(x=>{const st=x.st,fut=st&&st.future;return `<tr onclick="openPeriod('${u}','${ymdOf(x.R.from)}')" class="border-b border-slate-50 cursor-pointer ${x.isCur?'bg-violet-50':'hover:bg-slate-50'}">
+        <td class="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">${esc(x.lbl)}${x.isCur?' ◀':''}</td>
+        <td class="px-3 py-2 text-right jmono font-semibold text-violet-700">${st&&!fut?int(st.head):'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-emerald-600">${st&&!fut?(st.jn||'·'):'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-rose-600">${st&&!fut?(st.lv||'·'):'—'}</td>
+        <td class="px-3 py-2 text-right jmono ${st&&st.net<0?'text-rose-600':'text-emerald-600'}">${st&&!fut?(st.net>0?'+':'')+st.net:'—'}</td>
+        <td class="px-3 py-2 text-right jmono">${st&&!fut?st.turn.toFixed(1)+'%':'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-pink-600">${st&&!fut?st.hf:'—'}</td>
+        <td class="px-3 py-2 text-right jmono text-sky-600">${st&&!fut?st.hm:'—'}</td>
+        ${u==='M'||u==='Y'?`<td class="px-3 py-2 text-right jmono">${x.ros==null?'—':int(x.ros)}</td>`:''}</tr>`;}).join('')||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`}</tbody>
+    </table></div></div>`;
   destroyChart('trend-chart');
-  if(list.length) charts['trend-chart']=new Chart(qs('#trend-chart'),{
-    type:'bar',
-    data:{labels:list.map(x=>x.label),datasets:[
-      {label:T('女','Female'),data:list.map(x=>x.f),backgroundColor:'#ec489999',borderColor:'#ec4899',borderWidth:1,stack:'s'},
-      {label:T('男','Male'),data:list.map(x=>x.n-x.f),backgroundColor:'#0ea5e999',borderColor:'#0ea5e9',borderWidth:1,stack:'s'}]},
-    options:{responsive:true,maintainAspectRatio:false,
+  if(!rows.length)return;
+  const lab=rows.map(x=>u==='D'?String(x.R.from.getDate()):u==='W'?'W'+P2(isoWeek(x.R.from).w):u==='M'?MS[x.R.from.getMonth()]:String(x.R.from.getFullYear()));
+  const v=f=>rows.map(x=>x.st&&!x.st.future?f(x.st):null);
+  const ds=noFlow?[{label:T('名冊人數','Roster'),data:rows.map(x=>x.ros),backgroundColor:'#7c3aed99',yAxisID:'y'}]:[
+    {type:'bar',label:T('女','Female'),data:v(s=>s.hf),backgroundColor:'#ec489999',stack:'h',yAxisID:'y',order:2},
+    {type:'bar',label:T('男','Male'),data:v(s=>s.hm),backgroundColor:'#0ea5e999',stack:'h',yAxisID:'y',order:2},
+    {type:'line',label:T('新進','Joiners'),data:v(s=>s.jn),borderColor:'#10b981',backgroundColor:'#10b981',tension:.25,yAxisID:'y2',order:1,pointRadius:2},
+    {type:'line',label:T('離職','Leavers'),data:v(s=>s.lv),borderColor:'#f43f5e',backgroundColor:'#f43f5e',tension:.25,yAxisID:'y2',order:1,pointRadius:2}];
+  charts['trend-chart']=new Chart(qs('#trend-chart'),{type:'bar',data:{labels:lab,datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      onClick:(e,els)=>{if(els&&els.length){const x=rows[els[0].index];openPeriod(u,ymdOf(x.R.from));}},
       plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
-      scales:{y:{stacked:true,beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}}},
-              x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}
-  });
+      scales:{y:{stacked:true,beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}},title:{display:true,text:T('在職','Headcount'),font:{size:10}}},
+        y2:{position:'right',beginAtZero:true,grid:{display:false},ticks:{font:{size:10},precision:0},title:{display:true,text:T('新進／離職','Join / leave'),font:{size:10}},display:!noFlow},
+        x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}});
 }
+// 點報表的一列 → 上方期間跳到那裡，回儀表板看那個期間
+function openPeriod(u,v){PT=u;ANCHOR=v;saveNav();goTab('dash');window.scrollTo({top:0,behavior:'smooth'});}
 
 // ━━━━ 線上新增 / 修改 ━━━━
 let EDIT_ID=null;
@@ -1480,6 +1598,7 @@ function setupDropZone(sel,handler,ringCls){
 })();
 
 window.addEventListener('load',function(){
+  setTimeout(function(){loadFlow(false);},1200);                       // v3.9.30 日週人數（PSJHR 入離職日）
   if(window.HRPayAutoSync)HRPayAutoSync.install({key:'employee',tool:HRPAY_SYNC_TOOL,pull:cloudDownload,push:cloudUpload,canSync:function(){return !!GAS_URL;},startDelay:450});
 });
 </script>
