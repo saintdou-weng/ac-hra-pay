@@ -23,6 +23,10 @@
     ' table th:first-child,table td:first-child{max-width:40vw;white-space:normal!important;word-break:break-word;overflow-wrap:anywhere}' +
     ' .tf-flexwrap{flex-wrap:wrap!important;row-gap:6px}' +
     ' .tf-shrink{min-width:0!important;max-width:100%!important}' +
+    ' input,select,textarea,button{max-width:100%!important;box-sizing:border-box!important}' +
+    ' img,video,canvas,svg{max-width:100%}' +
+    ' .tf-fit{max-width:100%!important;box-sizing:border-box!important;min-width:0!important}' +
+    ' html,body{max-width:100%;overflow-x:hidden}' +
     '}';
   var st = doc.createElement('style'); st.id = 'tf-css'; st.textContent = css;
   var q = '', bar = null, inp = null, cnt = null, btn = null;
@@ -57,6 +61,15 @@
       var el = els[j]; var r = el.getBoundingClientRect(); if (r.top > 260 || r.height === 0 || r.height > 160) continue;
       var d = g.getComputedStyle(el).display; if (!/flex/.test(d)) continue;
       if (el.scrollWidth > el.clientWidth + 2 || r.right > vw + 2) { el.classList.add('tf-flexwrap'); Array.prototype.forEach.call(el.children, function (ch) { ch.classList.add('tf-shrink'); }); }
+    }
+    // 其他超出畫面寬度的東西（固定寬度的輸入框、區塊）縮到畫面內；表格已經包在可左右滑的框裡，不動
+    var all = doc.body.querySelectorAll('*');
+    for (var k = 0; k < all.length && k < 6000; k++) {
+      var x = all[k]; if (x.closest && (x.closest('.tf-wrap') || x.closest('table') || x.closest('#tf-bar'))) continue;
+      var rr = x.getBoundingClientRect(); if (!rr.width || rr.right <= vw + 1 || rr.left < -1) continue;
+      var dd = g.getComputedStyle(x); if (/(auto|scroll)/.test(dd.overflowX)) continue;
+      if (/flex/.test(dd.display)) x.classList.add('tf-flexwrap');
+      x.classList.add('tf-fit');
     }
   }
   function ui() {
