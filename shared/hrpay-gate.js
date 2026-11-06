@@ -51,3 +51,6 @@
   // a page that rebuilds <body> (language switch) must not drop the gate
   setInterval(function () { if (!ok() && doc.body && !doc.getElementById('hrpay-gate')) show(); }, 800);
 })(window);
+
+/* 表格搜尋＋手機排版（每頁都會載入閘門，所以從這裡帶進來） */
+(function(){try{var d=document,s=d.createElement("script");s.src=(d.currentScript&&d.currentScript.src?d.currentScript.src.replace(/[^\/]*$/,""):"shared/")+"table-find.js?v=1";s.defer=true;(d.head||d.documentElement).appendChild(s)}catch(e){}})();
