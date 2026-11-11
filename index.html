@@ -176,5 +176,7 @@ if(window.HRPayHub)HRPayHub.mountEmbed(document.getElementById('home-import'));
 <script>/* 2026-10-29 首頁：HRA-PAY 未送核可彙總 */
 (function(){function run(){try{var l=(localStorage.getItem('hrpay_lang')||localStorage.getItem('ac_hra_lang')||'zh');HRAUnsent.homePanel('unsent-home',{platform:'hrpay',lang:l==='en'?'en':l==='km'?'km':'zh'});}catch(e){}}
 window.addEventListener('load',function(){setTimeout(run,1500);setInterval(run,600000);});})();</script>
+<!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
+<script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 </body>
 </html>
