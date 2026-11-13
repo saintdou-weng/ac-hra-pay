@@ -50,7 +50,7 @@ function build(opt){
   donut(P+(cw+GAP)*2,y,cw,330,'🏠 '+L('本地／外地','Origin','ស្រុកកំណើត'),org,['#f59e0b','#22c55e','#94a3b8']);
   /* 直條圖 */
   y+=330+GAP;const hw=(W-P*2-GAP)/2;
-  const bars=(px,py,w,h,title,pairs,colors)=>{card(px,py,w,h,title);const max=Math.max(1,...pairs.map(p=>p[1])),bw=(w-60)/pairs.length,base=py+h-56,top=py+84;
+  const bars=(px,py,w,h,title,pairs,colors)=>{card(px,py,w,h,title);const max=Math.max(1,...pairs.map(p=>p[1])),bw=(w-60)/pairs.length,base=py+h-56,top=py+108;   /* 留空給最高那條的數字，不壓到標題 */
     pairs.forEach((p,i)=>{const bh=(base-top)*p[1]/max,bx=px+30+i*bw+bw*0.18;x.fillStyle=colors[i%colors.length];rr(bx,base-bh,bw*0.64,Math.max(bh,3),8);x.fill();
       T(p[1],bx+bw*0.32,base-bh-28,22,INK,'800','center');T(pc(p[1]),bx+bw*0.32,base-bh-8,15,MUTE,'500','center');T(p[0],bx+bw*0.32,base+24,20,INK,'600','center');});};
   bars(P,y,hw,330,'🎂 '+L('年齡','Age','អាយុ'),ageB,PAL);
