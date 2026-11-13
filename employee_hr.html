@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head><script src="shared/hrpay-gate.js?v=20261107b"></script>
 <script src="shared/hrpay-kv.js?v=3.9.26"></script>
-<script src="shared/hrpay-reporting.js?v=3.9.27"></script>
+<script src="shared/hrpay-reporting.js?v=3.9.28"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
@@ -300,6 +300,9 @@
         <select id="tg-snap" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Department">部門 Department</label>
         <select id="tg-dept" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Language">語言 Language</label>
+        <select id="tg-lang" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200">
+          <option value="both">中英 Chinese + English</option><option value="zh">中文</option><option value="en">English</option><option value="enkm">英柬 English + ខ្មែរ</option></select></div>
       <div id="tg-person-wrap">
         <label id="tg-person-label" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">檢查人 Checked by</label>
         <input id="tg-person" type="text" oninput="hrpPersonChanged()" autocomplete="off"
@@ -1496,14 +1499,15 @@ function hrpBestEnrich(rows){
 hrpLoadBest();
 
 // ━━━━ TELEGRAM ━━━━
-function buildTgText(key,dept){
+function buildTgText(key,dept,lang){
+  lang=lang||(qs('#tg-lang')&&qs('#tg-lang').value)||'both';
   const s=SNAPS[key];if(!s)return {err:T('查無此快照','Snapshot not found')};
   const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;if(!rows.length)return {err:T('此範圍無人員資料','No staff in scope')};
   const prevKey=Object.keys(SNAPS).filter(k=>k<key).sort().pop(),prev=prevKey?{key:prevKey,rows:dept?SNAPS[prevKey].rows.filter(r=>r.dept===dept):SNAPS[prevKey].rows}:null;
   /* 2026-11-13 Paul：學歷、聘用別在 BEST（PSJHR 員工詳細資料）裡都有——上傳的月名冊沒有這兩欄時，用工號到 BEST 補上 */
   const en=hrpBestEnrich(rows);
-  let text=HRPayReporting.workforce(en.rows,key,s.label,prev);
-  if(en.filled)text+='\n<i>🗂 '+T('學歷／聘用別 '+en.filled+' 人取自 BEST 員工詳細資料（更新 '+en.asof+'）'+(en.miss?'，'+en.miss+' 人 BEST 查無':''),'Education / employment for '+en.filled+' staff from BEST staff details (updated '+en.asof+')'+(en.miss?', '+en.miss+' not found in BEST':''))+'</i>';
+  let text=HRPayReporting.workforce(en.rows,key,s.label,prev,lang);
+  if(en.filled){const zt='學歷／聘用別 '+en.filled+' 人取自 BEST 員工詳細資料（更新 '+en.asof+'）'+(en.miss?'，'+en.miss+' 人 BEST 查無':''),et='Education / employment for '+en.filled+' staff from BEST staff details (updated '+en.asof+')'+(en.miss?', '+en.miss+' not found in BEST':'');text+='\n<i>🗂 '+(lang==='zh'?zt:lang==='both'?zt+' '+et:et)+'</i>';}
   return {text};
 }
 
@@ -1533,7 +1537,7 @@ function previewTg(){
   const pv=qs('#tg-preview'), b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');b.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|i|pre|code)>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
 }
 async function confirmSendTg(){
