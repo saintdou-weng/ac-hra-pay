@@ -1463,12 +1463,48 @@ function hrpPreviewText(text,kind){
   return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):('⚠️ '+(kind==='applicant'?'請填申請人 Applicant':'請填檢查人 Checked by')));
 }
 
+// ━━━━ BEST（PSJHR）補欄位 ━━━━
+let HRP_BEST={map:null,asof:''};
+async function hrpLoadBest(){
+  try{
+    if(indexedDB.databases){const l=await indexedDB.databases();if(!l.some(d=>d.name==='psjhr'))return;}
+    const db=await new Promise((res,rej)=>{const r=indexedDB.open('psjhr');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
+    if(![...db.objectStoreNames].includes('kv')){db.close();return;}
+    let v=await new Promise(res=>{const q=db.transaction('kv').objectStore('kv').get('db_v1');q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);});db.close();
+    if(typeof v==='string'){try{v=JSON.parse(v);}catch(e){v=null;}}
+    const det=v&&Array.isArray(v.empdet)?v.empdet:[];if(!det.length)return;
+    const map=new Map();let asof='';
+    det.forEach(e=>{const k=hrpBestKey(e.emp_no);if(!k)return;map.set(k,{education:String(e.education||'').trim(),staffType:String(e.staff_type||'').trim().toUpperCase()});const t=String(e.synced_at||'').slice(0,10);if(t>asof)asof=t;});
+    HRP_BEST={map,asof};
+  }catch(e){console.warn('[BEST enrich]',e);}
+}
+function hrpBestKey(v){const s=String(v==null?'':v).trim();return /^\d+$/.test(s)?String(Number(s)):s.toUpperCase();}
+function hrpBestEnrich(rows){
+  const B=HRP_BEST.map;if(!B)return {rows,filled:0,miss:0,asof:''};
+  let filled=0,miss=0;
+  const out=rows.map(r=>{
+    const needEdu=!String(r.education||'').trim(),needType=HRPayReporting.employment(r)==='未知 Unknown';
+    if(!needEdu&&!needType)return r;
+    const b=B.get(hrpBestKey(r.id||r.empId));if(!b){miss++;return r;}
+    const n=Object.assign({},r);let hit=false;
+    if(needEdu&&b.education){n.education=b.education;hit=true;}
+    if(needType&&b.staffType){n.contractType=b.staffType;hit=true;}
+    if(hit)filled++;return n;
+  });
+  return {rows:out,filled,miss,asof:HRP_BEST.asof};
+}
+hrpLoadBest();
+
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept){
   const s=SNAPS[key];if(!s)return {err:T('查無此快照','Snapshot not found')};
   const rows=dept?s.rows.filter(r=>r.dept===dept):s.rows;if(!rows.length)return {err:T('此範圍無人員資料','No staff in scope')};
   const prevKey=Object.keys(SNAPS).filter(k=>k<key).sort().pop(),prev=prevKey?{key:prevKey,rows:dept?SNAPS[prevKey].rows.filter(r=>r.dept===dept):SNAPS[prevKey].rows}:null;
-  return {text:HRPayReporting.workforce(rows,key,s.label,prev)};
+  /* 2026-11-13 Paul：學歷、聘用別在 BEST（PSJHR 員工詳細資料）裡都有——上傳的月名冊沒有這兩欄時，用工號到 BEST 補上 */
+  const en=hrpBestEnrich(rows);
+  let text=HRPayReporting.workforce(en.rows,key,s.label,prev);
+  if(en.filled)text+='\n<i>🗂 '+T('學歷／聘用別 '+en.filled+' 人取自 BEST 員工詳細資料（更新 '+en.asof+'）'+(en.miss?'，'+en.miss+' 人 BEST 查無':''),'Education / employment for '+en.filled+' staff from BEST staff details (updated '+en.asof+')'+(en.miss?', '+en.miss+' not found in BEST':''))+'</i>';
+  return {text};
 }
 
 function openTgModal(){
