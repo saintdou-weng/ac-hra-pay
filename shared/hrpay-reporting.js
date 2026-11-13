@@ -115,8 +115,9 @@ function workforce(rows,key,label,previous,lang){
     const secName=r=>present(r.section)?dept(r.section):dept(r.dept)+' (—)',dup={};
     groups(rows,r=>dept(r.dept)+'|'+secName(r)).forEach(([k])=>{const sn=k.split('|')[1];dup[sn]=(dup[sn]||0)+1;});
     const secs=order(groups(rows,r=>{const sn=secName(r);return dup[sn]>1?sn+' ('+dept(r.dept).slice(0,5)+')':sn;}));
-    if(secs.length<=30)text+='\n\n🧵 <b>'+L('各組','Sections','ក្រុម')+'</b>（'+L('同批人員','same staff','បុគ្គលិកដដែល')+'）\n'+table(secs);
-    else text+='\n\n🧵 '+L('各組','Sections','ក្រុម')+'：'+secs.length;
+    /* 組太多時：車縫組全列，其他組列人數最多的 12 個，其餘合成一列 */
+    let show=secs;if(secs.length>30){const ln=secs.filter(x=>lineNo(x[0])!=null),ot=secs.filter(x=>lineNo(x[0])==null),rest=ot.slice(12).reduce((a,x)=>a.concat(x[1]),[]);show=ln.concat(ot.slice(0,12));if(rest.length)show.push([OTH+' ×'+(ot.length-12),rest]);}
+    text+='\n\n🧵 <b>'+L('各組','Sections','ក្រុម')+'</b>（'+L('同批人員','same staff','បុគ្គលិកដដែល')+'）\n'+table(show);
   }
   text+='\n<i>'+L('％＝占本期人數；本地＝原表 Province 籍貫。缺值列「未知」，不推測。','% = share of this period\'s headcount; Local = Province of origin in the source file. Missing values are shown as Unknown.','% = ភាគរយនៃបុគ្គលិកសរុប')+'</i>';
   return text;
