@@ -1,4 +1,4 @@
-/* AC-HRA-PAY v3.9.16: source-preserving mobile reports. No payroll mutations. */
+/* AC-HRA-PAY v3.9.27: source-preserving mobile reports. No payroll mutations. (v3.9.27：員工人力概況改圖表＋對齊表) */
 (function(g){'use strict';
 const str=v=>String(v==null?'':v).trim(), num=v=>Number.isFinite(Number(v))?Number(v):0;
 const esc=v=>str(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -64,28 +64,50 @@ function workforce(rows,key,label,previous){
   const ages=rows.map(r=>{const a=elapsed(str(r.birth||r.dob),end);return a==null?(num(r.age)>0?num(r.age):null):a;}).filter(v=>v!=null&&v>=14&&v<100);
   const ten=rows.map(r=>elapsed(str(r.join||r.joinDate),end)).filter(v=>v!=null);
   const avg=a=>a.length?(a.reduce((s,v)=>s+v,0)/a.length).toFixed(1):'未知';
-  let text='👥 <b>員工人力概況 Workforce Summary</b>\n📅 '+esc(label||key)+' · 👥 <b>'+n+' 人</b>\n\n🩷 女 Female '+f+' ('+pct(f,n)+') · 🟦 男 Male '+m+' ('+pct(m,n)+')'+(n-f-m?'\n⚪ 性別未知 '+(n-f-m):'');
-  text+='\n🟠 平均年齡 Age '+avg(ages)+' 歲 · 🟣 平均工齡 Tenure '+avg(ten)+' 年';
-  const dist=(icon,title,pairs)=>'\n\n'+icon+' <b>'+title+'</b>\n'+pairs.map(([k,v])=>esc(k)+' '+v+' ('+pct(v,n)+')').join(' · ');
-  text+=dist('🎂','年齡 Age',[['<25',ages.filter(x=>x<25).length],['25–34',ages.filter(x=>x>=25&&x<35).length],['35–44',ages.filter(x=>x>=35&&x<45).length],['45+',ages.filter(x=>x>=45).length],['未知',n-ages.length]]);
-  text+=dist('⏳','工齡 Tenure',[['<1年',ten.filter(x=>x<1).length],['1–2年',ten.filter(x=>x>=1&&x<3).length],['3–4年',ten.filter(x=>x>=3&&x<5).length],['5+年',ten.filter(x=>x>=5).length],['未知',n-ten.length]]);
-  text+=dist('📋','聘用 Employment',groups(rows,employment).map(([k,v])=>[k,v.length]));
-  text+=dist('🏠','本地／外地 Origin',groups(rows,r=>!present(r.province)?'未知':/sihanouk|preah\s*sihanouk|ព្រះសីហនុ|西哈努克/i.test(r.province)?'本地 Local':'外地 Out-area').map(([k,v])=>[k,v.length]));
-  text+=dist('🌏','國籍 Nationality',groups(rows,r=>!present(r.nationality)?'未知':/cambod|khmer|កម្ពុជា|ខ្មែរ|柬埔寨/i.test(r.nationality)?'柬籍 Cambodian':'外籍 Foreign').map(([k,v])=>[k,v.length]));
-  const women=rows.filter(r=>r.gender==='F'),preg=women.filter(r=>bool(r.pregnant)===true),pc=women.filter(r=>bool(r.pregnant)!=null).length;
-  const mat=r=>/maternity|產假|សម្រាកលំហែមាតុភាព/i.test(str(r.status)+' '+str(r.workStatus)+' '+str(r.empStatus))||bool(r.maternity)===true;
-  const mc=women.filter(r=>bool(r.maternity)!=null||mat(r)).length;
-  text+='\n\n🤰 <b>孕產 Pregnancy / maternity（女性資料）</b>\n懷孕 '+preg.length+' 已登記 · 未提供 '+(women.length-pc)+'\n產假 '+women.filter(mat).length+' 已登記 · 未提供 '+(women.length-mc);
+  /* v3.9.27（Paul 2026-11-13）：改成「圖表＋列表」——每個分類用橫條圖（條＋人數＋％在前、名稱在後，一眼看比例），
+     部門／各組用和伙食、NSSF 送核摘要一樣的對齊表（Staff／％／女／男），男女用 🚺🚹 人形圖示與 10 格比例列。不再一項一段文字。 */
+  const pl=(v,w)=>String(v).padStart(w,' '),pr=(v,w)=>{v=String(v);if(v.length>w)v=v.slice(0,w-1)+'…';return v.padEnd(w,' ');};
+  const bar=(v,max)=>{const k=max>0?Math.round(v/max*10):0,kk=v>0&&k<1?1:k;return '█'.repeat(kk)+'░'.repeat(10-kk);};
+  const chart=(icon,title,pairs,top)=>{pairs=pairs.filter(x=>x[1]>0);if(!pairs.length)return '';
+    if(pairs.length===1)return '\n'+icon+' <b>'+title+'</b>：'+esc(pairs[0][0])+' '+pairs[0][1]+' (100%)';
+    let rest=0;if(top&&pairs.length>top){rest=pairs.slice(top).reduce((a,x)=>a+x[1],0);pairs=pairs.slice(0,top);if(rest)pairs.push(['其他 Other',rest]);}
+    const max=Math.max(...pairs.map(x=>x[1])),w=String(max).length;
+    return '\n\n'+icon+' <b>'+title+'</b>\n<pre>'+esc(pairs.map(([k,v])=>bar(v,max)+' '+pl(v,w)+' '+pl(pct(v,n),6)+' '+k).join('\n'))+'</pre>';};
+  const gk=Math.max(f&&m?1:0,Math.min(f&&m?9:10,Math.round(n?f/n*10:0)));
   const join=rows.filter(r=>{const d=str(r.join||r.joinDate);return d&&d>=start&&d<=end;}).length;
   const resign=rows.filter(r=>{const d=str(r.resignDate||r.leaveDate);return d&&d>=start&&d<=end;}).length;
   const rc=rows.filter(r=>Object.prototype.hasOwnProperty.call(r,'resignDate')&&str(r.resignDate)).length;
-  text+='\n\n🟢 本期新進 Joiners '+join+'（依到職日）\n🔴 已登記離職 Resigned '+resign+(rc?'':' · 無完整離職來源');
-  if(previous){const before=new Set(previous.rows.map(id)),now=new Set(rows.map(id));text+='\n🔄 名冊變動 vs '+esc(previous.key)+'：新增 '+rows.filter(r=>!before.has(id(r))).length+'／移出 '+previous.rows.filter(r=>!now.has(id(r))).length+'（移出不等於離職）';}
-  const edu=groups(rows,r=>present(r.education)?str(r.education):'未提供 Unknown');text+=dist('🎓','學歷 Education',edu.map(([k,v])=>[k,v.length]));
-  const blocks=(rs,keyFn)=>groups(rs,keyFn).map(([d,list],i)=>{const ff=list.filter(r=>r.gender==='F').length,mm=list.filter(r=>r.gender==='M').length;return '\n\n'+['🟦','🟩','🟨','🟪','🟧'][i%5]+' <b>'+esc(d)+'</b>\n👥 '+list.length+' 人 ('+pct(list.length,n)+') · 女 '+ff+'／男 '+mm+(list.length-ff-mm?'／未知 '+(list.length-ff-mm):'');}).join('');
-  text+='\n\n🏭 <b>部門 Departments</b>'+blocks(rows,r=>dept(r.dept));
-  text+='\n\n🧵 <b>各組 Sections（同批人員，不再加總）</b>'+blocks(rows,r=>dept(r.dept)+' / '+(present(r.section)?dept(r.section):'組別未提供'));
-  text+='\n\n<i>百分比以本期人數為分母；本地依原表 Province 籍貫判定，非現住址。缺值保留未知，不推測正式工、懷孕或離職。</i>';
+  let text='👥 <b>員工人力概況 Workforce Summary</b>\n📅 '+esc(label||key)+' · 👥 <b>'+n+' 人</b>\n━━━━━━━━━━━━'+
+    '\n🚺 女 Female <b>'+f+'</b> ('+pct(f,n)+') · 🚹 男 Male <b>'+m+'</b> ('+pct(m,n)+')'+(n-f-m?' · ⚪ 未知 '+(n-f-m):'')+
+    '\n'+'🚺'.repeat(gk)+'🚹'.repeat(10-gk)+
+    '\n🟠 平均年齡 Avg age <b>'+avg(ages)+'</b> 歲 · 🟣 平均工齡 Avg tenure <b>'+avg(ten)+'</b> 年'+
+    '\n🟢 新進 Joiners <b>+'+join+'</b> · 🔴 離職 Resigned <b>−'+resign+'</b>'+(rc?'':'（無離職來源 no source）');
+  if(previous){const before=new Set(previous.rows.map(id)),now=new Set(rows.map(id));text+='\n🔄 名冊 Roster vs '+esc(previous.key)+'：新增 +'+rows.filter(r=>!before.has(id(r))).length+' · 移出 −'+previous.rows.filter(r=>!now.has(id(r))).length;}
+  const women=rows.filter(r=>r.gender==='F'),preg=women.filter(r=>bool(r.pregnant)===true),pc=women.filter(r=>bool(r.pregnant)!=null).length;
+  const mat=r=>/maternity|產假|សម្រាកលំហែមាតុភាព/i.test(str(r.status)+' '+str(r.workStatus)+' '+str(r.empStatus))||bool(r.maternity)===true;
+  text+='\n🤰 懷孕 Pregnant <b>'+preg.length+'</b> · 🍼 產假 Maternity <b>'+women.filter(mat).length+'</b>'+(women.length-pc?'（未提供 not recorded '+(women.length-pc)+'）':'');
+  const byCount=g2=>g2.map(([k,v])=>[k,v.length]).sort((a,b)=>b[1]-a[1]);
+  text+=chart('🎂','年齡 Age',[['<25',ages.filter(x=>x<25).length],['25–34',ages.filter(x=>x>=25&&x<35).length],['35–44',ages.filter(x=>x>=35&&x<45).length],['45+',ages.filter(x=>x>=45).length],['未知 Unknown',n-ages.length]]);
+  text+=chart('⏳','工齡 Tenure（年 yrs）',[['<1',ten.filter(x=>x<1).length],['1–2',ten.filter(x=>x>=1&&x<3).length],['3–4',ten.filter(x=>x>=3&&x<5).length],['5+',ten.filter(x=>x>=5).length],['未知 Unknown',n-ten.length]]);
+  text+=chart('📋','聘用 Employment',byCount(groups(rows,employment)));
+  text+=chart('🏠','本地／外地 Origin',byCount(groups(rows,r=>!present(r.province)?'未知 Unknown':/sihanouk|preah\s*sihanouk|ព្រះសីហនុ|西哈努克/i.test(r.province)?'本地 Local':'外地 Out-area')));
+  text+=chart('🌏','國籍 Nationality',byCount(groups(rows,r=>!present(r.nationality)?'未知 Unknown':/cambod|khmer|កម្ពុជា|ខ្មែរ|柬埔寨/i.test(r.nationality)?'柬籍 Cambodian':'外籍 Foreign')));
+  text+=chart('🎓','學歷 Education',byCount(groups(rows,r=>present(r.education)?str(r.education):'未提供 Unknown')),6);
+  /* 部門／各組：和伙食、NSSF 送核摘要同一種對齊表 */
+  const table=(list,W)=>{const ln='-'.repeat(W+17);let out=pr('Dept',W)+' '+pl('No.',4)+' '+pl('%',5)+' '+pl('F',3)+' '+pl('M',3)+'\n'+ln+'\n';
+    list.forEach(([d,rs])=>{const ff=rs.filter(r=>r.gender==='F').length,mm=rs.filter(r=>r.gender==='M').length;out+=pr(d,W)+' '+pl(rs.length,4)+' '+pl(n?(100*rs.length/n).toFixed(1):'0.0',5)+' '+pl(ff,3)+' '+pl(mm,3)+'\n';});
+    return out+ln+'\n'+pr('TOTAL',W)+' '+pl(n,4)+' '+pl('100.0',5)+' '+pl(f,3)+' '+pl(m,3);};   /* 寬 31 字，手機不換行 */
+  const lineNo=k=>{const x=/^Line (\d+)$/.exec(k);return x?+x[1]:null;};
+  const order=list=>list.sort((a,b)=>{const x=lineNo(a[0]),y=lineNo(b[0]);if(x!=null&&y!=null)return x-y;if(x!=null)return -1;if(y!=null)return 1;return b[1].length-a[1].length||a[0].localeCompare(b[0]);});
+  text+='\n\n🏭 <b>部門 Departments</b> · 人數／％／女／男\n<pre>'+esc(table(groups(rows,r=>dept(r.dept)).sort((a,b)=>b[1].length-a[1].length),14))+'</pre>';
+  if(rows.some(r=>present(r.section))){
+    const secName=r=>present(r.section)?dept(r.section):dept(r.dept)+' (—)',dup={};
+    groups(rows,r=>dept(r.dept)+'|'+secName(r)).forEach(([k])=>{const sn=k.split('|')[1];dup[sn]=(dup[sn]||0)+1;});
+    const secs=order(groups(rows,r=>{const sn=secName(r);return dup[sn]>1?sn+' ('+dept(r.dept).slice(0,5)+')':sn;}));
+    if(secs.length<=30)text+='\n🧵 <b>各組 Sections</b>（同批人員 same staff）\n<pre>'+esc(table(secs,14))+'</pre>';
+    else text+='\n🧵 各組 Sections：'+secs.length+' 組，明細見平台 see platform';
+  }
+  text+='\n<i>％＝占本期人數；本地＝原表 Province 籍貫。缺值列「未知」，不推測。</i>';
   return text;
 }
 function warning(list,all,label,expired){
