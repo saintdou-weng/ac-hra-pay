@@ -1,0 +1,16 @@
+AC-HRA-PAY BOT v3.9.31（2026-11-13）— 摘要可附一張圖表
+已直接套用在 Apps Script（AC_HRA_PAY_BOT），此檔為紀錄。
+
+1) doPost 的 notify / tgSummary 區塊，在 `const tg = tgSend(targetChat, body + ...` 之前加：
+   if (payload.photo) { try { const ph = tgSendPhoto_(targetChat, String(payload.photo), String(payload.photoCaption || '')); if (!ph || ph.ok !== true) console.warn('[notify photo] ' + JSON.stringify(ph).slice(0, 300)); } catch (e) { console.warn('[notify photo] ' + e); } }
+   （先發圖、再發文字；圖發失敗不擋文字）
+
+2) 新函式：
+function tgSendPhoto_(chatId, b64, caption) {
+  b64 = String(b64 || '').replace(/^data:image\/\w+;base64,/, '');
+  if (!b64 || b64.length > 9000000) return { ok: false, error: 'photo missing or too large' };
+  const mime = b64.slice(0, 4) === '/9j/' ? 'image/jpeg' : 'image/png';
+  const blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, 'summary.' + (mime === 'image/jpeg' ? 'jpg' : 'png'));
+  const res = UrlFetchApp.fetch(TG() + '/sendPhoto', { method: 'post', muteHttpExceptions: true, payload: { chat_id: String(chatId), caption: String(caption || '').slice(0, 1000), photo: blob } });
+  return JSON.parse(res.getContentText());
+}

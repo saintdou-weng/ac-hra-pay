@@ -3,6 +3,7 @@
 <head><script src="shared/hrpay-gate.js?v=20261107b"></script>
 <script src="shared/hrpay-kv.js?v=3.9.26"></script>
 <script src="shared/hrpay-reporting.js?v=3.9.28b"></script>
+<script src="shared/hrpay-chart-image.js?v=3.9.29"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
@@ -310,6 +311,8 @@
           placeholder="請輸入檢查人 / Enter checked by">
       </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
+        <img id="tg-chart" alt="chart" class="mt-1.5 w-full rounded-lg border border-slate-100 hidden">
+        <label class="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500"><input id="tg-with-chart" type="checkbox" checked onchange="previewTg()"> <span>附彩色圖表 Send chart image</span></label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
@@ -1498,6 +1501,17 @@ function hrpBestEnrich(rows){
 }
 hrpLoadBest();
 
+// ━━━━ 彩色總覽圖（圓餅／長條／樹狀／折線）━━━━
+function hrpChartDataUrl(r){
+  try{
+    if(!window.HRPayChartImage||!r||!r.rows)return '';
+    const end=(function(k){const m=String(k).match(/^(\d{4})-(\d{2})/);return m?new Date(Date.UTC(+m[1],+m[2],0)).toISOString().slice(0,10):'';})(r.key);
+    const trend=snapKeys().filter(k=>/^\d{4}-\d{2}$/.test(k)&&k<=String(r.key).slice(0,7)).slice(-12).map(k=>({key:k,n:(r.dept?SNAPS[k].rows.filter(x=>x.dept===r.dept):SNAPS[k].rows).length}));
+    const c=HRPayChartImage.build({rows:r.rows,label:r.label,scope:r.dept,lang:r.lang,end:end||undefined,trend});
+    return c.toDataURL('image/jpeg',0.9);
+  }catch(e){console.warn('[chart image]',e);return '';}
+}
+
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept,lang){
   lang=lang||(qs('#tg-lang')&&qs('#tg-lang').value)||'both';
@@ -1508,7 +1522,7 @@ function buildTgText(key,dept,lang){
   const en=hrpBestEnrich(rows);
   let text=HRPayReporting.workforce(en.rows,key,s.label,prev,lang);
   if(en.filled){const zt='學歷／聘用別 '+en.filled+' 人取自 BEST 員工詳細資料（更新 '+en.asof+'）'+(en.miss?'，'+en.miss+' 人 BEST 查無':''),et='Education / employment for '+en.filled+' staff from BEST staff details (updated '+en.asof+')'+(en.miss?', '+en.miss+' not found in BEST':'');text+='\n<i>🗂 '+(lang==='zh'?zt:lang==='both'?zt+' '+et:et)+'</i>';}
-  return {text};
+  return {text,rows:en.rows,label:s.label,key,dept:dept||'',lang};
 }
 
 function openTgModal(){
@@ -1537,6 +1551,9 @@ function previewTg(){
   const pv=qs('#tg-preview'), b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
+  const img=qs('#tg-chart'),want=qs('#tg-with-chart')&&qs('#tg-with-chart').checked,url=(!r.err&&want)?hrpChartDataUrl(r):'';
+  if(img){if(url){img.src=url;img.classList.remove('hidden');}else img.classList.add('hidden');}
+  if(r.err){}
   else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|i|pre|code)>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
 }
@@ -1545,7 +1562,8 @@ async function confirmSendTg(){
   if(r.err){toast(r.err,'error');return;}
   const b=qs('#tg-send');b.disabled=true;b.textContent=T('傳送中…','Sending…');
   const snapKey=qs('#tg-snap').value;
-  const ok=await sendTG(r.text,{module:'employee',period:snapKey,periods:[String(snapKey).slice(0,7)]});
+  const photo=(qs('#tg-with-chart')&&qs('#tg-with-chart').checked)?hrpChartDataUrl(r):'';
+  const ok=await sendTG(r.text,Object.assign({module:'employee',period:snapKey,periods:[String(snapKey).slice(0,7)]},photo?{photo:photo.replace(/^data:image\/\w+;base64,/,''),photoCaption:'👥 '+r.label+(r.dept?' · '+r.dept:'')}:{}));
   b.disabled=false;b.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
