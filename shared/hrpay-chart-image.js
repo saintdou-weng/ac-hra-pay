@@ -1,4 +1,4 @@
-/* AC-HRA-PAY v3.9.29（2026-11-13，Paul）：員工人力概況「彩色總覽圖」——發摘要時先發這張圖，再發文字。
+/* AC-HRA-PAY v3.9.29b（2026-11-13，Paul）：員工人力概況「彩色總覽圖」——發摘要時先發這張圖，再發文字。
    圓餅圖（男女／聘用／本地外地）、長條圖（年齡／工齡／學歷）、樹狀圖（各組人數）、折線圖（每月人數）。
    只畫圖、不改資料。回傳 canvas；toDataURL 後由 GAS sendPhoto 發到群組。 */
 (function(g){'use strict';
@@ -42,7 +42,7 @@ function build(opt){
   /* 圓餅圖 */
   const donut=(px,py,w,h,title,pairs,colors)=>{card(px,py,w,h,title);const cx=px+w/2,cy=py+140,r=82,tot=pairs.reduce((a,p)=>a+p[1],0)||1;let a0=-Math.PI/2;
     pairs.forEach((p,i)=>{const a1=a0+p[1]/tot*Math.PI*2;x.beginPath();x.moveTo(cx,cy);x.arc(cx,cy,r,a0,a1);x.closePath();x.fillStyle=colors[i%colors.length];x.fill();a0=a1;});
-    x.beginPath();x.arc(cx,cy,46,0,Math.PI*2);x.fillStyle=CARD;x.fill();T(pc(pairs[0]?pairs[0][1]:0),cx,cy,22,INK,'800','center');
+    x.beginPath();x.arc(cx,cy,50,0,Math.PI*2);x.fillStyle=CARD;x.fill();T(pc(pairs[0]?pairs[0][1]:0),cx,cy-9,22,INK,'800','center');if(pairs[0])T(fit(String(pairs[0][0]).split(' ')[0],84,14,'600'),cx,cy+15,14,colors[0],'700','center');
     pairs.slice(0,3).forEach((p,i)=>{const ly=py+246+i*26;x.fillStyle=colors[i%colors.length];rr(px+18,ly-9,18,18,4);x.fill();T(fit(p[0],w-170,18),px+44,ly,18,INK,'500');T(p[1]+' · '+pc(p[1]),px+w-18,ly,18,MUTE,'600','right');});};
   let y=150;
   donut(P,y,cw,330,'🚻 '+L('性別','Gender','ភេទ'),[[L('女','Female','ស្រី'),f],[L('男','Male','ប្រុស'),m]].concat(n-f-m?[[UNK,n-f-m]]:[]),[PINK,BLUE,'#94a3b8']);
@@ -61,10 +61,16 @@ function build(opt){
     list.forEach((p,i)=>{const ry=y+74+i*44;T(fit(p[0],lw,20,'600'),lx,ry,20,INK,'600');x.fillStyle='#e2e8f0';rr(bx,ry-13,bwMax,26,8);x.fill();x.fillStyle=PAL[i%PAL.length];rr(bx,ry-13,Math.max(8,bwMax*p[1]/max),26,8);x.fill();T(p[1],bx+bwMax+70,ry,22,INK,'800','right');T(pc(p[1]),W-P-18,ry,18,MUTE,'600','right');});}
   /* 樹狀圖：各組人數 */
   y+=eh+GAP;card(P,y,W-P*2,440,'🧵 '+L('各組人數','Headcount by section','ចំនួនតាមក្រុម')+'（'+L('面積＝人數','area = headcount','ទំហំ = ចំនួន')+'）');
-  {let list=secs.slice(0,23);const rest=secs.slice(23).reduce((a,p)=>a+p[1],0);if(rest)list.push([L('其他','Other','ផ្សេងៗ'),rest]);
+  {const minN=Math.max(6,Math.ceil(n*0.015));let list=secs.filter(p=>p[1]>=minN).slice(0,22);const shown=new Set(list.map(p=>p[0])),restArr=secs.filter(p=>!shown.has(p[0])),rest=restArr.reduce((a,p)=>a+p[1],0);if(rest)list.push([L('其他','Other','ផ្សេងៗ')+' ×'+restArr.length,rest]);
     const ci=new Map(list.map((p,i)=>[p[0],i]));
     const lay=(items,px,py,w,h)=>{if(!items.length)return;if(items.length===1){const p=items[0],col=PAL[ci.get(p[0])%PAL.length];x.fillStyle=col;rr(px+2,py+2,Math.max(w-4,2),Math.max(h-4,2),8);x.fill();
-        if(w>54&&h>40){T(fit(p[0],w-14,w>120?19:15,'700'),px+w/2,py+h/2-(h>58?11:0),w>120?19:15,'#fff','700','center');if(h>58)T(p[1],px+w/2,py+h/2+14,w>120?22:17,'#fff','800','center');}return;}
+        const fs=w>130&&h>70?19:w>80?15:13,nm=String(p[0]);x.font='700 '+fs+'px '+FONT;
+        if(w>30&&h>30){
+          let lines=[nm];if(x.measureText(nm).width>w-10&&nm.includes(' ')&&h>58){const i=nm.lastIndexOf(' ',Math.ceil(nm.length/2)+3);lines=[nm.slice(0,i>0?i:nm.length),nm.slice(i>0?i+1:nm.length)].filter(Boolean);}
+          const lh=fs+3,blockH=lines.length*lh+(h>44?fs+6:0),y0=py+h/2-blockH/2+lh/2;
+          lines.forEach((ln,k)=>T(fit(ln,w-8,fs,'700'),px+w/2,y0+k*lh,fs,'#fff','700','center'));
+          if(h>44)T(p[1],px+w/2,y0+lines.length*lh+3,fs+3,'#fff','800','center');}
+        return;}
       const tot=items.reduce((a,p)=>a+p[1],0);let acc=0,k=0;while(k<items.length-1&&acc+items[k][1]<=tot/2){acc+=items[k][1];k++;}if(k===0){acc=items[0][1];k=1;}
       const a=items.slice(0,k),b=items.slice(k),fr=acc/tot;if(w>=h){lay(a,px,py,w*fr,h);lay(b,px+w*fr,py,w*(1-fr),h);}else{lay(a,px,py,w,h*fr);lay(b,px,py+h*fr,w,h*(1-fr));}};
     lay(list,P+14,y+56,W-P*2-28,370);}

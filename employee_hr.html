@@ -3,7 +3,7 @@
 <head><script src="shared/hrpay-gate.js?v=20261107b"></script>
 <script src="shared/hrpay-kv.js?v=3.9.26"></script>
 <script src="shared/hrpay-reporting.js?v=3.9.28b"></script>
-<script src="shared/hrpay-chart-image.js?v=3.9.29b"></script>
+<script src="shared/hrpay-chart-image.js?v=3.9.29c"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>👥 Employee HR Analytics | AC-HRA-PAY</title>
@@ -289,14 +289,14 @@
 
 <!-- TELEGRAM MODAL -->
 <div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col" style="max-height:calc(100dvh - 32px)">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2 shrink-0">
       <span class="text-xl">✈️</span>
       <div class="flex-1"><p class="text-sm font-bold" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
         <p class="text-[11px] text-slate-400 mt-0.5" data-en="Workforce Summary">人力結構摘要</p></div>
       <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
-    <div class="px-5 py-4 space-y-3">
+    <div class="px-5 py-4 space-y-3 overflow-y-auto" style="flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch">
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Snapshot">選擇快照 Snapshot</label>
         <select id="tg-snap" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-violet-200"></select></div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Department">部門 Department</label>
@@ -311,11 +311,12 @@
           placeholder="請輸入檢查人 / Enter checked by">
       </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
-        <img id="tg-chart" alt="chart" class="mt-1.5 w-full rounded-lg border border-slate-100 hidden">
-        <label class="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500"><input id="tg-with-chart" type="checkbox" checked onchange="previewTg()"> <span>附彩色圖表 Send chart image</span></label>
+        <label class="mt-1.5 flex items-center gap-2 text-[12px] text-slate-600 font-semibold"><input id="tg-with-chart" type="checkbox" checked onchange="previewTg()" class="w-4 h-4"> <span>📊 附彩色圖表 Send chart image</span></label>
+        <img id="tg-chart" alt="chart" onclick="hrpChartZoom(this.src)" title="點一下看大圖 Tap to enlarge" class="mt-1.5 w-full rounded-lg border border-slate-100 hidden cursor-zoom-in" style="max-height:200px;object-fit:cover;object-position:top">
+        <p id="tg-chart-hint" class="hidden text-[10px] text-slate-400 mt-0.5">點圖看大圖 · Tap image to enlarge</p>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeTgModal()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
       <button id="tg-send" onclick="confirmSendTg()" data-en="Send" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">確認傳送</button>
     </div>
@@ -1512,6 +1513,14 @@ function hrpChartDataUrl(r){
   }catch(e){console.warn('[chart image]',e);return '';}
 }
 
+function hrpChartZoom(src){
+  if(!src)return;let o=document.getElementById('hrp-chart-zoom');
+  if(!o){o=document.createElement('div');o.id='hrp-chart-zoom';o.style.cssText='position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.85);overflow:auto;padding:12px;-webkit-overflow-scrolling:touch';
+    o.innerHTML='<button type="button" style="position:fixed;top:10px;right:12px;z-index:2001;background:#fff;border:0;border-radius:999px;width:40px;height:40px;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.3)">×</button><img style="width:100%;max-width:720px;display:block;margin:44px auto 12px;border-radius:12px">';
+    o.addEventListener('click',e=>{if(e.target.tagName!=='IMG')o.remove();});document.body.appendChild(o);}
+  o.querySelector('img').src=src;
+}
+
 // ━━━━ TELEGRAM ━━━━
 function buildTgText(key,dept,lang){
   lang=lang||(qs('#tg-lang')&&qs('#tg-lang').value)||'both';
@@ -1553,6 +1562,7 @@ function previewTg(){
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
   const img=qs('#tg-chart'),want=qs('#tg-with-chart')&&qs('#tg-with-chart').checked,url=(!r.err&&want)?hrpChartDataUrl(r):'';
   if(img){if(url){img.src=url;img.classList.remove('hidden');}else img.classList.add('hidden');}
+  { const hint=qs('#tg-chart-hint'); if(hint) hint.classList.toggle('hidden',!url); }
   if(r.err){}
   else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|i|pre|code)>/g,'');b.disabled=false;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition';}
