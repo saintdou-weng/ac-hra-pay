@@ -69,6 +69,7 @@ tfoot td{font-weight:700;background:#f5f3ff;border-top:2px solid #ddd6fe;font-si
 <script src="shared/hrpay-auto-sync.js?v=3.9.26"></script>
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 <script src="../ac-hra-portal/shared/hra-unsent.js?v=6"></script>
 </head>
@@ -2308,7 +2309,37 @@ function salLine(s,b,a){
   var d=a-b;
   return '　'+L(s.zh,s.en,s.km)+' '+s.en+'：'+fmt(b)+' → '+fmt(a)+(d?'　<b>'+fmtS(d)+'</b>':'');
 }
+/* v3.9.32：原正文不變，另加色條、今年累計、核對行（不超過 Telegram 長度才加）與彩色圖 */
 function buildTgText(scope,key,recordId,ptype){
+  var r=_trBaseText(scope,key,recordId,ptype); if(r.err||!window.HRPayTGV)return r;
+  try{
+    var V=HRPayTGV, D=tgItems(scope,key,recordId,ptype||_tgPType); if(!D.length)return r;
+    var g=D.filter(function(x){return x.kind==='group';}).length, iv=D.length-g, up=D.filter(function(x){return recDiff(x)>0.004;}).length, dn=D.filter(function(x){return recDiff(x)<-0.004;}).length, same=D.length-up-dn;
+    var ids={},dup=0,noId=0,noMove=0,noReason=0;
+    D.forEach(function(x){var id=_norm(x.empId).toUpperCase();if(!id){noId++;return;}var k=id+'|'+String(x.effDate||'').slice(0,10);if(ids[k])dup++;ids[k]=1;
+      if(_norm(x.origDept)===_norm(x.newDept)&&_norm(x.origPos)===_norm(x.newPos)&&Math.abs(recDiff(x))<0.004)noMove++;
+      if(x.kind==='individual'&&Math.abs(recDiff(x))>=0.004&&!_norm(x.reason))noReason++;});
+    var dates=D.map(function(x){return String(x.effDate||'').slice(0,10);}).filter(Boolean).sort(), yr=(dates[0]||'').slice(0,4), last=dates[dates.length-1]||'';
+    var Y=RECS.filter(function(x){var d=String(x.effDate||'').slice(0,10);return yr&&d.slice(0,4)===yr&&d<=last;});
+    var yStaff={};Y.forEach(function(x){yStaff[_norm(x.empId).toUpperCase()]=1;});var yAdj=Y.filter(function(x){return x.kind==='individual';}).reduce(function(a,x){return a+recDiff(x);},0);
+    var Lc=[((noId||dup)?'🟡':'🟢')+' 工號齊全、同人同日不重複'+((noId||dup)?'（缺 '+noId+'、重複 '+dup+'）':''),(noMove?'🟡':'🟢')+' 每筆都有實際異動（部門／職位／薪資）'+(noMove?'（'+noMove+' 筆沒變）':''),(noReason?'🟡':'🟢')+' 有調薪就有原因'+(noReason?'（'+noReason+' 筆未填）':'')];
+    var ok=!Lc.some(function(x){return /^🟡|^🔴/.test(x);});
+    var add='\n'+V.SEP+'\n'+V.share([{v:g,icon:'🟪'},{v:iv,icon:'🟦'}].filter(function(x){return x.v>0;}))+'\n🟪 團體 Group <b>'+g+'</b>　🟦 個人 Individual <b>'+iv+'</b>\n'
+      +'💹 調薪 ⬆ '+up+'　⬇ '+dn+'　＝ '+same+'\n🗓 今年累計 YTD：'+Y.length+' 筆 · '+Object.keys(yStaff).length+' 人 · 調薪 $'+fmtS(yAdj)+'\n'
+      +V.SEP+'\n<b>🔎 核對 Check</b>\n'+Lc.join('\n')+'\n'+(ok?'✅ 經計算核對正確 Verified':'⚠️ 有黃燈項目，請先看平台明細');
+    var cut=r.text.lastIndexOf('\n🕐 ');
+    if((r.text+add).length<TG_LIMIT+300)r.text=cut>0?r.text.slice(0,cut)+add+r.text.slice(cut):r.text+add;
+    var dm={};D.forEach(function(x){var d=(x.newDept||'—');dm[d]=(dm[d]||0)+1;});var dl=Object.keys(dm).map(function(k){return [k,dm[k]];}).sort(function(a,b){return b[1]-a[1];}),top=dl.slice(0,14),oth=dl.slice(14);
+    var tot=D.filter(function(x){return x.kind==='individual';}).reduce(function(a,x){return a+recDiff(x);},0);
+    r.chart={title:'🔄 Transfer 人事異動 · '+(scope==='batch'?(BATCHES[key]&&BATCHES[key].eff||key):tgPeriodLabel(ptype||_tgPType,key)),subtitle:'今年累計 '+Y.length+' 筆 · '+Object.keys(yStaff).length+' 人',color:'#6d28d9',color2:'#a78bfa',
+      kpis:[{label:'異動筆數 Moves',value:D.length,color:'#7c3aed'},{label:'人數 Staff',value:Object.keys(ids).length||D.length,color:'#3b82f6'},{label:'調薪合計 Adj.',value:'$'+fmtS(tot),color:'#16a34a'},{label:'⬆ / ⬇ 調薪',value:up+' / '+dn,color:'#f59e0b'}],
+      donut:{title:'團體／個人 Group vs Individual',center:D.length+' 筆',items:[{label:'團體 Group',value:g,color:'#a78bfa'},{label:'個人 Individual',value:iv,color:'#60a5fa'}]},
+      bars:{title:'調入部門 To Department',items:top.map(function(a){return {label:a[0],value:a[1],text:a[1]+' 人',color:'#8b5cf6'};}).concat(oth.length?[{label:'其他 '+oth.length+' 組',value:oth.reduce(function(s2,a){return s2+a[1];},0),text:oth.reduce(function(s2,a){return s2+a[1];},0)+' 人',color:'#94a3b8'}]:[])},
+      foot:(ok?'✅ 經計算核對正確':'⚠️ 有項目待核對')+'　·　今年調薪 $'+fmtS(yAdj)};
+  }catch(e){console.warn('[TG visual]',e);}
+  return r;
+}
+function _trBaseText(scope,key,recordId,ptype){
   ptype=ptype||_tgPType;
   if(!key)return {err:L('沒有可傳送的資料','Nothing to send','គ្មានទិន្នន័យ')};
   var row=function(a,w){return a.map(function(v,i){return String(v==null?'':v).slice(0,w[i]).padEnd(w[i],' ');}).join(' ');};
@@ -2396,6 +2427,8 @@ function previewTg(){
   var r=(_tgMode==='summary'?buildTgSummaryTable:buildTgText)(_tgScope,key,rid,_tgPType), pv=el('tg-preview'), btn=el('tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='btn flex-1 bg-slate-200 text-slate-400'; }
   else{ pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|code|pre)>/g,''); btn.disabled=false;
+    try{var im=el('tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     btn.className='btn flex-1 bg-violet-600 text-white hover:bg-violet-700'; }
 }
 async function sendTG(text,meta){
@@ -2414,9 +2447,9 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
   if(!applicant){toast(L('請填申請人 Applicant','Enter applicant','សូមបញ្ចូលអ្នកស្នើសុំ'),'error');return false;}
   try{
     var r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'approvalRequest',module:MODULE_CODE,period:period,title:title,text:text,
+      body:JSON.stringify(Object.assign({type:'approvalRequest',module:MODULE_CODE,period:period,title:title,text:text,
         amount:amount||0,headcount:headcount||0,applicant:applicant,requestedBy:applicant,
-        route:route||'review', items:(items||[]).map(stripRec)})});
+        route:route||'review', items:(items||[]).map(stripRec)},_tgPhoto||{}))});
     var d=null; try{d=await r.json();}catch(e){}
     if(!d){toast(L('GAS 沒有回傳資料，請確認部署 URL','No reply from GAS — check the deployment URL','GAS មិនបានឆ្លើយតប'),'error');return false;}
     if(d.ok===false){toast(L('送出失敗：','Send failed: ','បរាជ័យ៖ ')+(d.error||''),'error');return false;}
@@ -2435,13 +2468,15 @@ function tgItems(scope,key,recordId,ptype){
   if(scope==='ind'&&recordId)rows=rows.filter(function(r){return String(r.id)===String(recordId);});
   return rows;
 }
+var _tgPhoto=null;
 async function confirmSendTg(){
   var key=val('tg-period'), rid=tgSelectedRecordId(), r=(_tgMode==='summary'?buildTgSummaryTable:buildTgText)(_tgScope,key,rid,_tgPType);
   if(r.err){toast(r.err,'error');return;}
   var items=tgItems(_tgScope,key,rid,_tgPType);
   var approvalPeriod=tgApprovalPeriod(_tgScope,key,rid,_tgPType);
   var btn=el('tg-send'); btn.disabled=true; btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
-  var ok;
+  var ok;_tgPhoto=null;
+  try{if(r.chart&&window.HRPayTGV)_tgPhoto={photo:HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,''),photoCaption:r.chart.title};}catch(_e){_tgPhoto=null;}
   if(_tgMode!=='summary'&&needsApproval(approvalPeriod||key)){
     ok=await sendApprovalRequest(approvalPeriod,r.title,r.text,r.amount,r.headcount,_tgMode,items);
     if(ok){
@@ -2453,7 +2488,7 @@ async function confirmSendTg(){
     }
   }else{
     var pm={};items.forEach(function(x){var ym=keyOfMonth(x.effDate);if(ym)pm[ym]=1;});
-    ok=await sendTG(r.text,{module:MODULE_CODE,period:key,periods:Object.keys(pm).sort()});
+    ok=await sendTG(r.text,Object.assign({module:MODULE_CODE,period:key,periods:Object.keys(pm).sort()},_tgPhoto||{}));
   }
   btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
   if(ok){closeM('m-tg');scheduleAutoCloudSync('telegram');}

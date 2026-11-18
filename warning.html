@@ -3,6 +3,7 @@
 <head><script src="shared/hrpay-gate.js?v=20261107b"></script>
 <script src="shared/hrpay-kv.js?v=3.9.26"></script>
 <script src="shared/hrpay-reporting.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>⚠️ Warning Management | AC-HRA-PAY</title>
@@ -1104,7 +1105,37 @@ function buildTgText(unit,key){
   const list=filtered().filter(r=>inTgKey(r,unit,key));
   if(!list.length)return {err:T('此期間無警告記錄','No records for this period')};
   const label=(tgKeys(unit).find(x=>x.k===key)||{}).label||key;
-  return {text:HRPayReporting.warning(list,RECS,label,isExpired)};
+  const out={text:HRPayReporting.warning(list,RECS,label,isExpired)};
+  /* v3.9.32：在原摘要（逐人逐筆全部保留）上方加色條、與上期比、今年累計、核對行，並附彩色圖 */
+  try{if(window.HRPayTGV){
+    const V=HRPayTGV,str=x=>String(x==null?'':x).trim(),idOf=r=>str(r.empId)?'id:'+str(r.empId).toUpperCase():'name:'+str(r.empName)+'|'+str(r.empDept);
+    const lv=r=>/final|最後/i.test(r.level)?'final':/大|big/i.test(r.level)?'big':/小|small/i.test(r.level)?'small':/verbal|口頭/i.test(r.level)?'verbal':'other';
+    const c={verbal:0,small:0,big:0,final:0,other:0};list.forEach(r=>c[lv(r)]++);
+    const st={ok:list.filter(r=>/已核可|approved/i.test(str(r.status))).length,pend:list.filter(r=>/待|pending|verified/i.test(str(r.status))).length,rej:list.filter(r=>/退|reject|作廢|void/i.test(str(r.status))).length};
+    const B=HRPayPeriods.bounds(list.map(r=>str(r.incidentDate).slice(0,10)).sort()[0],unit),pB=B?HRPayPeriods.bounds(HRPayPeriods.add(B.start,-1),unit):null;
+    const prevN=pB?filtered().filter(r=>{const d=str(r.incidentDate).slice(0,10);return d>=pB.start&&d<pB.end;}).length:0;
+    const yS=B?B.start.slice(0,4)+'-01-01':'',yL=B?filtered().filter(r=>{const d=str(r.incidentDate).slice(0,10);return d>=yS&&d<B.end;}):[];
+    const ppl=new Set(list.map(idOf)).size,cnt={};list.forEach(r=>{const k=idOf(r);cnt[k]=(cnt[k]||0)+1;});const rep2=Object.values(cnt).filter(n=>n>=2).length;
+    const noId=list.filter(r=>!str(r.empId)).length,noReason=list.filter(r=>!str(r.reason)).length,noDate=list.filter(r=>!/^\d{4}-\d{2}-\d{2}/.test(str(r.incidentDate))).length;
+    const seen={};let dup=0;list.forEach(r=>{const k=idOf(r)+'|'+str(r.incidentDate).slice(0,10)+'|'+lv(r);if(seen[k])dup++;seen[k]=1;});
+    const L=[((noId||noDate)?'🟡':'🟢')+' 工號、日期齊全'+((noId||noDate)?'（缺工號 '+noId+'、缺日期 '+noDate+'）':''),(noReason?'🟡':'🟢')+' 原因已填'+(noReason?'（'+noReason+' 筆未填）':''),(dup?'🟡':'🟢')+' 同人同日同級不重複'+(dup?'（'+dup+' 筆）':'')];
+    const allOk=!L.some(x=>/^🟡|^🔴/.test(x));
+    const lines=out.text.split('\n'),head=lines.slice(0,2).join('\n'),rest=lines.slice(2).join('\n');
+    const dchg=prevN?(list.length-prevN):null;
+    out.text=head+'\n'+V.SEP+'\n📋 <b>'+list.length+'</b> 件 · 👥 <b>'+ppl+'</b> 人'+(dchg!=null?'　'+(dchg<=0?'🟢':dchg<=2?'🟡':'🔴')+' vs 上期 '+prevN+' 件（'+(dchg>=0?'+':'')+dchg+'）':'')+'\n'
+      +V.share([{v:c.verbal,icon:'🟧'},{v:c.small,icon:'🟨'},{v:c.big+c.final,icon:'🟥'},{v:c.other,icon:'⬜'}].filter(x=>x.v>0))+'\n'
+      +'🟧 口頭 <b>'+c.verbal+'</b>　🟨 小過 <b>'+c.small+'</b>　🟥 大過／最後 <b>'+(c.big+c.final)+'</b>'+(c.other?'　⬜ 其他 '+c.other:'')+'\n'
+      +V.row(st.ok,4,'✅ 已核可 Approved')+'\n'+V.row(st.pend,4,'⏳ 待處理 Pending')+'\n'+V.row(st.rej,4,'↩️ 退件 Rejected')+'\n'+V.row(rep2,4,'🔁 本期 2 次以上 Repeat')+'\n'
+      +'🗓 今年累計 YTD：'+yL.length+' 件 · '+new Set(yL.map(idOf)).size+' 人\n'+V.SEP+'\n'+rest
+      +'\n'+V.SEP+'\n<b>🔎 核對 Check</b>\n'+L.join('\n')+'\n'+(allOk?'✅ 資料核對完整 Verified':'⚠️ 有黃燈項目，請先補齊平台資料');
+    const dm={};list.forEach(r=>{const d=str(r.empDept)||'Other';dm[d]=(dm[d]||0)+1;});const dl=Object.entries(dm).sort((a,b)=>b[1]-a[1]),top=dl.slice(0,14),oth=dl.slice(14);
+    out.chart={title:'⚠️ Warning 員工警告 · '+label,subtitle:'今年累計 '+yL.length+' 件 · '+new Set(yL.map(idOf)).size+' 人',color:'#b45309',color2:'#fbbf24',
+      kpis:[{label:'件數 Cases',value:list.length,color:'#f59e0b'},{label:'人數 Staff',value:ppl,color:'#3b82f6'},{label:'待處理 Pending',value:st.pend,color:'#ef4444'},{label:'今年累計 YTD',value:yL.length,color:'#a855f7'}],
+      donut:{title:'級別 Level',center:list.length+' 件',items:[{label:'口頭 Verbal',value:c.verbal,color:'#fb923c'},{label:'小過 Small',value:c.small,color:'#facc15'},{label:'大過 Big',value:c.big,color:'#ef4444'},{label:'最後 Final',value:c.final,color:'#991b1b'},{label:'其他',value:c.other,color:'#cbd5e1'}]},
+      bars:{title:'各部門件數 By Department',items:top.map(([d,n])=>({label:d,value:n,text:n+' 件',color:'#f59e0b'})).concat(oth.length?[{label:'其他 '+oth.length+' 組',value:oth.reduce((a,[,n])=>a+n,0),text:oth.reduce((a,[,n])=>a+n,0)+' 件',color:'#94a3b8'}]:[])},
+      foot:(allOk?'✅ 資料核對完整':'⚠️ 有項目待補')+(prevN?'　·　上期 '+prevN+' 件':'')};
+  }}catch(e){console.warn('[TG visual]',e);}
+  return out;
 }
 
 function buildTgReview(unit,key){
@@ -1154,7 +1185,9 @@ function previewTg(){
   const b=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;b.disabled=true;
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{const shown=TG_MODE==='summary'?hrpPreviewText(r.text,'checker'):r.text;pv.textContent=shown.replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');b.disabled=false;
+  else{const shown=TG_MODE==='summary'?hrpPreviewText(r.text,'checker'):r.text;pv.textContent=shown.replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre|code)>/g,'');b.disabled=false;
+    try{let im=qs('#tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV&&TG_MODE==='summary'){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     b.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg '+(TG_MODE==='review'?'bg-sky-600 hover:bg-sky-700':'bg-amber-600 hover:bg-amber-700')+' text-white transition';}
   b.textContent=TG_MODE==='review'?T('送群組審查','Send for review'):T('確認傳送','Send');
 }
@@ -1190,7 +1223,7 @@ async function confirmSendTg(){
       if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');b.disabled=false;b.textContent=T('確認傳送','Send');return;}
       const res=await fetch(GAS_URL,{method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({type:'notify',module:'warning',period:key,periods:Array.from(new Set(filtered().filter(x=>inTgKey(x,unit,key)).map(x=>String(x.incidentDate||'').slice(0,7)).filter(x=>/^20\d{2}-\d{2}$/.test(x)))).sort(),text:r.text,checker})});
+        body:JSON.stringify(Object.assign((function(){try{return r.chart&&window.HRPayTGV?{photo:HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,''),photoCaption:r.chart.title}:{};}catch(_e){return {};}})(),{type:'notify',module:'warning',period:key,periods:Array.from(new Set(filtered().filter(x=>inTgKey(x,unit,key)).map(x=>String(x.incidentDate||'').slice(0,7)).filter(x=>/^20\d{2}-\d{2}$/.test(x)))).sort(),text:r.text,checker}))});
       let d=null;try{d=await res.json();}catch(e){}
       if(!d||d.ok!==true||d.sent===false||(d.data&&d.data.sent===false))toast(T('GAS 回報未送出','Not sent')+(d&&d.error?' · '+d.error:''),'error');
       else{toast(T('已傳送至 Telegram 群組','Sent'),'success');closeTgModal();scheduleWarningAutoSync('telegram-summary');}

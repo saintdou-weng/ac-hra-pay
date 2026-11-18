@@ -25,6 +25,7 @@
 <script src="shared/hrpay-auto-sync.js?v=3.9.26"></script>
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 <script src="../ac-hra-portal/shared/hra-unsent.js?v=6"></script>
 </head>
@@ -1188,7 +1189,40 @@ function hrpPreviewText(text,kind){
 function buildTgText(type,period){return buildTgSummaryTable(type,period);}
 
 /* v3.9.2：Summary / Approval 共用欄位式正文；保留原部門、人次、時數、金額等資料。 */
+/* v3.9.32：在原有正文外加上色條、與上期比、今年累計、核對行、彩色圖；原有欄位與核可金額／人數／明細完全不變 */
 function buildTgSummaryTable(type,period){
+  const r=_otBaseTable(type,period); if(r.err||!window.HRPayTGV)return r;
+  try{
+    const V=HRPayTGV,dept=qs('#sel-dept')?qs('#sel-dept').value:'',[y,m]=period.split('-'),scope=/^\d{4}$/.test(period)?'year':/Q/.test(period)?'quarter':'month',anchor=scope==='year'?period+'-01':scope==='quarter'?y+'-'+pad((+m.slice(1)-1)*3+1):period,B=HRPayPeriods.bounds(anchor+(anchor.length===7?'-01':''),scope);
+    const inP=(rr,b)=>{const d=rr.year+'-'+pad(rr.month)+'-01';return d>=b.start&&d<b.end;},base=rr=>typeMatch(rr,type)&&(!dept||rr.dept===dept);
+    const recs=RECS.filter(rr=>base(rr)&&inP(rr,B)),pB=HRPayPeriods.bounds(HRPayPeriods.add(B.start,-1),scope),prev=RECS.filter(rr=>base(rr)&&inP(rr,pB)).reduce((a,rr)=>a+N(rr.expense),0);
+    const yB={start:B.start.slice(0,4)+'-01-01',end:B.end},yR=RECS.filter(rr=>base(rr)&&inP(rr,yB)),ySum=yR.reduce((a,rr)=>a+N(rr.expense),0),yMon=new Set(yR.map(rr=>rr.year+'-'+pad(rr.month))).size;
+    const tE=recs.reduce((a,rr)=>a+N(rr.expense),0),tH=recs.reduce((a,rr)=>a+(rr.type==='special'?specialEqHours(rr):N(rr.hour)),0),tP=type==='special'?recs.length:recs.reduce((a,rr)=>a+N(rr.ppl),0);
+    const kind={ot:0,bonus:0,special:0};recs.forEach(rr=>{if(kind[rr.type]!=null)kind[rr.type]+=N(rr.expense);});
+    const nK=Object.values(kind).filter(v=>v>0).length;
+    const dm={};recs.forEach(rr=>{const d=rr.dept||'Other',v=dm[d]||(dm[d]={n:0,usd:0});v.n+=rr.type==='special'?1:N(rr.ppl);v.usd+=N(rr.expense);});const list=Object.entries(dm).sort((a,b)=>b[1].usd-a[1].usd);
+    const sumOk=Math.abs(tE-N(r.amount))<0.01;
+    const keyOf=rr=>rr.type+'|'+rr.year+'-'+pad(rr.month)+'|'+(rr.type==='special'?(rr.empId||rr.name):rr.dept),seen={};let dup=0;recs.forEach(rr=>{const k=keyOf(rr);if(seen[k])dup++;seen[k]=1;});
+    const noPay=recs.filter(rr=>rr.type!=='special'&&N(rr.hour)>0&&!(N(rr.expense)>0)).length,noPpl=recs.filter(rr=>rr.type!=='special'&&N(rr.expense)>0&&!(N(rr.ppl)>0)).length;
+    const L=[(sumOk?'🟢':'🔴')+' 部門加總 = 明細合計 $'+fmt(tE),(dup?'🟡':'🟢')+' 同部門／同人同月不重複'+(dup?'（重複 '+dup+' 筆）':''),((noPay||noPpl)?'🟡':'🟢')+' 有時數就有金額、有金額就有人數'+((noPay||noPpl)?'（'+(noPay?noPay+' 筆有時數無金額 ':'')+(noPpl?noPpl+' 筆有金額無人數':'')+'）':'')];
+    if(type==='special'&&r.missingCash)L.push('🟡 '+r.missingCash+' 人未填現金金額');
+    const allOk=!L.some(x=>/^🔴|^🟡/.test(x));
+    const lines=r.text.split('\n'),head=lines.shift();
+    const share=nK>1?V.share([{v:kind.ot,icon:'🟦'},{v:kind.bonus,icon:'🟩'},{v:kind.special,icon:'🟨'}].filter(x=>x.v>0))+'\n'+[kind.ot?'🟦 加班 OT $'+fmt(kind.ot):'',kind.bonus?'🟩 獎金 Bonus $'+fmt(kind.bonus):'',kind.special?'🟨 特殊 Special $'+fmt(kind.special):''].filter(Boolean).join('　')+'\n':'';
+    r.text=head+'\n'+V.SEP+'\n💵 <b>$'+fmt(tE)+'</b> 總額 Total'+(prev?'　'+V.change(tE,prev)+' vs 上期 $'+fmt(prev):'')+'\n'+share+lines.join('\n').replace(/^\n+/,'')
+      +'\n'+V.SEP+'\n🗓 今年累計 YTD：'+yMon+' 個月 · <b>$'+fmt(ySum)+'</b>'+(yMon?' · 月均 $'+fmt(ySum/yMon):'')
+      +'\n'+V.SEP+'\n<b>🔎 核對 Check</b>\n'+L.join('\n')+'\n'+(allOk?'✅ 經計算核對正確 Verified':'⚠️ 有黃燈項目，請先看平台明細');
+    const lab=head.replace(/<[^>]+>/g,''),col=type==='bonus'?'#16a34a':type==='special'?'#ca8a04':'#2563eb',top=list.slice(0,14),rest=list.slice(14);
+    r.chart={title:lab,subtitle:'今年累計 '+yMon+' 個月 $'+fmt(ySum),color:type==='bonus'?'#15803d':type==='special'?'#a16207':'#1d4ed8',color2:type==='bonus'?'#4ade80':type==='special'?'#facc15':'#60a5fa',
+      kpis:[{label:'總額 Total USD',value:'$'+fmt(tE),color:col},{label:'人數 Staff',value:int(tP),color:'#3b82f6'},{label:'時數 Hours',value:int(tH),color:'#22c55e'},{label:'人均 Avg USD',value:'$'+fmt(tP?tE/tP:0),color:'#a855f7'}],
+      donut:nK>1?{title:'類別 Type',center:'$'+int(tE),items:[{label:'加班 OT',value:kind.ot,color:'#60a5fa',text:'$'+fmt(kind.ot)},{label:'獎金 Bonus',value:kind.bonus,color:'#4ade80',text:'$'+fmt(kind.bonus)},{label:'特殊 Special',value:kind.special,color:'#facc15',text:'$'+fmt(kind.special)}]}
+        :{title:'前 5 部門占比 Top 5',center:list.length+' 部門',items:list.slice(0,5).map(([d,v],i)=>({label:d,value:v.usd,color:V.PAL[i],text:'$'+fmt(v.usd)})).concat(list.length>5?[{label:'其他',value:list.slice(5).reduce((a,[,v])=>a+v.usd,0),color:'#cbd5e1',text:'$'+fmt(list.slice(5).reduce((a,[,v])=>a+v.usd,0))}]:[])},
+      bars:{title:'各部門金額 By Department (USD)',items:top.map(([d,v])=>({label:d,value:v.usd,text:'$'+fmt(v.usd)+' · '+int(v.n),color:col})).concat(rest.length?[{label:'其他 '+rest.length+' 組',value:rest.reduce((a,[,v])=>a+v.usd,0),text:'$'+fmt(rest.reduce((a,[,v])=>a+v.usd,0)),color:'#94a3b8'}]:[])},
+      foot:(allOk?'✅ 經計算核對正確':'⚠️ 有項目待核對')+(prev?'　·　上期 $'+fmt(prev):'')};
+  }catch(e){console.warn('[TG visual]',e);}
+  return r;
+}
+function _otBaseTable(type,period){
   const dept=qs('#sel-dept')?qs('#sel-dept').value:'', [y,m]=period.split('-'),scope=/^\d{4}$/.test(period)?'year':/Q/.test(period)?'quarter':'month',anchor=scope==='year'?period+'-01':scope==='quarter'?y+'-'+pad((+m.slice(1)-1)*3+1):period,label=HRPayPeriods.label(anchor,scope);
   const recs=RECS.filter(r=>typeMatch(r,type)&&HRPayPeriods.contains(r.year+'-'+pad(r.month)+'-01',anchor,scope)&&(!dept||r.dept===dept));
   if(!recs.length)return{err:T('此期間無資料','No data for this period')};
@@ -1241,7 +1275,9 @@ function previewTg(){
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');btn.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre|code)>/g,'');btn.disabled=false;
+    try{let im=qs('#tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition';}
 }
 
@@ -1282,8 +1318,8 @@ async function sendApprovalRequest(period,title,text,amount,headcount,moduleName
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'approvalRequest',module:moduleName||'ot_bonus',period,title,text,
-        amount:amount||0,headcount:headcount||0,items:items||[],applicant,requestedBy:applicant,route:'review'})});
+      body:JSON.stringify(Object.assign({type:'approvalRequest',module:moduleName||'ot_bonus',period,title,text,
+        amount:amount||0,headcount:headcount||0,items:items||[],applicant,requestedBy:applicant,route:'review'},_tgPhoto||{}))});
     let d=null;try{d=await r.json();}catch(e){}
     if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No response from GAS deployment'),'error');return false;}
     if(d.ok===false){toast(T('送出失敗：','Send failed: ')+(d.error||'GAS error'),'error');return false;}
@@ -1298,13 +1334,15 @@ async function sendApprovalRequest(period,title,text,amount,headcount,moduleName
     toast(T('GAS 已回應，但 Telegram 群組沒有取得 messageId','GAS responded but no Telegram group messageId'),'error');return false;
   }catch(e){toast(T('送出失敗：','Send failed: ')+e.message,'error');return false;}
 }
+let _tgPhoto=null;
 async function confirmSendTg(){
   const type=qs('#tg-type').value, period=qs('#tg-period').value;
   const r=buildTgSummaryTable(type,period);
   if(r.err){toast(r.err,'error');return;}
   if(TG_MODE==='review'&&r.repairConflict){toast(T('日期修復發現不同金額，請重匯原檔核對後再送核','Conflicting repaired amounts: reimport the source before approval'),'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
-  let ok=false;
+  let ok=false;_tgPhoto=null;
+  try{if(r.chart&&window.HRPayTGV)_tgPhoto={photo:HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,''),photoCaption:r.chart.title};}catch(_e){_tgPhoto=null;}
   if(TG_MODE==='review'&&needsApproval(period)&&type!=='all'){
     if(type==='special'&&r.missingCash){btn.disabled=false;btn.textContent=T('確認傳送','Send');toast(T(`Special OT 尚有 ${r.missingCash} 人未填現金金額，不能送核。`,`Special OT has ${r.missingCash} staff without cash amount; approval blocked.`),'error');return;}
     const recs=RECS.filter(x=>typeMatch(x,type)&&`${x.year}-${pad(x.month)}`===period);
@@ -1314,7 +1352,7 @@ async function confirmSendTg(){
     const [y,m]=period.split('-');
     ok=await sendApprovalRequest(period,tz+' — '+MS[+m-1]+' '+y,r.text,exp,ppl,type==='special'?'special_ot':type==='bonus'?'bonus':'ot_bonus',r.items||[]); /* v3.9.21: Bonus has its own approval (was sharing the OT key, so after OT was approved Bonus could never be sent) */
   }else{
-    ok=await sendTG(r.text,{module:type==='special'?'special_ot':'otbonus',period:period,periods:[String(period).slice(0,7)]});
+    ok=await sendTG(r.text,Object.assign({module:type==='special'?'special_ot':'otbonus',period:period,periods:[String(period).slice(0,7)]},_tgPhoto||{}));
   }
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}

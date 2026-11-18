@@ -25,6 +25,7 @@
 <script src="shared/hrpay-auto-sync.js?v=3.9.26"></script>
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 </head>
 <body class="text-slate-800">
@@ -875,7 +876,31 @@ function buildTgText(scope,period){
   let tb=row(['Date','Days','PPL','Lines','Ratio%','PersonDay'],W)+'\n'+row(['------------','------','------','-------','-------','----------'],W)+'\n';
   evs.slice().sort((a,b)=>a.start<b.start?-1:1).forEach(e=>tb+=row([e.start,e.days,int(e.shutPPL),e.ttlLine?`${e.shutLine}/${e.ttlLine}`:'—',e.ttlLine?(e.lineRatio*100).toFixed(0):'—',int(e.personDays)],W)+'\n');
   tb+=row(['TOTAL',fmt(days),int(ppl),evs.length,`${full}/${partial}`,int(pd)],W);
-  return{text:'🛑 <b>停工記錄 Shutdown Report</b>\n📅 期間 Period：'+esc(label)+'\n<b>摘要 Summary</b>\n<pre>'+row(['Events',evs.length,'Full',full,'Partial',partial],[10,6,8,6,10,6])+'\n'+row(['Days',fmt(days),'PersonDays',int(pd),'Avg PPL',evs.length?int(ppl/evs.length):0],[10,6,10,8,10,6])+'</pre>\n<b>各次明細 Event Breakdown</b>\n<pre>'+esc(tb)+'</pre>'};
+  /* v3.9.32：視覺化摘要（色條、累計、核對行、附圖）；原有摘要與各次明細表保留 */
+  const V=window.HRPayTGV,B=HRPayPeriods.bounds(period,scope);
+  const pB=HRPayPeriods.bounds(HRPayPeriods.add(B.start,-1),scope),pEvs=filtered().map(e=>HRPayPeriods.clipEvent(e,pB.start,scope)).filter(Boolean),pPd=pEvs.reduce((s,e)=>s+N(e.personDays),0);
+  const yEvs=filtered().map(e=>HRPayPeriods.clipEvent(e,period,'year')).filter(e=>e&&e.start<B.end),yDays=yEvs.reduce((s,e)=>s+N(e.days),0),yPd=yEvs.reduce((s,e)=>s+N(e.personDays),0);
+  const bad=evs.filter(e=>{const sd=N(e.sourceDays||e.days),pdFull=N(e.shutPPL)*sd,src=N(e.personDays)*sd/Math.max(N(e.days),1e-9);return N(e.shutPPL)>0&&Math.abs(src-pdFull)>0.5;}).length;
+  const overLine=evs.filter(e=>N(e.ttlLine)&&N(e.shutLine)>N(e.ttlLine)).length;
+  const pplBad=evs.filter(e=>N(e.ttlPPL)&&N(e.remainPPL)>=0&&Math.abs(N(e.shutPPL)+N(e.remainPPL)-N(e.ttlPPL))>0.5).length;
+  const L=[(bad?'🟡':'🟢')+' 人日 = 停工人數 × 天數'+(bad?'：'+bad+' 次不符':'（'+evs.length+' 次全部相符）'),
+    (overLine?'🔴':'🟢')+' 停工組數 ≤ 總組數'+(overLine?'：'+overLine+' 次超過':''),
+    (pplBad?'🟡':'🟢')+' 停工人數 + 留守人數 = 總人數'+(pplBad?'：'+pplBad+' 次不符':'')];
+  const allOk=!bad&&!overLine&&!pplBad;
+  let t='🛑 <b>停工 Shutdown · '+esc(label)+'</b>\n'+V.SEP+'\n'
+    +'👷 <b>'+int(pd)+'</b> 人日 Person-days'+(pPd?'　'+V.change(pd,pPd)+' vs 上期 '+int(pPd):'')+'\n'
+    +V.share([{v:full,icon:'🟥'},{v:partial,icon:'🟧'}])+'\n🟥 全線 Full <b>'+full+'</b>　🟧 部分 Partial <b>'+partial+'</b>\n'
+    +V.row(evs.length,6,'🛑 次數 Events')+'\n'+V.row(fmt(days),6,'📅 天數 Days')+'\n'+V.row(evs.length?int(ppl/evs.length):0,6,'👥 平均人數 Avg PPL')+'\n'
+    +V.SEP+'\n🗓 今年累計 YTD：'+yEvs.length+' 次 · '+fmt(yDays)+' 天 · <b>'+int(yPd)+'</b> 人日\n'
+    +V.SEP+'\n<b>各次明細 Event Breakdown</b>\n<pre>'+esc(tb)+'</pre>\n'+V.SEP+'\n<b>🔎 核對 Check</b>\n'+L.join('\n')+'\n'
+    +(allOk?'✅ 經計算核對正確 Verified':'⚠️ 有黃／紅燈項目，請先看平台明細');
+  const ev2=evs.slice().sort((a,b)=>N(b.personDays)-N(a.personDays)),top=ev2.slice(0,14),rest=ev2.slice(14);
+  const chart={title:'🛑 Shutdown 停工 · '+label,subtitle:'今年累計 '+yEvs.length+' 次 · '+int(yPd)+' 人日',color:'#be123c',color2:'#fb7185',
+    kpis:[{label:'人日 Person-days',value:int(pd),color:'#e11d48'},{label:'次數 Events',value:evs.length,color:'#f97316'},{label:'天數 Days',value:fmt(days),color:'#3b82f6'},{label:'平均人數 Avg PPL',value:evs.length?int(ppl/evs.length):0,color:'#a855f7'}],
+    donut:{title:'全線／部分 Full vs Partial',center:evs.length+' 次',items:[{label:'全線 Full',value:full,color:'#f43f5e'},{label:'部分 Partial',value:partial,color:'#fb923c'}]},
+    bars:{title:'各次人日 Person-days by Event',items:top.map(e=>({label:e.start+(e.ttlLine?' · '+e.shutLine+'/'+e.ttlLine+' 組':''),value:N(e.personDays),text:int(e.personDays)+' · '+int(e.shutPPL)+' 人',color:e.lineRatio>=.999?'#f43f5e':'#fb923c'})).concat(rest.length?[{label:'其他 '+rest.length+' 次',value:rest.reduce((a,e)=>a+N(e.personDays),0),text:int(rest.reduce((a,e)=>a+N(e.personDays),0)),color:'#94a3b8'}]:[])},
+    foot:(allOk?'✅ 經計算核對正確':'⚠️ 有項目待核對')+(pPd?'　·　上期 '+int(pPd)+' 人日':'')};
+  return{text:t,chart};
 }
 
 function tgCoveredMonths(scope,period){return [...new Set(filtered().map(e=>HRPayPeriods.clipEvent(e,period,scope)).filter(Boolean).flatMap(e=>Array.from({length:Math.ceil(e.days)},(_,i)=>HRPayPeriods.add(e.start,i).slice(0,7))))].sort();}
@@ -908,7 +933,9 @@ function previewTg(){
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
-  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,'');btn.disabled=false;
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre|code)>/g,'');btn.disabled=false;
+    try{let im=qs('#tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition';}
 }
 async function confirmSendTg(){
@@ -916,7 +943,8 @@ async function confirmSendTg(){
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
   const tgScope=qs('#tg-scope').value,tgPeriod=qs('#tg-period').value;
-  const ok=await sendTG(r.text,{module:'shutdown',period:tgPeriod,periods:tgCoveredMonths(tgScope,tgPeriod)});
+  let ph='';try{if(r.chart&&window.HRPayTGV)ph=HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,'');}catch(_e){}
+  const ok=await sendTG(r.text,Object.assign({module:'shutdown',period:tgPeriod,periods:tgCoveredMonths(tgScope,tgPeriod)},ph?{photo:ph,photoCaption:'🛑 Shutdown · '+HRPayPeriods.label(tgPeriod,tgScope)}:{}));
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){closeTgModal();scheduleAutoCloudSync('telegram');}
 }
