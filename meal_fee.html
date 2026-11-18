@@ -30,6 +30,7 @@
 <script src="shared/hrpay-online-core.js?v=3.9.26"></script>
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 <script src="../ac-hra-portal/shared/hra-unsent.js?v=6"></script>
 </head>
@@ -1412,15 +1413,42 @@ function buildTgSummaryTable(key){
   const rate=rateOf(rows), dl=(e.meal?e.meal.dayList:e.att.dayList)||[], dm={};
   rows.forEach(r=>{const d=r.dept||'Other',v=dm[d]||(dm[d]={n:0,usd:0,riel:0,md:0});v.n++;v.usd+=N(r.usd);v.riel+=N(r.riel);(r.days||[]).forEach(x=>{if(x.present>0)v.md++;});});
   const list=Object.entries(dm).sort((a,b)=>b[1].usd-a[1].usd), total=list.reduce((s,[,v])=>s+v.usd,0), riel=list.reduce((s,[,v])=>s+v.riel,0), md=list.reduce((s,[,v])=>s+v.md,0), avg=rows.length?total/rows.length:0;
-  /* v3.9.21 mobile card */
+  /* v3.9.32：視覺化摘要（色條、累計、核對行、附圖）；原有欄位（期間、人數、餐日、人均、匯率、原額 Riel、各部門表）全部保留 */
+  const V=window.HRPayTGV, mo=e.year+'-'+String(e.month).padStart(2,'0');
+  const cls={hi:{n:0,usd:0},lo:{n:0,usd:0},ot:{n:0,usd:0}};
+  rows.forEach(r=>{const mx=Math.max(0,...(r.days||[]).map(x=>N(x.present)));const k=mx>=4500?'hi':mx>=2500?'lo':'ot';cls[k].n++;cls[k].usd+=N(r.usd);});
+  const ks=sortedKeys(),ix=ks.indexOf(key),rowsOf=k=>{const x=STORE[k]||{};return x.meal?x.meal.rows:(x.att?x.att.rows:[]);},sumOf=k=>(rowsOf(k)||[]).reduce((a,r)=>a+N(r.usd),0);
+  let prevK='';for(let i=ix-1;i>=0;i--){if((rowsOf(ks[i])||[]).length){prevK=ks[i];break;}}
+  const prev=prevK?sumOf(prevK):0;
+  const upto=ks.filter(k=>k<=key&&(rowsOf(k)||[]).length);
+  const mKs=upto.filter(k=>k.slice(0,7)===mo),yKs=upto.filter(k=>k.slice(0,4)===String(e.year));
+  const mSum=mKs.reduce((a,k)=>a+sumOf(k),0),ySum=yKs.reduce((a,k)=>a+sumOf(k),0);
+  const calc=riel/(rate||4000),diff=calc-total,okTol=Math.max(0.05,rows.length*0.006);
+  const badRows=rows.filter(r=>N(r.riel)>0&&N(r.usd)>0&&Math.abs(N(r.riel)/(rate||4000)-N(r.usd))>0.05).length;
   const trow=(a,w)=>a.map((v,i)=>{v=String(v==null?'':v);if(v.length>w[i])v=v.slice(0,w[i]-1)+'…';return i?v.padStart(w[i],' '):v.padEnd(w[i],' ');}).join(' '); const W=[12,5,6,10];
   let tb=trow(['Dept','Staff','Days','USD'],W)+'\n'+'-'.repeat(36)+'\n';
   list.forEach(([d,v])=>tb+=trow([d,v.n,v.md,fmt(v.usd)],W)+'\n');
   tb+='-'.repeat(36)+'\n'+trow(['TOTAL',rows.length,md,fmt(total)],W);
-  let t='🍱 <b>餐費發放 Meal Fee</b>\n📅 期間 Period：'+esc(bLabel(key))+(dl.length?'（'+e.month+'/'+Math.min(...dl)+'–'+e.month+'/'+Math.max(...dl)+'）':'')
-    +'\n👥 <b>'+rows.length+'</b> 人 Staff · 🏭 '+list.length+' 部門 · 🍽 '+int(md)+' 餐日 Meal-days\n💵 <b>$'+fmt(total)+'</b> · 人均 Avg $'+fmt(avg)+'\n💱 1 USD = '+int(rate)+' Riel · 原額 Riel '+int(riel)+'\n\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>';
+  const shareParts=[{v:cls.hi.n,icon:'🟦'},{v:cls.lo.n,icon:'🟧'}].concat(cls.ot.n?[{v:cls.ot.n,icon:'⬜'}]:[]);
+  let t='🍱 <b>餐費 Meal Fee · '+esc(bLabel(key))+'</b>\n📅 '+(dl.length?e.month+'/'+Math.min(...dl)+'–'+e.month+'/'+Math.max(...dl)+' · ':'')+'💱 1 USD = '+int(rate)+' ៛\n'+V.SEP+'\n'
+    +'💵 <b>$'+fmt(total)+'</b> 總額 Total'+(prev?'　'+V.change(total,prev)+' vs 上期 $'+fmt(prev):'')+'\n'
+    +V.share(shareParts)+'\n🟦 5000៛ <b>'+cls.hi.n+'</b> 人 $'+fmt(cls.hi.usd)+'　🟧 3000៛ <b>'+cls.lo.n+'</b> 人 $'+fmt(cls.lo.usd)+(cls.ot.n?'　⬜ 其他 '+cls.ot.n:'')+'\n'
+    +V.row(int(rows.length),6,'👥 人數 Staff')+'\n'+V.row(int(md),6,'🍽 餐日 Meal-days')+'\n'+V.row(fmt(avg),6,'💲 人均 Avg USD')+'\n'+V.row(list.length,6,'🏭 部門 Depts')+'\n'
+    +V.SEP+'\n📆 本月累計 Month：'+mKs.length+' 批 · <b>$'+fmt(mSum)+'</b>\n🗓 今年累計 YTD：'+yKs.length+' 批 · <b>$'+fmt(ySum)+'</b>\n'
+    +V.SEP+'\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>\n'+V.SEP+'\n'
+    +V.check(diff,okTol,5)+' ៛'+int(riel)+' ÷ '+int(rate)+' = $'+fmt(calc)+' · 明細合計 $'+fmt(total)
+    +(Math.abs(diff)<=okTol?'，經計算核對正確 Verified':'，差 $'+fmt(Math.abs(diff))+'（請查匯率或單筆金額）');
+  if(badRows)t+='\n🟡 '+badRows+' 人單筆金額與天數×匯率不符（差 > $0.05）';
+  if(e.meal&&e.att&&(e.att.rows||[]).length){const ar=e.att.rows,an=ar.length,aU=ar.reduce((a,r)=>a+N(r.riel),0)/(rate||4000);
+    t+='\n'+(an===rows.length&&Math.abs(aU-total)<=okTol?'✅':'🟡')+' 對考勤 Attendance：'+an+' 人 · 推算 $'+fmt(aU)+(an===rows.length&&Math.abs(aU-total)<=okTol?'（一致）':'（差 '+(rows.length-an)+' 人 / $'+fmt(total-aU)+'）');}
   if(!e.meal)t+='\n⚠️ '+T('本期僅有考勤表，金額為考勤推算值','Attendance-only estimate');
-  return{text:t};
+  const top=list.slice(0,14),rest=list.slice(14);
+  const chart={title:'🍱 Meal Fee 餐費 · '+bLabel(key),subtitle:(dl.length?e.month+'/'+Math.min(...dl)+'–'+e.month+'/'+Math.max(...dl)+' · ':'')+'1 USD = '+int(rate)+' ៛',
+    kpis:[{label:'總額 Total USD',value:'$'+fmt(total),color:'#ea580c'},{label:'人數 Staff',value:int(rows.length),color:'#3b82f6'},{label:'餐日 Meal-days',value:int(md),color:'#22c55e'},{label:'人均 Avg USD',value:'$'+fmt(avg),color:'#a855f7'}],
+    donut:{title:'餐費級距 Rate',center:int(rows.length)+' 人',items:[{label:'5000៛',value:cls.hi.n,color:'#3b82f6'},{label:'3000៛',value:cls.lo.n,color:'#f59e0b'},{label:'其他',value:cls.ot.n,color:'#94a3b8'}]},
+    bars:{title:'各部門金額 By Department (USD)',items:top.map(([d,v])=>({label:d,value:v.usd,text:'$'+fmt(v.usd)+' · '+v.n,color:'#f97316'})).concat(rest.length?[{label:'其他 '+rest.length+' 組',value:rest.reduce((a,[,v])=>a+v.usd,0),text:'$'+fmt(rest.reduce((a,[,v])=>a+v.usd,0)),color:'#94a3b8'}]:[])},
+    foot:'本月累計 '+mKs.length+' 批 $'+fmt(mSum)+'　·　今年累計 '+yKs.length+' 批 $'+fmt(ySum)+'　·　'+(Math.abs(diff)<=okTol?'經計算核對正確':'金額待核對')};
+  return{text:t,chart};
 }
 
 function openTgModal(){
@@ -1446,7 +1474,9 @@ function previewTg(){
   const pv=qs('#tg-preview'), btn=qs('#tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true;
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed'; }
-  else { pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre)>/g,''); btn.disabled=false;
+  else { pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'').replace(/<\/?(i|pre|code)>/g,''); btn.disabled=false;
+    try{let im=qs('#tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition'; }
 }
 
@@ -1527,7 +1557,8 @@ async function confirmSendTg(){
     const usd=(rows||[]).reduce((s2,x)=>s2+N(x.usd),0);
     ok=await sendApprovalRequest(key,T('餐費 Meal Fee','Meal Fee')+' — '+bLabel(key),
       r.text,usd,(rows||[]).length,'review',approvalItems(key));
-  }else ok=await sendTG(r.text,{module:'meal',period:key,periods:[String(key).slice(0,7)]});
+  }else{let ph='';try{if(r.chart&&window.HRPayTGV)ph=HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,'');}catch(_e){}
+    ok=await sendTG(r.text,Object.assign({module:'meal',period:key,periods:[String(key).slice(0,7)]},ph?{photo:ph,photoCaption:'🍱 Meal Fee · '+bLabel(key)}:{}));}
   btn.disabled=false; btn.textContent=T('確認傳送','Send');
   if(ok){ closeTgModal(); scheduleAutoCloudSync('telegram',key); }
 }

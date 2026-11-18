@@ -71,6 +71,7 @@ body{font-family:'DM Sans',sans-serif;}
 <script src="shared/hrpay-online-core.js?v=3.9.26"></script>
 <script src="shared/hrpay-i18n.js?v=3.9.26"></script>
 <script src="shared/hrpay-report.js?v=3.9.26"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/hrpay-import-hub.js?v=3.9.26"></script>
 <script src="../ac-hra-portal/shared/hra-unsent.js?v=6"></script>
 </head>
@@ -2716,12 +2717,51 @@ function buildSummaryTableText(which,key){
   let tb=trow(['Dept','Staff','%','USD'],W)+'\n'+'-'.repeat(37)+'\n';
   list.forEach(([d,v])=>tb+=trow([d,int(v.n),((v.n/src.length)*100).toFixed(1),fmt(v.amt)],W)+'\n');
   tb+='-'.repeat(37)+'\n'+trow(['TOTAL',src.length,'100.0',fmt(total)],W);
-  const head=which==='adv'?'💰 <b>預付薪資發放 Advance Pay</b>':'💵 <b>正式薪資發放 Payroll</b>';
-  return{text:head+' · '+esc(P)+'\n👥 <b>'+src.length+'</b> 人 Staff · 🏭 '+list.length+' 部門 Depts\n💵 <b>$'+fmt(total)+'</b> · 人均 Avg $'+fmt(avg)+'\n\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>'};
+  /* v3.9.32：視覺化摘要（色條、累計、核對行、附圖）；原有欄位（人數、部門數、總額、人均、各部門表）全部保留 */
+  const V=window.HRPayTGV, isAdv=which==='adv', y=String(key).slice(0,4);
+  const srcOf=k=>{const x=STORE[k]||{},v=isAdv?x.advanceRecords:x.payrollRecords;return Array.isArray(v)?v:[];}, sumOf=k=>srcOf(k).reduce((a,r)=>a+Math.abs(N(r.totalSalary)),0);
+  const ks=Object.keys(STORE).filter(k=>/^\d{4}-\d{2}$/.test(k)).sort();
+  const prevK=ks.filter(k=>k<key&&srcOf(k).length).pop()||'', prev=prevK?sumOf(prevK):0, prevN=prevK?srcOf(prevK).length:0;
+  const yKs=ks.filter(k=>k<=key&&k.slice(0,4)===y&&srcOf(k).length), ySum=yKs.reduce((a,k)=>a+sumOf(k),0);
+  const gOf=r=>{const g=String(r.gender||'').trim().toLowerCase();return /^(f|female|ស្រី|女|w)/.test(g)?'F':/^(m|male|ប្រុស|男)/.test(g)?'M':'';};
+  const gF=src.filter(r=>gOf(r)==='F'),gM=src.filter(r=>gOf(r)==='M'),gX=src.length-gF.length-gM.length;
+  const amtF=gF.reduce((a,r)=>a+Math.abs(N(r.totalSalary)),0),amtM=gM.reduce((a,r)=>a+Math.abs(N(r.totalSalary)),0);
+  const ids=new Set(src.map(r=>String(r.id||'').trim()).filter(Boolean)),dup=src.length-ids.size,zero=src.filter(r=>!(Math.abs(N(r.totalSalary))>0)).length;
+  const sumRec=src.reduce((a,r)=>a+Math.abs(N(r.totalSalary)),0),deptOk=Math.abs(sumRec-total)<0.01;
+  /* 逐人重算（沿用平台稽核恆等式 runAudit；檔案沒有小計欄就不重算） */
+  const hasSub=src.filter(r=>N(r.subtotal)!==0).length>=src.length*0.5;
+  let aud=null;if(hasSub&&typeof runAudit==='function'){try{const ar=runAudit([],src);aud={bad:ar.filter(x=>x.isAnom).length,comp:ar.reduce((a,x)=>a+N(x.computed),0),stated:ar.reduce((a,x)=>a+N(x.totalSalary),0),gross:ar.reduce((a,x)=>a+N(x.gross),0),ot:ar.reduce((a,x)=>a+N(x.otTotal),0)};}catch(_e){aud=null;}}
+  const e2=entry, other=isAdv?(e2.payrollRecords||[]):(e2.advanceRecords||[]);
+  const L=[];
+  L.push((deptOk?'🟢':'🔴')+' 部門加總 = 明細合計 $'+fmt(sumRec)+(deptOk?'':'（差 $'+fmt(Math.abs(sumRec-total))+'）'));
+  L.push((dup||zero?'🟡':'🟢')+' 工號不重複'+(dup?'（重複 '+dup+' 筆）':'')+' · 金額為 0：'+zero+' 人');
+  if(aud)L.push((aud.bad?'🟡':'🟢')+' 逐人重算（基本＋獎金＋加班−扣項）：'+(aud.bad?aud.bad+' 人不符，請看平台稽核頁':'全部 '+src.length+' 人相符')+(Math.abs(aud.comp-aud.stated)>0.05?' · 差 $'+fmt(Math.abs(aud.comp-aud.stated)):''));
+  if(other.length){
+    if(isAdv){const ded=other.reduce((a,r)=>a+Math.abs(N(r.advDeduction)),0),d=ded-total;L.push(V.check(d,1,20)+' 對正式薪資扣回 $'+fmt(ded)+(Math.abs(d)<=1?'（一致）':'（差 $'+fmt(Math.abs(d))+'）'));}
+    else{const adv=other.reduce((a,r)=>a+Math.abs(N(r.totalSalary)),0),ded=src.reduce((a,r)=>a+Math.abs(N(r.advDeduction)),0),d=ded-adv;L.push(V.check(d,1,20)+' 預支扣回 $'+fmt(ded)+' 對預付發放 $'+fmt(adv)+(Math.abs(d)<=1?'（一致）':'（差 $'+fmt(Math.abs(d))+'）'));}
+  }
+  if(prevN){const dn=src.length-prevN;L.push((Math.abs(dn)<=Math.max(5,prevN*0.03)?'🟢':'🟡')+' 人數對上月 '+prevN+' → '+src.length+'（'+(dn>=0?'+':'')+dn+'）');}
+  const allOk=!L.some(x=>/^🔴|^🟡/.test(x));
+  const head=isAdv?'💰 <b>預付薪資 Advance Pay · ':'💵 <b>正式薪資 Payroll · ';
+  let t=head+esc(P)+'</b>\n'+V.SEP+'\n'
+    +'💵 <b>$'+fmt(total)+'</b> 發放總額 Total'+(prev?'　'+V.change(total,prev)+' vs 上月 $'+fmt(prev):'')+'\n'
+    +(gF.length+gM.length?V.share([{v:gF.length,icon:'🟥'},{v:gM.length,icon:'🟦'}].concat(gX?[{v:gX,icon:'⬜'}]:[]))+'\n🟥 女 F <b>'+gF.length+'</b> $'+fmt(amtF)+'　🟦 男 M <b>'+gM.length+'</b> $'+fmt(amtM)+(gX?'　⬜ '+gX:'')+'\n':'')
+    +V.row(int(src.length),9,'👥 人數 Staff')+'\n'+V.row(fmt(avg),9,'💲 人均 Avg USD')+'\n'+V.row(list.length,9,'🏭 部門 Depts')+'\n'
+    +(aud&&!isAdv?V.row(fmt(aud.ot),9,'⏱ 加班 OT USD')+'\n':'')
+    +V.SEP+'\n🗓 今年累計 YTD：'+yKs.length+' 個月 · <b>$'+fmt(ySum)+'</b>'+(yKs.length?' · 月均 $'+fmt(ySum/yKs.length):'')+'\n'
+    +V.SEP+'\n<b>🏭 各部門 Department</b>\n<pre>'+esc(tb)+'</pre>\n'+V.SEP+'\n<b>🔎 核對 Check</b>\n'+L.join('\n')+'\n'
+    +(allOk?'✅ 經計算核對正確 Verified':'⚠️ 有黃／紅燈項目，請先看平台明細再核可');
+  const top=list.slice(0,14),rest=list.slice(14),col=isAdv?'#0ea5e9':'#16a34a';
+  const chart={title:(isAdv?'💰 Advance Pay 預付薪資 · ':'💵 Payroll 正式薪資 · ')+P,subtitle:'今年累計 '+yKs.length+' 個月 $'+fmt(ySum),color:isAdv?'#0369a1':'#15803d',color2:isAdv?'#38bdf8':'#4ade80',
+    kpis:[{label:'發放總額 Total USD',value:'$'+fmt(total),color:col},{label:'人數 Staff',value:int(src.length),color:'#3b82f6'},{label:'人均 Avg USD',value:'$'+fmt(avg),color:'#a855f7'},{label:'對上月 vs Prev',value:prev?((total-prev)/prev*100>=0?'+':'')+((total-prev)/prev*100).toFixed(1)+'%':'—',color:'#f59e0b'}],
+    donut:gF.length+gM.length?{title:'男女 Gender',center:int(src.length)+' 人',items:[{label:'女 F',value:gF.length,color:'#f9a8b4',text:gF.length+' · $'+fmt(amtF)},{label:'男 M',value:gM.length,color:'#93c5fd',text:gM.length+' · $'+fmt(amtM)},{label:'未填',value:gX,color:'#cbd5e1'}]}:null,
+    bars:{title:'各部門金額 By Department (USD)',items:top.map(([d,v])=>({label:d,value:v.amt,text:'$'+fmt(v.amt)+' · '+v.n,color:col})).concat(rest.length?[{label:'其他 '+rest.length+' 組',value:rest.reduce((a,[,v])=>a+v.amt,0),text:'$'+fmt(rest.reduce((a,[,v])=>a+v.amt,0)),color:'#94a3b8'}]:[])},
+    foot:(allOk?'✅ 經計算核對正確':'⚠️ 有項目待核對')+'　·　'+(prevK?'上月 $'+fmt(prev):'')};
+  return{text:t,chart};
 }
 
 
-let _tgWhich='pay';
+let _tgWhich='pay', _tgPhoto=null;
 function sendSummaryTG(which){
   try{
     _tgWhich=which==='adv'?'adv':'pay';
@@ -2767,7 +2807,9 @@ function previewTg(){
     pv.textContent='⚠️ '+r.err;
     btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';
   }else{
-    pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre)>/g,'');
+    pv.textContent=hrpPreviewText(r.text,hrpCurrentPersonKind()).replace(/<\/?(b|pre|code)>/g,'');
+    try{let im=qs('#tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+      if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
     btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
   }
 }
@@ -2807,9 +2849,9 @@ async function sendApprovalRequest(period,title,text,amount,headcount,route,item
   try{
     const r=await fetch(GAS_URL,{method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({type:'approvalRequest',module:_tgWhich==='adv'?'advance':'payroll',
+      body:JSON.stringify(Object.assign({type:'approvalRequest',module:_tgWhich==='adv'?'advance':'payroll',
         period,title,text,amount:amount||0,headcount:headcount||0,applicant,requestedBy:applicant,
-        route:'review', items:items||[]})});
+        route:'review', items:items||[]},_tgPhoto||{}))});
     let d=null;try{d=await r.json();}catch(e){}
     if(!d){toast(T('GAS 沒有回傳資料，請確認部署 URL','No reply from GAS — check the deployment URL'),'error');return false;}
     if(d.ok===false){toast(T('送出失敗：','Send failed: ')+(d.error||'GAS error'),'error');return false;}
@@ -2840,7 +2882,8 @@ async function confirmSendTg(){
   const r=buildSummaryTableText(_tgWhich, period);
   if(r.err){toast(r.err,'error');return;}
   const btn=qs('#tg-send'); btn.disabled=true; btn.textContent='傳送中…';
-  let ok;
+  let ok;_tgPhoto=null;
+  try{if(r.chart&&window.HRPayTGV)_tgPhoto={photo:HRPayTGV.chart(r.chart).replace(/^data:image\/\w+;base64,/,''),photoCaption:(_tgWhich==='adv'?'💰 Advance Pay · ':'💵 Payroll · ')+labelFromKey(period)};}catch(_e){_tgPhoto=null;}
   if(TG_MODE!=='summary'&&needsApproval(period)){
     const e=STORE[period]||{};
     const src=_tgWhich==='adv'?(e.advanceRecords||[]):(e.payrollRecords||[]);
@@ -2849,7 +2892,7 @@ async function confirmSendTg(){
       (_tgWhich==='adv'?'預付薪資 Advance':'正式薪資 Payroll')+' — '+labelFromKey(period),
       r.text, amt, src.length, TG_MODE, approvalItems(period,_tgWhich));
   }else{
-    ok=await sendTG(r.text,{module:_tgWhich==='adv'?'advance':'payroll',period:period,periods:[String(period).slice(0,7)]});
+    ok=await sendTG(r.text,Object.assign({module:_tgWhich==='adv'?'advance':'payroll',period:period,periods:[String(period).slice(0,7)]},_tgPhoto||{}));
   }
   btn.disabled=false; btn.textContent='確認傳送';
   if(ok){ closeTgModal(); scheduleAutoCloudSync('telegram',period); }
