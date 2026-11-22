@@ -1029,17 +1029,44 @@ function timeSeries(){
 /* 2026-11-23 Paul：伙食費的時間明細要跟車縫的月／年列表一樣——
    選「每年」＝把過去每一年都列出來；選「每月」＝從最新的月份一路往下列每個月；「本期」＝每個半月期都列。
    上方選的期間只決定「哪一列是目前這一期」跟上面 5 張卡；點任何一列就切到那一期。每日／每週照原本（只看選定期間內）。
-   做法：每一期都用原本那套算法（mealScopeRows → timeSeries）各算一次再排在一起，所以每一列的數字跟單獨選那一期看到的一樣。 */
+   做法：把全部資料走一遍、一次算完每一期（算法跟 mealScopeRows → dayIndex → timeSeries 相同），結果會記住，資料沒變就不重算。
+   2026-11-23 用真實資料（155 期）比對過：年 9 列、月 80 列、半月 155 列，數字跟「每一期各算一次」的舊做法一樣（只有 1 列差 $0.01 的四捨五入），
+   但速度從 9 秒變成 0.15 秒——第一版每期各算一次太慢，已換掉。 */
 function timeSeriesAll(){
   if(!['half','month','year'].includes(UNIT)||!ACTIVE)return timeSeries();
-  const keepA=ACTIVE,keepM=MEAL_ANCHOR,last={},out=[];
-  const gOf=k=>UNIT==='year'?k.slice(0,4):UNIT==='month'?k.split(':')[0]:k;
-  sortedKeys().forEach(k=>{last[gOf(k)]=k;});
-  try{
-    Object.keys(last).forEach(g=>{ACTIVE=STORE[last[g]];MEAL_ANCHOR='';
-      timeSeries().forEach(t=>{if(!out.some(o=>o.key===t.key)){t.jump=last[g];out.push(t);}});});
-  }finally{ACTIVE=keepA;MEAL_ANCHOR=keepM;}
-  return out.sort((a,b)=>a.first<b.first?1:-1);   // 新 → 舊
+  const dv=qs('#sel-division')?qs('#sel-division').value:'', dp=qs('#sel-dept')?qs('#sel-dept').value:'';
+  const keys=sortedKeys();
+  const sig=UNIT+'|'+dv+'|'+dp+'|'+LANG+'|'+keys.map(k=>{const e=STORE[k];return k+':'+((e.meal&&e.meal.rows||[]).length)+':'+((e.att&&e.att.rows||[]).length)+':'+(e.updatedAt||'');}).join(',');
+  if(timeSeriesAll._sig===sig&&timeSeriesAll._out)return timeSeriesAll._out;
+  const g={}, pad=n=>String(n).padStart(2,'0');
+  const grp=(gk,label,jump)=>g[gk]||(g[gk]={key:gk,label,jump,riel:0,usd:0,otUSD:0,ot:0,served:0,otServed:0,ids:new Set(),_d:new Set(),_lo:1e9,_hi:0});
+  keys.forEach(k=>{
+    const e=STORE[k], y=+e.year, m=+e.month, ym=y+'-'+pad(m), dim=new Date(y,m,0).getDate(), eh=k.endsWith(':2')?2:1;
+    if(!(y>0&&m>=1&&m<=12))return;
+    const mLab=`${MN[m-1]} ${y}`;
+    const G1=UNIT==='year'?grp(String(y),String(y),k):UNIT==='month'?grp(ym,mLab,k):null;
+    const GH=UNIT==='half'?grp(ym+':'+eh,`${mLab} · ${eh===1?T('上半月','1st half'):T('下半月','2nd half')}`,k):null;
+    if(G1)G1.jump=k;   // 鍵由舊到新排，最後留下的＝該期間最新的一批
+    rowsForEntry(e).forEach(r=>{
+      if((dv&&r.division!==dv)||(dp&&r.dept!==dp))return;
+      const ds=r.days||[]; if(!ds.length)return;
+      let total=0; for(let i=0;i<ds.length;i++)total+=N(ds[i].present)+N(ds[i].ot);
+      const ru=N(r.usd), t=G1||GH; let any=false;
+      for(let i=0;i<ds.length;i++){
+        const d=ds[i], dd=+d.d; if(!(dd>=1&&dd<=dim)||dd!==Math.floor(dd))continue;      // 不存在的日期（例如 2/30）原本的算法也不算
+        if(GH&&(dd<=15?1:2)!==eh)continue;                                               // 半月期：只算這一期自己的那半個月
+        const p=N(d.present), o=N(d.ot), amt=p+o, usd=total?ru*amt/total:0, di=y*10000+m*100+dd;
+        t.riel+=amt; t.usd+=usd; t.ot+=o; if(amt)t.otUSD+=usd*o/amt;
+        if(p>0)t.served++; if(o>0)t.otServed++; if(amt>0)any=true;
+        t._d.add(di); if(di<t._lo)t._lo=di; if(di>t._hi)t._hi=di;
+      }
+      if(any)t.ids.add(r.id);
+    });
+  });
+  const iso=n=>Math.floor(n/10000)+'-'+pad(Math.floor(n/100)%100)+'-'+pad(n%100);
+  const out=Object.values(g).filter(t=>t._d.size).map(t=>{t.days=t._d.size;t.first=iso(t._lo);t.last=iso(t._hi);delete t._d;return t;}).sort((a,b)=>a.first<b.first?1:-1);   // 新 → 舊
+  timeSeriesAll._sig=sig; timeSeriesAll._out=out;
+  return out;
 }
 function mealJumpRow(k){if(STORE[k]&&(!ACTIVE||ACTIVE.key!==k))jumpPeriod(k);}
 function renderDaily(){
