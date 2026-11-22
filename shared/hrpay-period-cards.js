@@ -1,42 +1,14 @@
-/* AC-HRA-PAY v3.9.34（2026-11-22）
-   A. 卡片互動微變色（全平台頁面）：電腦滑鼠移入、手機手指按下時，卡片底色＋邊框柔和變色（淺藍／淺綠／粉紅／粉橘…輪替），
-      電腦 150ms ease-out；手機只在按下時變色、放開就恢復（觸控裝置不會殘留 hover 顏色）。
-   B. 薪資頁「期間報表」卡片版（只在 payroll.html 有 #rp-tbody 時啟用）：
-      月卡／年卡＋點卡片跳出明細（KPI、近 12 個月趨勢可點、部門排行、底部月份膠囊、左右滑動切換），
-      做法學 VRT 生產平台的卡片連動。原本的表格保留，可用「📋 表格」切回。
-   只讀資料、只加顯示，不改任何計算、上傳、下載、核可。 */
+/* AC-HRA-PAY v3.9.34（2026-11-22）薪資頁「期間報表」卡片版（只在 payroll.html 有 #rp-tbody 時啟用）
+   月卡／年卡＋點卡片跳出明細（KPI、近 12 個月趨勢可點、部門排行、底部月份膠囊、左右滑動切換），學 VRT 生產平台的卡片連動。
+   卡片微變色交給共用 ui-fx.js（卡片標 data-fx="card"）。原本的表格保留，可用「📋 表格」切回。只讀資料、只加顯示。 */
 (function (g) {
   'use strict';
   if (g.__hpPeriodCards) return; g.__hpPeriodCards = 1;
   var doc = g.document;
-  var TINTS = [
-    ['#eff6ff', '#93c5fd', 'rgba(96,165,250,.14)'],   // 淺藍
-    ['#ecfdf5', '#6ee7b7', 'rgba(52,211,153,.14)'],   // 淺綠
-    ['#fdf2f8', '#f9a8d4', 'rgba(244,114,182,.14)'],  // 粉紅
-    ['#fff7ed', '#fdba74', 'rgba(251,146,60,.14)'],   // 粉橘
-    ['#f5f3ff', '#c4b5fd', 'rgba(167,139,250,.14)'],  // 淺紫
-    ['#f0fdfa', '#5eead4', 'rgba(45,212,191,.14)']    // 薄荷
-  ];
-  var TINT_SEL = 'a.card,.hp-pc,.hp-yc,[data-tint],.rounded-xl[onclick],.rounded-2xl[onclick]';
 
   function css() {
     if (doc.getElementById('hp-pc-css')) return;
-    var t = '';
-    TINTS.forEach(function (c, i) {
-      var n = ':nth-child(6n+' + (i + 1) + ')';
-      t += '.hp-tint' + n + '{--hp-tbg:' + c[0] + ';--hp-tbd:' + c[1] + ';--hp-tov:' + c[2] + '}';
-    });
-    t += '' +
-      /* A 微變色 */
-      '.hp-tint{transition:background-color 150ms ease-out,border-color 150ms ease-out,box-shadow 150ms ease-out}' +
-      '@media (hover:hover) and (pointer:fine){.hp-tint:hover{background-color:var(--hp-tbg)!important;border-color:var(--hp-tbd)!important}}' +
-      '@media (hover:none),(pointer:coarse){' +
-            'a.card.hp-tint:hover{transform:none!important;box-shadow:none!important;border-color:var(--line,#e2e8f0)!important}' +
-      'a.card.hp-tint:hover::before{opacity:0!important}' +
-      '.hp-tint:active{background-color:var(--hp-tbg)!important;border-color:var(--hp-tbd)!important;transition:none}' +
-      '}' +
-      '.hp-darkzone .hp-tint:hover,.hp-darkzone .hp-tint:active{background-image:linear-gradient(var(--hp-tov),var(--hp-tov))!important;background-color:transparent!important}' +
-      /* B 期間卡片 */
+    var t = '' +
       '.hp-pv{display:flex;background:#f1f5f9;border-radius:8px;padding:2px}.hp-pv button{border:0;background:none;font-size:12px;padding:5px 10px;border-radius:6px;color:#64748b;cursor:pointer}.hp-pv button.on{background:#fff;color:#0369a1;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}' +
       '.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;padding:12px}' +
       '@media (max-width:520px){.hp-grid{grid-template-columns:1fr 1fr;gap:8px;padding:10px}}' +
@@ -70,13 +42,6 @@
       '.hp-pills button{flex:none;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;color:#334155;cursor:pointer}.hp-pills button.on{background:#4f46e5;border-color:#4f46e5;color:#fff}' +
       '.hp-note{font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 10px;margin-top:8px}';
     var s = doc.createElement('style'); s.id = 'hp-pc-css'; s.textContent = t; (doc.head || doc.documentElement).appendChild(s);
-  }
-
-  /* A：幫卡片加上微變色 class（之後畫出來的卡片也會補上） */
-  function tintScan(root) {
-    try {
-      Array.prototype.forEach.call((root || doc).querySelectorAll(TINT_SEL), function (el) { if (!el.classList.contains('hp-tint')) el.classList.add('hp-tint'); });
-    } catch (_) {}
   }
 
   /* ───────── B：期間報表卡片 ───────── */
@@ -135,7 +100,7 @@
       var html = S.map(function (s, i) {
         var prev = S[i - 1], same = prev && prev.adv === s.adv;
         var chip = s.hasPay ? '<span class="hp-chip hp-ok">' + tt('正式', 'Final') + '</span>' : s.hasAdv ? '<span class="hp-chip hp-adv">' + tt('只有預付', 'Advance only') + '</span>' : '<span class="hp-chip hp-none">—</span>';
-        return '<button type="button" class="hp-pc' + (s.k === act ? ' act' : '') + '" data-k="' + s.k + '">' +
+        return '<button type="button" data-fx="card" class="hp-pc' + (s.k === act ? ' act' : '') + '" data-k="' + s.k + '">' +
           '<div class="hp-h"><span class="hp-lb">' + esc(lab(s.k)) + '</span>' + chip + '</div>' +
           '<div class="hp-big">' + money(s.val) + '</div>' +
           '<div class="hp-sub">👥 ' + s.head + ' · ' + tt('人均', 'Avg') + ' ' + short(s.pc) + '</div>' +
@@ -150,14 +115,13 @@
         for (var m = 1; m <= 12; m++) { var s0 = v.m[m]; if (s0 && s0.val > mm) mm = s0.val; }
         var bars = ''; for (var m2 = 1; m2 <= 12; m2++) { var s1 = v.m[m2]; bars += s1 ? '<i class="' + (s1.adv ? 'a' : '') + '" style="height:' + Math.max(8, Math.round(s1.val / mm * 100)) + '%"></i>' : '<i class="z" style="height:8%"></i>'; }
         var yoy = pv2 && pv2.n ? (avgM - pv2.total / pv2.n) / (pv2.total / pv2.n) * 100 : null;
-        return '<button type="button" class="hp-yc" data-y="' + y + '"><div class="hp-h"><span class="hp-lb">' + y + '</span><span class="hp-chip hp-none">' + v.n + ' ' + tt('個月', 'mo') + '</span></div>' +
+        return '<button type="button" data-fx="card" class="hp-yc" data-y="' + y + '"><div class="hp-h"><span class="hp-lb">' + y + '</span><span class="hp-chip hp-none">' + v.n + ' ' + tt('個月', 'mo') + '</span></div>' +
           '<div class="hp-big">' + short(v.total) + '</div><div class="hp-sub">' + tt('月平均', 'Mo avg') + ' ' + short(avgM) + ' · 👥 ' + Math.round(v.head / (v.n || 1)) + '</div>' +
           '<div class="hp-mini">' + bars + '</div>' +
           (yoy == null ? '<div class="hp-chg" style="color:#94a3b8">— ' + tt('無去年可比', 'no prior year') + '</div>' : '<div class="hp-chg" style="color:' + (Math.abs(yoy) <= 5 ? '#16a34a' : Math.abs(yoy) <= 15 ? '#ca8a04' : '#dc2626') + '">' + (yoy >= 0 ? '▲ +' : '▼ ') + yoy.toFixed(1) + '% ' + tt('月平均 vs 去年', 'mo avg vs prior yr') + '</div>') +
           '</button>';
       }).join('') + '</div>';
     }
-    tintScan(u.box);
   }
   function years(S) { var Y = {}; S.forEach(function (s) { var y = s.k.slice(0, 4), m = +s.k.slice(5, 7); var v = Y[y] || (Y[y] = { n: 0, total: 0, head: 0, m: {} }); v.n++; v.total += s.val; v.head += s.head; v.m[m] = s; }); return Y; }
 
@@ -250,10 +214,7 @@
   }
 
   function init() {
-    css(); tintScan();
-    /* iOS 需要有 touch 監聽，:active 才會在手指按下時生效 */
-    doc.addEventListener('touchstart', function () {}, { passive: true });
-    var pend = false; try { new MutationObserver(function () { if (pend) return; pend = true; g.requestAnimationFrame(function () { pend = false; tintScan(); }); }).observe(doc.body, { childList: true, subtree: true }); } catch (_) {}
+    css();
     if (!hook()) { var n = 0, t = setInterval(function () { if (hook() || ++n > 20) clearInterval(t); }, 500); }
   }
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
