@@ -2,3 +2,21 @@
 .report-summary { white-space:pre-line; line-height:1.65; padding:12px; background:#f3f7fc; border-left:4px solid #38bdf8; }
 #send-preview {white-space:pre-line;line-height:1.6;overflow-wrap:anywhere;}
 .language-buttons,.period-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.language-buttons button{white-space:nowrap}.period-controls{max-width:100%}.period-controls label{flex-direction:row;align-items:center}.period-controls #view{font-weight:600;color:var(--teal)}.period-controls #period{min-width:145px}.sync-status{padding:7px 12px;border-radius:9px;margin:0 0 12px;background:#edf5fa;font-size:13px;overflow-wrap:anywhere}.sync-status.synced{color:#12663c;background:#def5e8}.sync-status.pending,.sync-status.offline,.sync-status.error{color:#8c4a06;background:#fff2dd}.sync-status.syncing{color:#075985;background:#e0f2fe}@media(max-width:600px){.filters{gap:10px;padding:10px}.period-controls{gap:5px}.period-controls button,.period-controls input,.period-controls select{padding:7px}.period-controls #period{min-width:125px}.period-controls label{font-size:0}.period-controls label select{font-size:14px}.language-buttons button{padding:7px 10px}.filters>.spacer{display:none}}
+
+/* v3.9.35（2026-11-22 Paul：Seniority／NSSF 上方太佔空間）— 頁首、工具列、期間列縮小；按鈕功能不變 */
+header{padding:12px max(16px,calc((100vw - 1400px)/2))}
+@media(max-width:760px){
+main{padding:10px}
+header{padding:8px 12px;gap:8px}
+.brand{gap:8px}.logo{padding:6px;font-size:18px;border-radius:10px}
+.brand h1{font-size:17px;line-height:1.25}.brand small{font-size:11px}
+header .row{gap:6px}
+header a.button,header button,header .language-buttons button{padding:4px 9px;font-size:12.5px;border-radius:8px}
+.toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:8px}
+.toolbar button{padding:6px 4px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:8px}
+.filters{padding:8px;gap:6px;margin-bottom:10px;border-radius:12px}
+.filters button,.filters select,.filters input{padding:5px 8px;font-size:13px}
+.period-controls{gap:5px}
+.sync-status,.status{font-size:12px;padding:3px 8px;min-height:0}
+.cards{gap:8px;margin:10px 0}
+}
