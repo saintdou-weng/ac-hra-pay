@@ -1026,6 +1026,22 @@ function timeSeries(){
   return Object.values(g).sort((a,b)=>a.first<b.first?1:-1);   // 新 → 舊
 }
 
+/* 2026-11-23 Paul：伙食費的時間明細要跟車縫的月／年列表一樣——
+   選「每年」＝把過去每一年都列出來；選「每月」＝從最新的月份一路往下列每個月；「本期」＝每個半月期都列。
+   上方選的期間只決定「哪一列是目前這一期」跟上面 5 張卡；點任何一列就切到那一期。每日／每週照原本（只看選定期間內）。
+   做法：每一期都用原本那套算法（mealScopeRows → timeSeries）各算一次再排在一起，所以每一列的數字跟單獨選那一期看到的一樣。 */
+function timeSeriesAll(){
+  if(!['half','month','year'].includes(UNIT)||!ACTIVE)return timeSeries();
+  const keepA=ACTIVE,keepM=MEAL_ANCHOR,last={},out=[];
+  const gOf=k=>UNIT==='year'?k.slice(0,4):UNIT==='month'?k.split(':')[0]:k;
+  sortedKeys().forEach(k=>{last[gOf(k)]=k;});
+  try{
+    Object.keys(last).forEach(g=>{ACTIVE=STORE[last[g]];MEAL_ANCHOR='';
+      timeSeries().forEach(t=>{if(!out.some(o=>o.key===t.key)){t.jump=last[g];out.push(t);}});});
+  }finally{ACTIVE=keepA;MEAL_ANCHOR=keepM;}
+  return out.sort((a,b)=>a.first<b.first?1:-1);   // 新 → 舊
+}
+function mealJumpRow(k){if(STORE[k]&&(!ACTIVE||ACTIVE.key!==k))jumpPeriod(k);}
 function renderDaily(){
   const {rows,src}=filtered();
   const rate=rateOf(activeRows().rows)||4000;
@@ -1044,10 +1060,11 @@ function renderDaily(){
   else badge.textContent='';
 
   qs('#daily-note').textContent = (ACTIVE&&ACTIVE.att)
-    ? T(`已載入考勤表，每日用餐人數與加班餐為實際打卡結果。目前以「${uZh}」為單位彙總目前選定期間。`,
-        `Attendance loaded — daily served counts are actual. Aggregated by ${uZh} within the selected period.`)
-    : T(`尚未載入考勤表，每日數字由餐費表日欄推算。目前以「${uZh}」為單位彙總目前選定期間。`,
-        `No attendance file — figures derived from meal-fee sheet. Aggregated by ${uZh} within the selected period.`);
+    ? T(`已載入考勤表，每日用餐人數與加班餐為實際打卡結果。`,`Attendance loaded — daily served counts are actual.`)
+    : T(`尚未載入考勤表，每日數字由餐費表日欄推算。`,`No attendance file — figures derived from meal-fee sheet.`);
+  qs('#daily-note').textContent += ['half','month','year'].includes(UNIT)
+    ? T(` 下表列出全部${UNIT==='year'?'年度':UNIT==='month'?'月份':'期間'}（新→舊），◀ 是目前這一期；點一列就切到那一期。`,` The table lists every ${UNIT==='year'?'year':UNIT==='month'?'month':'period'} (newest first); ◀ marks the current one — tap a row to switch.`)
+    : T(` 目前以「${uZh}」為單位彙總目前選定期間。`,` Aggregated by ${uZh} within the selected period.`);
 
   // ── KPI 卡片：本單位最新一組 ──
   const cur=series[0];
@@ -1071,10 +1088,11 @@ function renderDaily(){
   qs('#daily-thead').innerHTML=H.map((h,i)=>
     `<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
 
-  qs('#daily-tbody').innerHTML=series.map((t,i)=>{
-    const staff=t.ids.size||1, normal=t.riel-t.ot, usd=t.usd;
-    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-orange-50/40':''}">
-      <td class="px-3 py-2 font-semibold ${i===0?'text-orange-700':'text-slate-700'}">${t.label}</td>
+  const listAll=['half','month','year'].includes(UNIT), list=listAll?timeSeriesAll():series, curKey=cur?cur.key:'';
+  qs('#daily-tbody').innerHTML=list.map((t,i)=>{
+    const staff=t.ids.size||1, normal=t.riel-t.ot, usd=t.usd, on=listAll?t.key===curKey:i===0;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${on?'bg-orange-50/40':''}"${listAll&&t.jump?` style="cursor:pointer" onclick="mealJumpRow('${t.jump}')"`:''}>
+      <td class="px-3 py-2 font-semibold whitespace-nowrap ${on?'text-orange-700':'text-slate-700'}">${listAll&&on?'◀ ':''}${t.label}</td>
       <td class="px-3 py-2 text-right jmono">${t.days}</td>
       <td class="px-3 py-2 text-right jmono">${int(t.ids.size)}</td>
       <td class="px-3 py-2 text-right jmono">${int(t.served)}</td>
@@ -1086,11 +1104,11 @@ function renderDaily(){
       <td class="px-3 py-2 text-right jmono">$${fmt(usd/staff)}</td></tr>`;
   }).join('')||`<tr><td colspan="10" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
 
-  const TT=series.reduce((a,t)=>({days:a.days+t.days,served:a.served+t.served,ot:a.ot+t.ot,
+  const TT=list.reduce((a,t)=>({days:a.days+t.days,served:a.served+t.served,ot:a.ot+t.ot,
     otServed:a.otServed+t.otServed,riel:a.riel+t.riel,usd:a.usd+t.usd}),{days:0,served:0,ot:0,otServed:0,riel:0,usd:0});
-  const allIds=new Set(); series.forEach(t=>t.ids.forEach(x=>allIds.add(x)));
+  const allIds=new Set(); list.forEach(t=>t.ids.forEach(x=>allIds.add(x)));
   qs('#daily-tfoot').innerHTML=`
-    <td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2">${listAll?T(`合計（${list.length} ${UNIT==='year'?'年':UNIT==='month'?'個月':'期'}）`,`TOTAL (${list.length})`):T('合計','TOTAL')}</td>
     <td class="px-3 py-2 text-right jmono">${TT.days}</td>
     <td class="px-3 py-2 text-right jmono">${int(allIds.size)}</td>
     <td class="px-3 py-2 text-right jmono">${int(TT.served)}</td>
@@ -1719,6 +1737,6 @@ window.addEventListener('load',function(){
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="../ac-hra-portal/shared/ui-fx.js?v=5" defer></script>
-<script src="../ac-hra-portal/shared/row-keynote.js?v=19" defer></script>
+<script src="../ac-hra-portal/shared/row-keynote.js?v=20" defer></script>
 </body>
 </html>

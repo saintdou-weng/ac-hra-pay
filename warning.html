@@ -723,8 +723,9 @@ function renderDash(){
 
 const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
 const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
-function timeSeries(){
-  const rs=spanRecs(),g={};
+/* 2026-11-23 Paul：月／季／年的列表跟車縫一樣——把每一期都列出來（新→舊），◀ 是目前選的那一期，點一列切到那一期；日／週照原本只看選定期間。 */
+function timeSeries(all){
+  const rs=all?filtered():spanRecs(),g={};
   rs.forEach(r=>{
     const d=toDate(r.incidentDate);if(!d)return;
     const y=d.getFullYear(),m=d.getMonth()+1;
@@ -742,7 +743,7 @@ function timeSeries(){
   return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
 }
 function renderTime(){
-  const series=timeSeries();
+  const curS=timeSeries(), listAll=['month','quarter','year'].includes(UNIT), series=listAll?timeSeries(true):curS, curKey=curS[0]?curS[0].key:'';
   qs('#time-title').textContent=T(`📅 ${UNIT_ZH[UNIT]}明細`,`📅 ${UNIT_EN[UNIT]} Detail`);
   qs('#time-note').textContent=T('每一列為一個區間，欄為各警告等級的件數。點列可切換至該期間。',
     'Each row is a period; columns are counts per warning level.');
@@ -751,9 +752,9 @@ function renderTime(){
     T('涉及人數','Staff'),T('待處理','Open'),T('目前有效','Active')]
     .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
   qs('#time-tbody').innerHTML=series.map((s,i)=>{
-    const mk=HRPayPeriods.options(spanRecs().map(r=>r.incidentDate),UNIT).find(o=>o.key===s.key)?.value||null;
-    return `<tr ${mk?`onclick="jumpPeriod('${mk}')"`:''} class="border-b border-slate-50 ${mk?'cursor-pointer':''} ${i===0?'bg-amber-50/40':'hover:bg-slate-50'}">
-      <td class="px-3 py-2 font-semibold ${i===0?'text-amber-700':'text-slate-700'}">${s.label}</td>
+    const opt=HRPayPeriods.options((listAll?filtered():spanRecs()).map(r=>r.incidentDate),UNIT).find(o=>o.key===s.key), mk=opt?(listAll?opt.value.slice(0,7):opt.value):null, on=listAll?s.key===curKey:i===0;
+    return `<tr ${mk?`onclick="if(ACTIVE!=='${mk}')jumpPeriod('${mk}')"`:''} class="border-b border-slate-50 ${mk?'cursor-pointer':''} ${on?'bg-amber-50/40':'hover:bg-slate-50'}">
+      <td class="px-3 py-2 font-semibold whitespace-nowrap ${on?'text-amber-700':'text-slate-700'}">${listAll&&on?'◀ ':''}${s.label}</td>
       <td class="px-3 py-2 text-right jmono font-semibold">${s.n}</td>
       ${lvs.map(l=>`<td class="px-3 py-2 text-right jmono ${s.byLv[l.k]?'':'text-slate-200'}">${s.byLv[l.k]||'—'}</td>`).join('')}
       <td class="px-3 py-2 text-right jmono">${s.emps.size}</td>
@@ -1379,6 +1380,6 @@ window.addEventListener('load',function(){
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="../ac-hra-portal/shared/ui-fx.js?v=5" defer></script>
-<script src="../ac-hra-portal/shared/row-keynote.js?v=19" defer></script>
+<script src="../ac-hra-portal/shared/row-keynote.js?v=20" defer></script>
 </body>
 </html>

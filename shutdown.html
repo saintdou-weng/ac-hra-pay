@@ -784,8 +784,12 @@ function renderPattern(){
   </div>`;
 }
 
+/* 2026-11-23 Paul：月／季／年的列表跟車縫一樣——把每一期都列出來（新→舊），◀ 是目前選的那一期，點一列切到那一期；日／週照原本只看選定期間。 */
 function renderReport(){
-  const evs=spanEvents(), g={};
+  /* 每一期各自用原本的算法切好（跨月的停工照天數分到各月），再排在一起 */
+  const listAll=!(UNIT==='day'||UNIT==='week');
+  const evs=listAll?HRPayPeriods.options(filtered().flatMap(e=>Array.from({length:Math.ceil(+e.days||0)},(_,i)=>HRPayPeriods.add(e.start,i))),REPORT_MODE).flatMap(o=>filtered().map(e=>HRPayPeriods.clipEvent(e,o.value,REPORT_MODE)).filter(Boolean)):spanEvents(), g={};
+  const curKey=listAll&&ACTIVE?HRPayPeriods.key(ACTIVE,REPORT_MODE):'';
   evs.forEach(e=>{
     const y=+e.start.slice(0,4), m=+e.start.slice(5,7), q=Math.floor((m-1)/3)+1;
     let gk,label;
@@ -793,7 +797,7 @@ function renderReport(){
     else if(REPORT_MODE==='year'){gk=String(y);label=String(y);}
     else if(REPORT_MODE==='quarter'){gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
     else{gk=`${y}-${pad(m)}`;label=`${MS[m-1]} ${y}`;}
-    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,full:0,maxPPL:0});
+    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,full:0,maxPPL:0,jump:listAll?HRPayPeriods.bounds(e.start,REPORT_MODE).start.slice(0,7):''});
     t.cnt++;t.days+=e.days;t.pd+=e.personDays;t.ppl+=e.shutPPL;
     if(e.lineRatio>=0.999)t.full++;
     if(e.shutPPL>t.maxPPL)t.maxPPL=e.shutPPL;
@@ -804,10 +808,10 @@ function renderReport(){
     T('全廠停工','Full'),T('停工人日','Person-days'),T('平均人數','Avg staff'),T('最大影響人數','Peak staff')]
     .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
   qs('#rp-tbody').innerHTML=list.map(t=>{
-    const isAct=(REPORT_MODE==='month'&&t.key===ACTIVE);
-    return `<tr onclick="${REPORT_MODE==='month'?`jumpPeriod('${t.key}')`:''}"
-      class="border-b border-slate-50 ${REPORT_MODE==='month'?'cursor-pointer':''} ${isAct?'bg-rose-50/60':'hover:bg-slate-50'}">
-      <td class="px-3 py-2 font-semibold ${isAct?'text-rose-700':'text-slate-700'}">${t.label}${isAct?' ◀':''}</td>
+    const isAct=listAll?t.key===curKey:(REPORT_MODE==='month'&&t.key===ACTIVE), jp=listAll?t.jump:(REPORT_MODE==='month'?t.key:'');
+    return `<tr onclick="${jp?`if(ACTIVE!=='${jp}')jumpPeriod('${jp}')`:''}"
+      class="border-b border-slate-50 ${jp?'cursor-pointer':''} ${isAct?'bg-rose-50/60':'hover:bg-slate-50'}">
+      <td class="px-3 py-2 font-semibold whitespace-nowrap ${isAct?'text-rose-700':'text-slate-700'}">${isAct?'◀ ':''}${t.label}</td>
       <td class="px-3 py-2 text-right jmono">${t.cnt}</td>
       <td class="px-3 py-2 text-right jmono">${fmt(t.days)}</td>
       <td class="px-3 py-2 text-right jmono ${t.full?'text-rose-600':'text-slate-300'}">${t.full||'—'}</td>
@@ -1063,6 +1067,6 @@ window.addEventListener('load',function(){
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="../ac-hra-portal/shared/ui-fx.js?v=5" defer></script>
-<script src="../ac-hra-portal/shared/row-keynote.js?v=19" defer></script>
+<script src="../ac-hra-portal/shared/row-keynote.js?v=20" defer></script>
 </body>
 </html>

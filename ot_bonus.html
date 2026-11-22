@@ -965,8 +965,9 @@ function renderDash(){
 }
 
 // ── 依時間單位彙總 ──
-function timeSeries(){
-  const recs=unitSpanRecs(), g={};
+/* 2026-11-23 Paul：月／季／年的列表跟車縫一樣——把每一期都列出來（新→舊），◀ 是目前選的那一期，點一列切到那一期；日／週照原本只看選定期間。 */
+function timeSeries(all){
+  const recs=all?typedRecs():unitSpanRecs(), g={};
   recs.forEach(r=>{
     let gk,label;
     const q=Math.floor((r.month-1)/3)+1;
@@ -982,7 +983,7 @@ function timeSeries(){
 
 // ── 時間明細 ──
 function renderTime(){
-  const series=timeSeries();
+  const curS=timeSeries(), listAll=['month','quarter','year'].includes(UNIT), series=listAll?timeSeries(true):curS, curKey=curS[0]?curS[0].key:'';
   const F=UNIT_F[UNIT], perCap=(MODE==='cap');
   const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
   const tZh=typeLabel(TYPE);
@@ -995,7 +996,7 @@ function renderTime(){
   qs('#time-note').textContent = (UNIT==='day'||UNIT==='week')
     ? T(`原始資料為「月」粒度，${uZh}數字由當月金額換算（${WORK_DAYS} 工作天/月、${WEEKS} 週/月）。`,
         `Source data is monthly; ${uZh} figures are derived (${WORK_DAYS} work-days, ${WEEKS} weeks per month).`)
-    : T(`僅顯示 ${unitSpanLabel()}，以「${uZh}」彙總。`,`Selected period ${unitSpanLabel()}, grouped by ${uZh}.`);
+    : T(`列出全部期間（新→舊），以「${uZh}」彙總；◀ 是目前這一期（${unitSpanLabel()}），點一列就切到那一期。`,`Every period listed (newest first), grouped by ${uZh}; ◀ marks the current one (${unitSpanLabel()}) — tap a row to switch.`);
 
   const H=[T('區間','Period'),T('月數','Months'),T('部門數','Depts'),T('人次','Headcount'),
            T('加班時數','OT Hours'),`${uZh} USD`,T('人均 USD','Per capita'),T('每小時 $','$/hour')];
@@ -1004,8 +1005,9 @@ function renderTime(){
 
   qs('#time-tbody').innerHTML=series.map((s,i)=>{
     const base=perCap?s.expense/(s.ppl||1):s.expense;
-    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-teal-50/40':''}">
-      <td class="px-3 py-2 font-semibold ${i===0?'text-teal-700':'text-slate-700'}">${s.label}</td>
+    const on=listAll?s.key===curKey:i===0, jp=listAll?[...s.months].sort().pop():'';
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${on?'bg-teal-50/40':''}"${jp?` style="cursor:pointer" onclick="if(ACTIVE!=='${jp}')jumpPeriod('${jp}')"`:''}>
+      <td class="px-3 py-2 font-semibold whitespace-nowrap ${on?'text-teal-700':'text-slate-700'}">${listAll&&on?'◀ ':''}${s.label}</td>
       <td class="px-3 py-2 text-right jmono">${s.months.size}</td>
       <td class="px-3 py-2 text-right jmono">${s.depts.size}</td>
       <td class="px-3 py-2 text-right jmono">${int(s.ppl)}</td>
@@ -1520,6 +1522,6 @@ window.addEventListener('load',function(){
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="../ac-hra-portal/shared/ui-fx.js?v=5" defer></script>
-<script src="../ac-hra-portal/shared/row-keynote.js?v=19" defer></script>
+<script src="../ac-hra-portal/shared/row-keynote.js?v=20" defer></script>
 </body>
 </html>
