@@ -168,7 +168,7 @@
     if (ax === 'y' && f && f.snap && old) { try { sn = f.snap(old); } catch (e) {} }
     step0(d);
     var nw = doc.querySelector('#hp-mask .hp-sh');
-    if ((cur + '|' + curY) !== before && nw && f) { try { f(nw, d, 0, ax, sn); } catch (e) {} } else if (sn && sn.parentNode) sn.parentNode.removeChild(sn);
+    if ((cur + '|' + curY) !== before && nw && f) { try { f(nw, ax === 'y' ? -d : d, 0, ax, sn); } catch (e) {} } else if (sn && sn.parentNode) sn.parentNode.removeChild(sn);
   }
   function step0(d) {
     if (curY) { var ys = Object.keys(years(listS())).sort(), i = ys.indexOf(curY) + d; if (i >= 0 && i < ys.length) openYear(ys[i]); return; }
@@ -195,9 +195,9 @@
       /* 連續往下：內容已經捲到底再往下（滾輪或手指往上推）＝下一期；在最上面再往上＝上一期 */
       var wl = 0, atEnd = false, atTop = false;
       function edge() { var b = m.querySelector('.hp-body'); if (!b) return [true, true]; return [b.scrollTop <= 1, b.scrollTop + b.clientHeight >= b.scrollHeight - 2]; }
-      m.addEventListener('wheel', function (e) { if (e.target.closest && e.target.closest('.hp-pills,.hp-tr')) return; var now = Date.now(); if (now - wl < 520) return; var ed = edge(); if (e.deltaY > 30 && ed[1]) { wl = now; step(1, 'y'); } else if (e.deltaY < -30 && ed[0]) { wl = now; step(-1, 'y'); } }, { passive: true });
+      m.addEventListener('wheel', function (e) { if (e.target.closest && e.target.closest('.hp-pills,.hp-tr')) return; var now = Date.now(); if (now - wl < 520) return; var ed = edge(); if (e.deltaY > 30 && ed[1]) { wl = now; step(-1, 'y'); } else if (e.deltaY < -30 && ed[0]) { wl = now; step(1, 'y'); }   /* 下方那排是新→舊，所以「往下」＝往舊的一期（step -1） */ }, { passive: true });
       m.addEventListener('touchstart', function () { var ed = edge(); atTop = ed[0]; atEnd = ed[1]; }, { passive: true });
-      m.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (!t || m.__sy == null) return; var dy = t.clientY - m.__sy, dx = t.clientX - m.__sx; if (Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && !(e.target.closest && e.target.closest('.hp-pills,.hp-tabs,input'))) { if (dy < 0 && atEnd) step(1, 'y'); else if (dy > 0 && atTop) step(-1, 'y'); } }, { passive: true });
+      m.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (!t || m.__sy == null) return; var dy = t.clientY - m.__sy, dx = t.clientX - m.__sx; if (Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && !(e.target.closest && e.target.closest('.hp-pills,.hp-tabs,input'))) { if (dy < 0 && atEnd) step(-1, 'y'); else if (dy > 0 && atTop) step(1, 'y'); } }, { passive: true });
       m.addEventListener('touchstart', function (e) { m.__sx = e.touches[0].clientX; m.__sy = e.touches[0].clientY; }, { passive: true });
       doc.body.appendChild(m); doc.addEventListener('keydown', onKey);
     }
