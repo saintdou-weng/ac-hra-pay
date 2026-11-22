@@ -49,6 +49,8 @@
       '.hp-link{display:block;margin:14px auto 2px;border:0;background:none;color:#0369a1;font-size:12.5px;text-decoration:underline;cursor:pointer}' +
       '.hp-pills{display:flex;gap:8px;overflow-x:auto;padding:10px 12px;background:#fff;border-top:1px solid #e2e8f0;scrollbar-width:none}.hp-pills::-webkit-scrollbar{display:none}' +
       '.hp-pills button{flex:none;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;color:#334155;cursor:pointer}.hp-pills button.on{background:#4f46e5;border-color:#4f46e5;color:#fff}' +
+      /* 手機上儀表板的大數字（$70,696.86 這類）不再被切掉 */
+      '@media (max-width:520px){.jmono.text-3xl,.jmono.text-2xl,.font-mono.text-3xl,.font-mono.text-2xl{font-size:clamp(17px,5.6vw,24px)!important;white-space:nowrap}}' +
       '.hp-note{font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 10px;margin-top:8px}';
     var s = doc.createElement('style'); s.id = 'hp-pc-css'; s.textContent = t; (doc.head || doc.documentElement).appendChild(s);
   }
