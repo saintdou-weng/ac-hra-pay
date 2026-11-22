@@ -160,7 +160,17 @@
   var cur = null, curY = null, TAB = 'sum', DEPT = '', Q = '';
   function close() { var m = doc.getElementById('hp-mask'); if (m) m.remove(); doc.removeEventListener('keydown', onKey); }
   function onKey(e) { if (/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) return; if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1); }
-  function step(d) {
+  /* 2026-11-23 Paul：換月份／年份要接得順，不要整張重新彈出來閃一下。
+     左右（‹ ›、左右滑、← →）＝推入；上下（捲到底再往下、滾輪、手指往上推）＝舊的往上推走、新的從下面接上，像 PDF 連續頁。動畫用共用的 vrtFx（music.js），沒載就單純換。 */
+  function kfn() { var f = g.vrtFx; if (!f) { try { f = g.top.vrtFx; } catch (e) {} } return f; }
+  function step(d, ax) {
+    var f = kfn(), m = doc.getElementById('hp-mask'), old = m && m.querySelector('.hp-sh'), before = cur + '|' + curY, sn = null;
+    if (ax === 'y' && f && f.snap && old) { try { sn = f.snap(old); } catch (e) {} }
+    step0(d);
+    var nw = doc.querySelector('#hp-mask .hp-sh');
+    if ((cur + '|' + curY) !== before && nw && f) { try { f(nw, d, 0, ax, sn); } catch (e) {} } else if (sn && sn.parentNode) sn.parentNode.removeChild(sn);
+  }
+  function step0(d) {
     if (curY) { var ys = Object.keys(years(listS())).sort(), i = ys.indexOf(curY) + d; if (i >= 0 && i < ys.length) openYear(ys[i]); return; }
     var ks = listS().map(function (s) { return s.k; }), j = ks.indexOf(cur) + d; if (j >= 0 && j < ks.length) openMonth(ks[j]);
   }
@@ -182,11 +192,20 @@
       m.addEventListener('input', function (e) { if (e.target.id === 'hp-q') { Q = e.target.value; var list = m.querySelector('#hp-plist'); if (list) list.innerHTML = peopleHtml(cur); } });
       var sx = null, sy = null; m.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
       m.addEventListener('touchend', function (e) { if (sx == null) return; var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5 && !e.target.closest('.hp-pills,.hp-tabs,.hp-tr,input')) step(dx < 0 ? 1 : -1); sx = null; }, { passive: true });
+      /* 連續往下：內容已經捲到底再往下（滾輪或手指往上推）＝下一期；在最上面再往上＝上一期 */
+      var wl = 0, atEnd = false, atTop = false;
+      function edge() { var b = m.querySelector('.hp-body'); if (!b) return [true, true]; return [b.scrollTop <= 1, b.scrollTop + b.clientHeight >= b.scrollHeight - 2]; }
+      m.addEventListener('wheel', function (e) { if (e.target.closest && e.target.closest('.hp-pills,.hp-tr')) return; var now = Date.now(); if (now - wl < 520) return; var ed = edge(); if (e.deltaY > 30 && ed[1]) { wl = now; step(1, 'y'); } else if (e.deltaY < -30 && ed[0]) { wl = now; step(-1, 'y'); } }, { passive: true });
+      m.addEventListener('touchstart', function () { var ed = edge(); atTop = ed[0]; atEnd = ed[1]; }, { passive: true });
+      m.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (!t || m.__sy == null) return; var dy = t.clientY - m.__sy, dx = t.clientX - m.__sx; if (Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && !(e.target.closest && e.target.closest('.hp-pills,.hp-tabs,input'))) { if (dy < 0 && atEnd) step(1, 'y'); else if (dy > 0 && atTop) step(-1, 'y'); } }, { passive: true });
+      m.addEventListener('touchstart', function (e) { m.__sx = e.touches[0].clientX; m.__sy = e.touches[0].clientY; }, { passive: true });
       doc.body.appendChild(m); doc.addEventListener('keydown', onKey);
     }
     m.innerHTML = '<div class="hp-sh" role="dialog"><div class="hp-top"><div style="flex:1;min-width:0"><b>' + esc(title) + '</b><small>' + sub + '</small></div>' +
       '<button type="button" data-act="p" aria-label="prev">‹</button><button type="button" data-act="n" aria-label="next">›</button><button type="button" data-act="x" aria-label="close">✕</button></div>' +
       (tabs ? '<div class="hp-tabs">' + tabs + '</div>' : '') + '<div class="hp-body">' + body + '</div><div class="hp-pills">' + pills + '</div></div>';
+    /* 只有第一次打開才從下面彈上來；之後換分頁／換期間不重播（不然每點一次就閃一次） */
+    if (m.__opened) { var shx = m.querySelector('.hp-sh'); if (shx) shx.style.animation = 'none'; } m.__opened = 1;
     var on = m.querySelector('.hp-pills .on'); if (on) { var ps = on.parentElement; ps.scrollLeft = on.offsetLeft - ps.clientWidth / 2 + on.offsetWidth / 2; }
   }
   function kc(label, val, color, extra) { return '<div class="hp-kc" style="--c:' + color + '"><span>' + label + '</span><b>' + val + '</b>' + (extra ? '<span>' + extra + '</span>' : '') + '</div>'; }
