@@ -26,6 +26,10 @@
     ' table th:first-child:not(:has(input)){min-width:3.2em}' +
     ' table td.jmono:first-child,table td.acpl-k,table td.mono:first-child{white-space:nowrap!important}' +
     ' .tf-flexwrap{flex-wrap:wrap!important;row-gap:6px}' +
+    /* 2026-11-23：分頁／功能按鈕列一律「一列、左右滑」，不准擠成好幾列（Paul：標準一致） */
+    ' .tf-row1{flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
+    ' .tf-row1::-webkit-scrollbar{display:none}' +
+    ' .tf-row1>*{flex:0 0 auto!important;white-space:nowrap}' +
     ' .tf-shrink{min-width:0!important;max-width:100%!important}' +
     ' input,select,textarea,button{max-width:100%!important;box-sizing:border-box!important}' +
     ' img,video,canvas,svg{max-width:100%}' +
@@ -63,7 +67,7 @@
     var vw = doc.documentElement.clientWidth; var els = doc.querySelectorAll('header,nav,header *,nav *,body>div,body>div>div,body>div>div>div,.topbar,.toolbar');
     for (var j = 0; j < els.length && j < 400; j++) {
       var el = els[j]; var r = el.getBoundingClientRect(); if (r.top > 260 || r.height === 0 || r.height > 160) continue;
-      var d = g.getComputedStyle(el).display; if (!/flex/.test(d)) continue;
+      var cse = g.getComputedStyle(el), d = cse.display; if (!/flex/.test(d)) continue; if (isRow1(el) || /(auto|scroll)/.test(cse.overflowX)) { el.classList.add('tf-row1'); continue; }
       if (el.scrollWidth > el.clientWidth + 2 || r.right > vw + 2) { el.classList.add('tf-flexwrap'); Array.prototype.forEach.call(el.children, function (ch) { ch.classList.add('tf-shrink'); }); }
     }
     // 其他超出畫面寬度的東西（固定寬度的輸入框、區塊）縮到畫面內；表格已經包在可左右滑的框裡，不動
@@ -72,10 +76,11 @@
       var x = all[k]; if (x.closest && (x.closest('.tf-wrap') || x.closest('table') || x.closest('#tf-bar'))) continue;
       var rr = x.getBoundingClientRect(); if (!rr.width || rr.right <= vw + 1 || rr.left < -1) continue;
       var dd = g.getComputedStyle(x); if (/(auto|scroll)/.test(dd.overflowX)) continue;
-      if (/flex/.test(dd.display)) x.classList.add('tf-flexwrap');
+      if (x.closest && x.closest('.tf-row1')) continue; if (isRow1(x)) { x.classList.add('tf-row1'); continue; } if (/flex/.test(dd.display)) x.classList.add('tf-flexwrap');
       x.classList.add('tf-fit');
     }
   }
+  function isRow1(el){ if(!el||!el.classList) return false; if(el.matches && el.matches('.tabs,.tab-bar,.tabbar,.nav-tabs,.ptabs,.subtabs,[role=tablist]')) return true; var ch=el.children, n=0, t=0; for(var i=0;i<ch.length;i++){ if(ch[i].offsetParent===null) continue; t++; if(/(^|\s|-)(tab|tb|nav-btn|tabbtn)(\s|$|-)/i.test(ch[i].className||'')||/tab/i.test(ch[i].getAttribute('role')||'')) n++; } return t>=3 && n>=t*0.7; }
   function ui() {
     if (!doc.body || doc.getElementById('tf-btn')) return;
     if (!doc.getElementById('tf-css')) (doc.head || doc.documentElement).appendChild(st);
