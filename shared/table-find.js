@@ -20,7 +20,11 @@
     '@media (max-width:760px){' +
     ' .tf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}' +
     ' table{font-size:12.5px}' +
-    ' table th:first-child,table td:first-child{max-width:40vw;white-space:normal!important;word-break:break-word;overflow-wrap:anywhere}' +
+    /* 2026-11-23：原本 overflow-wrap:anywhere 會讓第一欄被擠到一個字一行（月份變直排）。改成整個詞才換行＋最小寬度 */
+    ' table th:first-child,table td:first-child{max-width:40vw;white-space:normal!important;word-break:normal;overflow-wrap:break-word}' +
+    ' table td:first-child:not(:has(input,button,img)){min-width:5.6em}' +
+    ' table th:first-child:not(:has(input)){min-width:3.2em}' +
+    ' table td.jmono:first-child,table td.acpl-k,table td.mono:first-child{white-space:nowrap!important}' +
     ' .tf-flexwrap{flex-wrap:wrap!important;row-gap:6px}' +
     ' .tf-shrink{min-width:0!important;max-width:100%!important}' +
     ' input,select,textarea,button{max-width:100%!important;box-sizing:border-box!important}' +
