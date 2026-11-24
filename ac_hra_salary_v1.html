@@ -731,7 +731,7 @@ function cfg(y){const c=live(STATE.reviewCfg||[]).find(x=>+x.year===+y);return O
 function rv(y,id){return live(STATE.reviews||[]).find(r=>+r.year===+y&&String(r.empId)===String(id))||null}
 function refDate(y){return `${+y-1}-12-31`}
 function exclReason(e,y){const r=rv(y,e.empId);if(r&&r.excluded)return t2('手動排除','Excluded manually');const txt=[e.dept,e.section,e.position,e.note,e.nationality].join(' ');
- if(RE_EXPAT.test(txt)||(e.nationality&&!/khmer|cambod|柬/i.test(e.nationality)))return t2('外籍','Expat');if(RE_ACC.test([e.dept,e.section].join(' '))||/shipping|accountant|船務|會計/i.test(e.position||''))return t2('船務／會計部（Isay）','Shipping / Accounting (Isay)');return ''}
+ if(RE_EXPAT.test(txt)||(e.nationality&&!/khmer|cambod|柬|ខ្មែរ|^kh$/i.test(e.nationality)))return t2('外籍','Expat');if(RE_ACC.test([e.dept,e.section].join(' '))||/shipping|accountant|船務|會計/i.test(e.position||''))return t2('船務／會計部（Isay）','Shipping / Accounting (Isay)');return ''}
 /* v2：四種人 */
 const RE_PRODDEPT=/sew|line|cut|qc|qa|finish|pack|iron|press|warehouse|wh\b|store|mechanic|machine|maint|embroid|print|生產|車縫|裁剪|品管|包裝|整燙|倉|機修/i;
 function grpOf(e){const p=String(e.position||'')+' '+String(e.section||''),d=String(e.dept||'');
@@ -770,7 +770,18 @@ function cut(c){return {A:num(c.cutA)||85,B:num(c.cutB)||70}}
 function gradeOfScore(sc,c){if(!sc)return '';const k=cut(c);return sc.score>=k.A?'A':sc.score>=k.B?'B':'C'}
 function hist(id,y){const out=[];[1,2].forEach(d=>{const r=rv(+y-d,id);if(r&&(r.grade||r.raise||r.bonus))out.push(`${+y-d} ${r.grade||'—'}${r.raise?` +$${num(r.raise)}`:''}${r.bonus?` 🎁$${num(r.bonus)}`:''}`)});return out.join(' · ')}
 const MODE={none:['只評等級，不發錢','Grades only, no money'],bonus:['一次性獎金（不進每月薪資）','One-time bonus (not in monthly pay)'],raise:['考核調薪（每月加薪）','Appraisal raise (monthly)'],both:['獎金＋調薪','Bonus + raise']};
-function people(y){const d=refDate(y);return live(STATE.employees).filter(e=>{const st=empStatus(e,d);return st==='probation'||st==='regular'}).sort((a,b)=>String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}))}
+/* v2.1（2026-11-24 實測）：薪資架構這頁的員工名單是空的（雲端 employees 0）→ 考核名單改成同時讀 HRA-PAY「員工資訊」最新一期（IndexedDB ac_hra_emp，來源 PSJHR），
+   薪資架構裡有的人以這頁為準，沒有的從員工資訊補上（只讀，不寫回）。 */
+let ROSTER=[],ROSTER_SRC='';
+async function loadRoster(){try{const db=await new Promise((res,rej)=>{const r=indexedDB.open('ac_hra_emp');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(_){}}});if(![...db.objectStoreNames].includes('snapshots')){db.close();return}
+  const all=await new Promise(r=>{const q=db.transaction('snapshots','readonly').objectStore('snapshots').getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([])});db.close();
+  const snap=all.filter(x=>x&&Array.isArray(x.rows)&&x.rows.length).sort((a,b)=>String(b.key).localeCompare(String(a.key)))[0];if(!snap)return;
+  ROSTER_SRC=(snap.label||snap.key)+(snap.asOf?' · '+snap.asOf:'');
+  ROSTER=snap.rows.filter(r=>r&&r.id&&!/離職|resign|left|ឈប់|terminat/i.test(String(r.status||'')+' '+String(r.empStatus||''))).map(r=>({empId:String(r.id),name:r.nameEn||r.name||r.nameKm||'',dept:r.dept||'',section:r.section||'',position:r.position||'',joinDate:String(r.join||'').slice(0,10),nationality:r.nationality||'',note:r.workStatus||'',_roster:1}));
+  if(ACTIVE_TAB==='review'||ACTIVE_TAB==='raise')rerender()}catch(e){console.warn('[review] roster',e)}}
+loadRoster();
+function people(y){const d=refDate(y),have=new Set(live(STATE.employees).map(e=>String(e.empId)));const base=live(STATE.employees).filter(e=>{const st=empStatus(e,d);return st==='probation'||st==='regular'});
+ const extra=ROSTER.filter(e=>!have.has(e.empId)&&(!e.joinDate||e.joinDate<=d));return base.concat(extra).sort((a,b)=>String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}))}
 function scope(y){const inS=[],out=[],wk=[],c=cfg(y);people(y).forEach(e=>{const r=exclReason(e,y);if(r){out.push({e,why:r});return}const rr=rv(y,e.empId);if(grpOf(e)==='worker'&&!c.evalWorkers&&!(rr&&rr.forceIn)){wk.push({e,why:t2('一般員工：底薪照政府公告；新人看試用期轉 UDC 考核','Worker: base follows the government rate; newcomers via probation → UDC review')});return}inS.push({e,why:''})});return {inS,out,wk}}
 function baseDelta(y){const a=basicRowForYear(+y-1),b=basicRowForYear(y);return {from:a?num(a.regular):null,to:b?num(b.regular):null,d:(a&&b)?num(b.regular)-num(a.regular):0}}
 function putRv(y,id,patch){STATE.reviews=STATE.reviews||[];const k=`R|${y}|${id}`;let r=STATE.reviews.find(x=>x._k===k);if(!r){r={_k:k,year:+y,empId:String(id),grade:'',note:'',raise:null,excluded:false};STATE.reviews.push(r)}Object.assign(r,patch,{deleted:false,updatedAt:nowIso()});return r}
@@ -789,7 +800,7 @@ window.RVexcl=async(id,v)=>{if(v&&!confirm(t2('把這個人排除在今年考核
 window.renderReview=function(){const box=$('view-review');if(!box||!STATE)return;if(RV.year==null)RV.year=defYear();const y=RV.year,{inS,out,wk}=scope(y),rows=filt(inS),c=cfg(y);
  const cnt={A:0,B:0,C:0,'':0};inS.forEach(({e})=>{const g=(rv(y,e.empId)||{}).grade||'';cnt[g]=(cnt[g]||0)+1});const byG={};inS.forEach(({e})=>{const g=grpOf(e);byG[g]=(byG[g]||0)+1});
  const pct=n=>inS.length?Math.round(n/inS.length*100):0;
- let h=`<div class="period-bar" style="margin:0 0 12px;padding:0">${yearBar()}<span class="hint">${t2('考核基準日','Reference date')} ${refDate(y)} · ${t2('狀態','Status')} <b>${{draft:t2('草稿','Draft'),submitted:t2('已送台北','Sent to Taipei'),approved:t2('已核准','Approved')}[c.status]||c.status}</b> · ${t2('結果用途','Outcome')} <b>${MODE[c.mode||'none'][zh()?0:1]}</b></span></div>
+ let h=`<div class="period-bar" style="margin:0 0 12px;padding:0">${yearBar()}<span class="hint">${ROSTER_SRC?t2('名單','Roster')+'：'+t2('員工資訊','Employee info')+' '+esc(ROSTER_SRC)+' · ':''}${t2('考核基準日','Reference date')} ${refDate(y)} · ${t2('狀態','Status')} <b>${{draft:t2('草稿','Draft'),submitted:t2('已送台北','Sent to Taipei'),approved:t2('已核准','Approved')}[c.status]||c.status}</b> · ${t2('結果用途','Outcome')} <b>${MODE[c.mode||'none'][zh()?0:1]}</b></span></div>
  <div class="cards"><div class="kpi"><div class="label">${t2('要考核','To review')}</div><div class="value">${inS.length}</div><div class="sub">${['mgmt','staff','lead','worker'].filter(g=>byG[g]).map(g=>`${GRPS(g)} ${byG[g]}`).join(' · ')}</div></div>
  <div class="kpi green"><div class="label">A</div><div class="value">${cnt.A}</div><div class="sub">${pct(cnt.A)}% · ${t2('建議 ≤20%','guide ≤20%')}</div></div><div class="kpi blue"><div class="label">B</div><div class="value">${cnt.B}</div><div class="sub">${pct(cnt.B)}%</div></div><div class="kpi gold"><div class="label">C</div><div class="value">${cnt.C}</div><div class="sub">${pct(cnt.C)}% · ${t2('要輔導／觀察','coach / watch')}</div></div><div class="kpi red"><div class="label">${t2('未評','Not graded')}</div><div class="value">${cnt['']}</div><div class="sub">${t2('一般員工不評','Workers not reviewed')} ${wk.length} · ${t2('不列入','Excluded')} ${out.length}</div></div></div>
  <div class="panel" style="margin-top:12px"><div class="panel-head"><h2>📌 ${y} ${t2('今年的做法','how this year works')}</h2><div class="grow"></div><button class="btn small primary" onclick="RVmodeSave()">💾 ${tr('save')}</button></div><div class="panel-body form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
