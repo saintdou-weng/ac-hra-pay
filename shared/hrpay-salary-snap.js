@@ -27,7 +27,9 @@ function snaps(){var st=S();return st?live(st.snaps):[]}
 function files(){var st=S();return st?live(st.snapFiles):[]}
 function confIds(){var st=S();var v=st&&st.settings&&st.settings.confidentialIds;return String(v||'').split(/[\s,，;；]+/).map(function(x){return x.trim()}).filter(Boolean)}
 /* 不進 HRA-PAY 的原因（空字串＝可以進） */
-function excludeWhy(r){var txt=[r.dept,r.section,r.position,r.nationality].join(' ');if(confIds().indexOf(String(r.empId))>=0)return t2('機密名單','Confidential list');if(RE_EXPAT.test(txt))return t2('外籍','Expat');if(RE_ACC.test(txt))return t2('船務／會計（Isay）','Shipping / accounting (Isay)');if(RE_MGMT.test(String(r.position||'')))return t2('管理層','Management');return ''}
+/* 人事的調薪表本來就不含 Isay 月薪人員（2027 簽呈：451 人＝管理部 32＋生產部 419），所以表裡的船務助理等照常收；
+   只擋外籍和「機密名單」工號（管理層：廠協理、車間主任、品管主管等，另案簽呈）。 */
+function excludeWhy(r){var txt=[r.dept,r.section,r.position,r.nationality].join(' ');if(confIds().indexOf(String(r.empId))>=0)return t2('管理層／機密名單','Management / confidential list');if(RE_EXPAT.test(txt))return t2('外籍','Expat');return ''}
 window.HRPaySnapExclude=excludeWhy;
 async function sha(buf){try{var h=await crypto.subtle.digest('SHA-256',buf);return Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0')}).join('')}catch(e){var x=0,u=new Uint8Array(buf);for(var i=0;i<u.length;i+=7)x=(x*31+u[i])>>>0;return 'f'+u.length+'_'+x}}
 /* ── 解析一個工作表 ── */

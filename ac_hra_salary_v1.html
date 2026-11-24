@@ -731,7 +731,7 @@ function cfg(y){const c=live(STATE.reviewCfg||[]).find(x=>+x.year===+y);return O
 function rv(y,id){return live(STATE.reviews||[]).find(r=>+r.year===+y&&String(r.empId)===String(id))||null}
 function refDate(y){return `${+y-1}-12-31`}
 function exclReason(e,y){const r=rv(y,e.empId);if(r&&r.excluded)return t2('手動排除','Excluded manually');const txt=[e.dept,e.section,e.position,e.note,e.nationality].join(' ');
- if(RE_EXPAT.test(txt)||(e.nationality&&!/khmer|cambod|柬|ខ្មែរ|^kh$/i.test(e.nationality)))return t2('外籍','Expat');if(RE_ACC.test([e.dept,e.section].join(' '))||/shipping|accountant|船務|會計/i.test(e.position||''))return t2('船務／會計部（Isay）','Shipping / Accounting (Isay)');if(String((STATE.settings||{}).confidentialIds||'').split(/[\s,，;；]+/).includes(String(e.empId)))return t2('機密（只在 Admin OS）','Confidential (Admin OS only)');if(/\bmanager\b|經理|director|協理|廠長|副總|chairman|董事/i.test(e.position||''))return t2('管理層（只在 Admin OS）','Management (Admin OS only)');return ''}
+ if(RE_EXPAT.test(txt)||(e.nationality&&!/khmer|cambod|柬|ខ្មែរ|^kh$/i.test(e.nationality)))return t2('外籍','Expat');if(!(window.HRPaySnap&&(HRPaySnap.recFor(y,e.empId)||HRPaySnap.recFor(+y-1,e.empId)))&&(RE_ACC.test([e.dept,e.section].join(' '))||/shipping|accountant|船務|會計/i.test(e.position||'')))return t2('船務／會計部（Isay）','Shipping / Accounting (Isay)');if(String((STATE.settings||{}).confidentialIds||'').split(/[\s,，;；]+/).includes(String(e.empId)))return t2('機密（只在 Admin OS）','Confidential (Admin OS only)');if(/\bmanager\b|經理|director|協理|廠長|副總|chairman|董事/i.test(e.position||''))return t2('管理層（只在 Admin OS）','Management (Admin OS only)');return ''}
 /* v2：四種人 */
 const RE_PRODDEPT=/sew|line|cut|qc|qa|finish|pack|iron|press|warehouse|wh\b|store|mechanic|machine|maint|embroid|print|生產|車縫|裁剪|品管|包裝|整燙|倉|機修/i;
 function grpOf(e){const p=String(e.position||'')+' '+String(e.section||''),d=String(e.dept||'');
@@ -875,6 +875,6 @@ window.RVexport=()=>{if(!window.XLSX){toast('XLSX ✗');return}const y=RV.year,S
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="../ac-hra-portal/shared/ui-fx.js?v=5" defer></script>
 <script src="../ac-hra-portal/shared/row-keynote.js?v=33" defer></script>
-<script src="shared/hrpay-salary-snap.js?v=2"></script>
+<script src="shared/hrpay-salary-snap.js?v=3"></script>
 </body>
 </html>
