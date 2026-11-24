@@ -88,6 +88,8 @@ table.edit td input,table.edit td select{width:100%;min-width:60px;border:1px so
   <button class="tab" data-tab="titles" data-i18n="tabTitles">職稱對照</button>
   <button class="tab" data-tab="batch" data-i18n="tabBatch">批次調整</button>
   <button class="tab" data-tab="compare" data-i18n="tabCompare">年度比較</button>
+  <button class="tab" data-tab="review" data-i18n="tabReview">年度考核</button>
+  <button class="tab" data-tab="raise" data-i18n="tabRaise">年度調薪</button>
   <button class="tab" data-tab="settings" data-i18n="tabSettings">匯入／設定</button>
 </div></nav>
 
@@ -214,6 +216,10 @@ table.edit td input,table.edit td select{width:100%;min-width:60px;border:1px so
     </div>
   </section>
 
+  <!-- ═══ 2026-11-24 年度考核／年度調薪（Paul：放 HRA-PAY 分頁，不含外籍與 Isay 的船務／會計部人員） ═══ -->
+  <section class="view" id="view-review"></section>
+  <section class="view" id="view-raise"></section>
+
   <!-- ═══ Settings / Import ═══ -->
   <section class="view" id="view-settings">
     <div class="panel" style="margin-top:0">
@@ -331,7 +337,7 @@ DEFAULTS.titles.push(
 );
 const I18N={
  zh:{title:'薪資架構與職等',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',print:'列印',
-  tabDashboard:'總覽',tabEmployees:'員工薪資',tabGrades:'級距表',tabTitles:'職稱對照',tabBatch:'批次調整',tabCompare:'年度比較',tabSettings:'匯入／設定',
+  tabDashboard:'總覽',tabEmployees:'員工薪資',tabGrades:'級距表',tabTitles:'職稱對照',tabBatch:'批次調整',tabCompare:'年度比較',tabReview:'年度考核',tabRaise:'年度調薪',tabSettings:'匯入／設定',
   asOf:'計算基準日',today:'今天',allDepartments:'全部部門',kpiActive:'在職人數',kpiProbation:'試用期中',kpiConfirmSoon:'30 天內轉正',autoPlus2:'轉正底薪自動 +$2',kpiMonthly:'月固定薪資合計',kpiUnmatched:'未對到職等',needAssign:'需指定職等職級',
   byDept:'部門彙總',dept:'部門',headcount:'人數',probation:'試用',regular:'正式',basicSum:'底薪合計',allowSum:'加給合計',monthlyTotal:'月固定合計',dataStatus:'資料狀態',upcoming:'近期轉正（未來 60 天）',
   empId:'工號',name:'姓名',position:'職稱',joinDate:'到職日',confirmDate:'轉正日',probBasic:'試用底薪',regBasic:'正式底薪',section:'組別',status:'狀態',grade:'職等職級',basic:'底薪',job:'職務',skill:'技術',attendance:'全勤',housing:'交通住宿',temp:'臨時',total:'合計',
@@ -348,7 +354,7 @@ const I18N={
   batchNone:'沒有符合篩選的員工',batchWritten:'已寫入',invalidGrade:'職等職級格式應為 3-02',noChange:'無變動',
   pulledFrom:'已帶入',onboardingSrc:'新進／離職（雲端）',contractSrc:'合約模組（本機）',noNewEmp:'沒有新的員工可帶入'},
  en:{title:'Salary Structure & Grades',import:'Import Excel',cloudUp:'Upload',cloudDown:'Download',export:'Export',print:'Print',
-  tabDashboard:'Dashboard',tabEmployees:'Employees',tabGrades:'Pay Grades',tabTitles:'Title Mapping',tabBatch:'Batch Adjust',tabCompare:'Year Compare',tabSettings:'Import / Settings',
+  tabDashboard:'Dashboard',tabEmployees:'Employees',tabGrades:'Pay Grades',tabTitles:'Title Mapping',tabBatch:'Batch Adjust',tabCompare:'Year Compare',tabReview:'Annual Review',tabRaise:'Annual Increase',tabSettings:'Import / Settings',
   asOf:'As of',today:'Today',allDepartments:'All departments',kpiActive:'Active',kpiProbation:'On probation',kpiConfirmSoon:'Confirm within 30 days',autoPlus2:'Basic +$2 on confirmation',kpiMonthly:'Monthly fixed pay',kpiUnmatched:'No grade',needAssign:'Needs a grade',
   byDept:'By department',dept:'Dept',headcount:'HC',probation:'Prob.',regular:'Regular',basicSum:'Basic',allowSum:'Allowances',monthlyTotal:'Monthly fixed',dataStatus:'Data status',upcoming:'Upcoming confirmations (next 60 days)',
   empId:'ID',name:'Name',position:'Title',joinDate:'Join date',confirmDate:'Confirm date',probBasic:'Prob. basic',regBasic:'Regular basic',section:'Section',status:'Status',grade:'Grade',basic:'Basic',job:'Job',skill:'Skill',attendance:'Attend.',housing:'Transp/Hous',temp:'Temp',total:'Total',
@@ -415,7 +421,7 @@ function seedDefaults(st){
 function live(arr){return (arr||[]).filter(r=>r&&!r.deleted)}
 
 /* ── sync flatten / apply ── */
-const KINDS=['basic','grades','titles','employees','assignments','overrides'];
+const KINDS=['basic','grades','titles','employees','assignments','overrides','reviews','reviewCfg'];/* 2026-11-24 +年度考核／年度調薪 */
 function flat(){const out=[];KINDS.forEach(k=>(STATE[k]||[]).forEach(r=>out.push(Object.assign({},r,{_kind:k}))));out.push({_kind:'settings',_k:'S|settings',settings:STATE.settings,updatedAt:STATE.settingsUpdatedAt||STATE.updatedAt||nowIso()});return out}
 function applyRecords(records){
   _applying=true;
@@ -462,7 +468,7 @@ function activeEmployees(date){return live(STATE.employees).filter(e=>{const s=e
 function deptFilterOk(e){const d=$('globalDept').value;return !d||String(e.dept||'')===d}
 
 /* ── render ── */
-function renderAll(){if(!STATE)return;fillDeptSelects();renderDashboard();renderEmployees();renderGrades();renderTitles();renderCompareOptions();renderSettings();$('dataHint').textContent=`${live(STATE.employees).length} emp · ${live(STATE.grades).length} grades · v${STATE.version||0}`}
+function renderAll(){if(!STATE)return;if(ACTIVE_TAB==='review'&&window.renderReview)setTimeout(renderReview,0);if(ACTIVE_TAB==='raise'&&window.renderRaise)setTimeout(renderRaise,0);fillDeptSelects();renderDashboard();renderEmployees();renderGrades();renderTitles();renderCompareOptions();renderSettings();$('dataHint').textContent=`${live(STATE.employees).length} emp · ${live(STATE.grades).length} grades · v${STATE.version||0}`}
 function fillDeptSelects(){const depts=[...new Set(live(STATE.employees).map(e=>String(e.dept||'').trim()).filter(Boolean))].sort();['globalDept','bDept'].forEach(id=>{const sel=$(id);const cur=sel.value;sel.innerHTML=`<option value="">${id==='globalDept'?tr('allDepartments'):'—'}</option>`+depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');sel.value=cur});$('deptList').innerHTML=depts.map(d=>`<option value="${esc(d)}">`).join('');$('titleList').innerHTML=live(STATE.titles).map(t=>`<option value="${esc(t.en)}">${esc(t.zh)}</option>`).join('')}
 function renderDashboard(){
   const date=asOf();const emps=activeEmployees(date).filter(deptFilterOk);let prob=0,soon=0,total=0,unmatched=0,basicSum=0;const byDept={};const upcoming=[];
@@ -682,7 +688,7 @@ function exportExcel(){const date=asOf();const rows=live(STATE.employees).filter
   XLSX.writeFile(wb,`VRT_Salary_${date}.xlsx`)}
 
 /* ── tabs / init ── */
-function switchTab(id){ACTIVE_TAB=id;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.getAttribute('data-tab')===id));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+id));if(id==='compare')renderCompare()}
+function switchTab(id){ACTIVE_TAB=id;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.getAttribute('data-tab')===id));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+id));if(id==='compare')renderCompare();if(id==='review'&&window.renderReview)renderReview();if(id==='raise'&&window.renderRaise)renderRaise()}
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.getAttribute('data-tab'))));
 (function(){const dz=$('dropZone');['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag')}));dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files))})();
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
@@ -691,9 +697,95 @@ document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if
   STATE=await loadState();if(!STATE||!STATE.grades){STATE=seedDefaults(emptyState());_applying=true;try{await persist('seed')}finally{_applying=false}}
   if(!STATE.settings)STATE.settings={temp:2.5,probWorker:2,probStaff:3,probAllowance:true};
   applyLang();renderAll();
+  {const h=(location.hash||'').slice(1);if(['review','raise','employees','grades','titles','batch','compare','settings'].includes(h))switchTab(h)}
   if(window.HRAAutoSync)HRAAutoSync.install({key:TOOL,pull:cloudPull,push:cloudPush,canSync:function(){return !!gasUrlValue()},startDelay:450,downId:'btn-cloud-down',upId:'btn-cloud-up'});
 })();
 
+</script>
+<script>
+/* ═══ 年度考核／年度調薪 v1（2026-11-24，Paul）═══
+   Paul：年度考核跟年度調薪放在 HRA-PAY 的分頁，但不包括外籍跟 Isay 那邊（船務／會計部）的人員。
+   · 年份＝生效年（1 月起）；預設下一年（年底做考核、隔年 1 月生效），同 VRT HR「薪資架構」的年度調薪。
+   · 範圍：在職員工，扣掉外籍（部門／職稱／備註含 expat、外籍、foreign）、船務／會計／財務部門，以及手動排除的人。
+   · 考核：A／B／C（Paul 的規則：工人看效率＋出勤；HR 人員看流動率、培訓、招募、警告；大組長等綜合評估；
+     獎勵金不能當依據；2027 年不評分、只給等級——等級可以留空）。
+   · 調薪：法定底薪調整（底薪表兩年相減，全員自動）＋ 個人考核調薪（每人一格；可依等級一鍵帶入金額）。
+     合計、部門小計、每月／每年增加；可匯出 Excel 給人事。不發 Telegram（薪資資料）。
+   · 資料跟這頁其他資料一樣存本機 IndexedDB＋雲端 tool 'salary'（kind reviews、reviewCfg），後改的為準。 */
+(function(){
+const RV={year:null,q:'',dept:'',grp:'',showEx:false,dirty:{}};
+const RE_EXPAT=/expat|外籍|foreign|taiwan|台籍|台幹|陸籍|china|chinese|philippin|菲籍|malaysia/i;
+const RE_ACC=/ship|account|finance|船務|會計|財務|acco\b/i;
+const zh=()=>LANG!=='en';const t2=(a,b)=>zh()?a:b;
+function defYear(){const y=new Date().getFullYear();return (new Date().getMonth()>=9)?y+1:y}
+function yearList(){const ys=new Set([defYear(),defYear()-1]);live(STATE.reviewCfg||[]).forEach(c=>ys.add(+c.year));live(STATE.reviews||[]).forEach(r=>ys.add(+r.year));return [...ys].sort((a,b)=>b-a)}
+function cfg(y){const c=live(STATE.reviewCfg||[]).find(x=>+x.year===+y);return Object.assign({year:+y,effective:`${y}-01-01`,amtA:'',amtB:'',amtC:'',status:'draft',note:''},c||{})}
+function rv(y,id){return live(STATE.reviews||[]).find(r=>+r.year===+y&&String(r.empId)===String(id))||null}
+function refDate(y){return `${+y-1}-12-31`}
+function exclReason(e,y){const r=rv(y,e.empId);if(r&&r.excluded)return t2('手動排除','Excluded manually');const txt=[e.dept,e.section,e.position,e.note,e.nationality].join(' ');
+ if(RE_EXPAT.test(txt)||(e.nationality&&!/khmer|cambod|柬/i.test(e.nationality)))return t2('外籍','Expat');if(RE_ACC.test([e.dept,e.section].join(' '))||/shipping|accountant|船務|會計/i.test(e.position||''))return t2('船務／會計部（Isay）','Shipping / Accounting (Isay)');return ''}
+function grpOf(e){const p=String(e.position||'')+' '+String(e.section||'');if(/supervisor|manager|大組長|主管|課長|經理|chief|head/i.test(p))return 'sup';if(/leader|assistant|asst|組長|班長|助理|specialist|專員|clerk|文員|officer|nurse|護士|driver|司機|electric|電工|IT|HR|GA|admin|行政|人事|總務/i.test(p)||/admin|行政|hra|gas|ga\b/i.test(String(e.dept||'')))return 'staff';return 'worker'}
+const GRP={worker:['基層（效率＋出勤）','Workers (efficiency + attendance)'],staff:['組長／助理／職員','Leaders / assistants / staff'],sup:['大組長／主管（綜合評估）','Supervisors (overall evaluation)']};
+const BASIS={worker:['效率、實際出勤天數','Efficiency, actual days worked'],staff:['HR：流動率、培訓、招募、警告；其他：工作表現','HR: turnover, training, recruiting, warnings; others: job performance'],sup:['綜合評估','Overall evaluation']};
+function people(y){const d=refDate(y);return live(STATE.employees).filter(e=>{const st=empStatus(e,d);return st==='probation'||st==='regular'}).sort((a,b)=>String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}))}
+function scope(y){const inS=[],out=[];people(y).forEach(e=>{const r=exclReason(e,y);(r?out:inS).push({e,why:r})});return {inS,out}}
+function baseDelta(y){const a=basicRowForYear(+y-1),b=basicRowForYear(y);return {from:a?num(a.regular):null,to:b?num(b.regular):null,d:(a&&b)?num(b.regular)-num(a.regular):0}}
+function putRv(y,id,patch){STATE.reviews=STATE.reviews||[];const k=`R|${y}|${id}`;let r=STATE.reviews.find(x=>x._k===k);if(!r){r={_k:k,year:+y,empId:String(id),grade:'',note:'',raise:null,excluded:false};STATE.reviews.push(r)}Object.assign(r,patch,{deleted:false,updatedAt:nowIso()});return r}
+function putCfg(y,patch){STATE.reviewCfg=STATE.reviewCfg||[];const k=`RC|${y}`;let c=STATE.reviewCfg.find(x=>x._k===k);if(!c){c=Object.assign({_k:k},cfg(y));STATE.reviewCfg.push(c)}Object.assign(c,patch,{deleted:false,updatedAt:nowIso()});return c}
+function yearBar(id){const ys=yearList();if(RV.year==null)RV.year=defYear();return `<select class="control" onchange="RVset('year',+this.value)">${ys.map(y=>`<option value="${y}" ${y===RV.year?'selected':''}>${y} ${t2('生效','effective')}</option>`).join('')}</select><button class="btn small" onclick="RVnewYear()">＋ ${t2('年度','Year')}</button>`}
+window.RVset=(k,v)=>{RV[k]=v;rerender()};
+window.RVnewYear=()=>{const v=prompt(t2('生效年（例 2028）','Effective year (e.g. 2028)'),String(Math.max(...yearList())+1));if(!v||!/^\d{4}$/.test(v))return;RV.year=+v;putCfg(+v,{});persist('review-year');rerender()};
+function rerender(){if(ACTIVE_TAB==='review')renderReview();else if(ACTIVE_TAB==='raise')renderRaise()}
+function filt(list){const q=normTitle(RV.q);return list.filter(({e})=>(!RV.dept||String(e.dept||'')===RV.dept)&&(!RV.grp||grpOf(e)===RV.grp)&&(!q||normTitle(e.empId).includes(q)||normTitle(e.name).includes(q)||normTitle(e.position).includes(q)))}
+function filterBar(list){const depts=[...new Set(list.map(x=>String(x.e.dept||'')).filter(Boolean))].sort();
+ return `<div class="filters"><input placeholder="${t2('搜尋工號／姓名／職稱','Search ID / name / title')}" value="${esc(RV.q)}" oninput="RV_q(this.value)"><select onchange="RVset('dept',this.value)"><option value="">${t2('全部部門','All departments')}</option>${depts.map(d=>`<option ${d===RV.dept?'selected':''}>${esc(d)}</option>`).join('')}</select><select onchange="RVset('grp',this.value)"><option value="">${t2('全部層級','All levels')}</option>${Object.keys(GRP).map(g=>`<option value="${g}" ${g===RV.grp?'selected':''}>${GRP[g][zh()?0:1]}</option>`).join('')}</select></div>`}
+let _qT=null;window.RV_q=v=>{RV.q=v;clearTimeout(_qT);_qT=setTimeout(()=>{rerender();const i=document.querySelector('#view-'+ACTIVE_TAB+' .filters input');if(i){i.focus();i.setSelectionRange(v.length,v.length)}},350)};
+function exclPanel(out){if(!out.length)return '';return `<div class="panel"><div class="panel-head"><h2>🚫 ${t2('不列入（外籍、船務／會計部、手動排除）','Not included (expats, shipping / accounting, manual)')} <span class="badge b-resigned">${out.length}</span></h2><div class="grow"></div><button class="btn small" onclick="RVset('showEx',${!RV.showEx})">${RV.showEx?t2('收起','Hide'):t2('展開','Show')}</button></div>${RV.showEx?`<div class="table-wrap"><table><thead><tr><th>${tr('empId')}</th><th>${tr('name')}</th><th>${tr('dept')}</th><th>${tr('position')}</th><th>${t2('原因','Reason')}</th><th></th></tr></thead><tbody>${out.map(({e,why})=>`<tr><td class="mono">${esc(e.empId)}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td><td>${esc(why)}</td><td>${(rv(RV.year,e.empId)||{}).excluded?`<button class="btn small" onclick="RVexcl('${esc(e.empId)}',false)">↩ ${t2('列回','Include')}</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}</div>`}
+window.RVexcl=async(id,v)=>{if(v&&!confirm(t2('把這個人排除在今年考核／調薪之外？','Exclude this person from this year’s review / increase?')))return;putRv(RV.year,id,{excluded:!!v});await persist('review-exclude');rerender()};
+
+window.renderReview=function(){const box=$('view-review');if(!box||!STATE)return;if(RV.year==null)RV.year=defYear();const y=RV.year,{inS,out}=scope(y),rows=filt(inS),c=cfg(y);
+ const cnt={A:0,B:0,C:0,'':0};inS.forEach(({e})=>{const g=(rv(y,e.empId)||{}).grade||'';cnt[g]=(cnt[g]||0)+1});const byG={};inS.forEach(({e})=>{const g=grpOf(e);byG[g]=(byG[g]||0)+1});
+ let h=`<div class="period-bar" style="margin:0 0 12px;padding:0">${yearBar()}<span class="hint">${t2('考核基準日','Reference date')} ${refDate(y)} · ${t2('狀態','Status')} <b>${{draft:t2('草稿','Draft'),submitted:t2('已送台北','Sent to Taipei'),approved:t2('已核准','Approved')}[c.status]||c.status}</b></span></div>
+ <div class="cards"><div class="kpi"><div class="label">${t2('列入人數','In scope')}</div><div class="value">${inS.length}</div><div class="sub">${Object.keys(GRP).map(g=>`${GRP[g][zh()?0:1].split('（')[0].split(' (')[0]} ${byG[g]||0}`).join(' · ')}</div></div>
+ <div class="kpi green"><div class="label">A</div><div class="value">${cnt.A}</div><div class="sub">${inS.length?Math.round(cnt.A/inS.length*100):0}%</div></div><div class="kpi blue"><div class="label">B</div><div class="value">${cnt.B}</div><div class="sub">${inS.length?Math.round(cnt.B/inS.length*100):0}%</div></div><div class="kpi gold"><div class="label">C</div><div class="value">${cnt.C}</div><div class="sub">${inS.length?Math.round(cnt.C/inS.length*100):0}%</div></div><div class="kpi red"><div class="label">${t2('未評','Not graded')}</div><div class="value">${cnt['']}</div><div class="sub">${t2('不列入','Excluded')} ${out.length}</div></div></div>
+ <div class="notice" style="margin-top:12px">📋 ${t2('考核依據（Paul 的規則）：工人看效率＋實際出勤天數；HR 人員看流動率、培訓成果、招募、發出的警告；大組長等綜合評估。獎勵金不能當依據（大家幾乎都有）。只用 A／B／C。2027 年不評分——等級可以留空，調薪金額直接填在「年度調薪」。','Basis (Paul’s rules): workers by efficiency + actual days worked; HR staff by turnover, training results, recruiting and warnings issued; supervisors by overall evaluation. Incentive bonus is not a basis (almost everyone gets it). Grades A / B / C only. No scoring for 2027 — grades may stay blank; enter amounts in “Annual Increase”.')}</div>
+ <div class="panel"><div class="panel-head"><h2>📝 ${y} ${t2('年度考核','annual review')}</h2><div class="grow"></div>${filterBar(inS)}<button class="btn small" onclick="RVfill('B')">${t2('未評的設 B','Set ungraded to B')}</button><button class="btn small primary" onclick="RVsave()">💾 ${tr('save')}</button></div>
+ <div class="table-wrap"><table class="edit"><thead><tr><th>${tr('empId')}</th><th>${tr('name')}</th><th>${tr('dept')}</th><th>${tr('position')}</th><th>${tr('joinDate')}</th><th>${t2('層級','Level')}</th><th>${t2('考核依據','Basis')}</th><th style="width:90px">${t2('等級','Grade')}</th><th style="min-width:200px">${t2('說明','Comment')}</th><th></th></tr></thead><tbody>${rows.map(({e})=>{const r=rv(y,e.empId)||{},g=grpOf(e);return `<tr data-id="${esc(e.empId)}"><td class="mono">${esc(e.empId)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td><td class="mono">${esc(e.joinDate||'')}</td><td>${GRP[g][zh()?0:1].split('（')[0].split(' (')[0]}</td><td class="hint">${BASIS[g][zh()?0:1]}</td><td><select data-rf="grade">${['','A','B','C'].map(v=>`<option ${v===(r.grade||'')?'selected':''}>${v}</option>`).join('')}</select></td><td><input data-rf="note" value="${esc(r.note||'')}"></td><td><button class="btn small" title="${esc(t2('排除','Exclude'))}" onclick="RVexcl('${esc(e.empId)}',true)">🚫</button></td></tr>`}).join('')||`<tr><td colspan="10" class="empty"><div class="ico">👥</div>${live(STATE.employees).length?t2('沒有符合的員工','No employees match'):t2('還沒有員工資料：到「員工薪資」按「從其他模組帶入員工」或匯入員工薪資清單。','No employees yet: use “Pull from other modules” in Employees or import the salary list.')}</td></tr>`}</tbody></table></div>
+ <div class="table-bottom hint" style="padding:10px 14px">${rows.length} / ${inS.length} ${t2('人','people')}</div></div>${exclPanel(out)}`;
+ box.innerHTML=h};
+function grabRows(view){const out=[];document.querySelectorAll('#view-'+view+' tr[data-id]').forEach(tr=>{const o={id:tr.getAttribute('data-id')};tr.querySelectorAll('[data-rf]').forEach(el=>o[el.getAttribute('data-rf')]=el.value);out.push(o)});return out}
+window.RVfill=g=>{document.querySelectorAll('#view-review tr[data-id] select[data-rf=grade]').forEach(s=>{if(!s.value)s.value=g});toast(t2('畫面上未評的已設 '+g+'，記得按儲存','Ungraded rows on screen set to '+g+' — press Save'))};
+window.RVsave=async()=>{const y=RV.year;let n2=0;grabRows('review').forEach(o=>{const r=rv(y,o.id)||{};if((r.grade||'')!==o.grade||(r.note||'')!==o.note){putRv(y,o.id,{grade:o.grade,note:o.note});n2++}});if(!n2){toast(t2('沒有變更','No changes'));return}await persist('review-save');renderReview();toast(`✅ ${t2('已儲存','Saved')} ${n2}`)};
+
+window.renderRaise=function(){const box=$('view-raise');if(!box||!STATE)return;if(RV.year==null)RV.year=defYear();const y=RV.year,{inS,out}=scope(y),rows=filt(inS),c=cfg(y),bd=baseDelta(y),eff=c.effective||`${y}-01-01`,pre=`${+y-1}-12-31`;
+ let sumBefore=0,sumBase=0,sumRaise=0,nRaise=0;const byDept={};
+ const calc=inS.map(({e})=>{const r=rv(y,e.empId)||{},p0=payFor(e,pre),p1=payFor(e,eff),baseUp=Math.max(0,p1.basic-p0.basic),raise=r.raise!=null&&r.raise!==''?num(r.raise):0;sumBefore+=p0.total;sumBase+=baseUp;sumRaise+=raise;if(raise)nRaise++;const d=String(e.dept||'—');const x=byDept[d]=byDept[d]||{hc:0,before:0,base:0,raise:0,n:0};x.hc++;x.before+=p0.total;x.base+=baseUp;x.raise+=raise;if(raise)x.n++;return {e,r,p0,baseUp,raise}});
+ const show=new Set(rows.map(x=>String(x.e.empId)));
+ const st={draft:t2('草稿','Draft'),submitted:t2('已送台北','Sent to Taipei'),approved:t2('已核准','Approved')};
+ let h=`<div class="period-bar" style="margin:0 0 12px;padding:0">${yearBar()}<span class="hint">${t2('生效日','Effective')} ${eff} · ${t2('調前基準','Before')} ${pre}</span></div>
+ <div class="cards"><div class="kpi"><div class="label">${t2('列入人數','In scope')}</div><div class="value">${inS.length}</div><div class="sub">${t2('不列入','Excluded')} ${out.length}（${t2('外籍、船務／會計','expats, shipping / accounting')}）</div></div>
+ <div class="kpi blue"><div class="label">${t2('法定底薪','Statutory base')}</div><div class="value">${bd.from!=null&&bd.to!=null?`$${bd.from}→$${bd.to}`:'—'}</div><div class="sub">${bd.d?`▲ +$${bd.d} ${t2('全員，每月','everyone, per month')} = ${money(sumBase)}`:t2('底薪表沒有這兩年的資料','base table missing these years')}</div></div>
+ <div class="kpi gold"><div class="label">${t2('考核調薪','Appraisal increase')}</div><div class="value">${money(sumRaise)}</div><div class="sub">${nRaise} ${t2('人，每月','people, per month')}${nRaise?' · '+t2('平均','avg')+' '+money(sumRaise/nRaise):''}</div></div>
+ <div class="kpi green"><div class="label">${t2('每月增加合計','Total increase / month')}</div><div class="value">${money(sumBase+sumRaise)}</div><div class="sub">${sumBefore?'+'+((sumBase+sumRaise)/sumBefore*100).toFixed(1)+'% '+t2('比調前固定薪資','vs fixed pay before'):''}</div></div>
+ <div class="kpi red"><div class="label">${t2('每年增加','Increase / year')}</div><div class="value">${money((sumBase+sumRaise)*12)}</div><div class="sub">${t2('× 12，不含加班、獎金、社保','× 12, excl. OT, bonus, NSSF')}</div></div></div>
+ <div class="panel"><div class="panel-head"><h2>⚙️ ${y} ${t2('調薪設定','increase settings')}</h2><div class="grow"></div><button class="btn small primary" onclick="RVcfgSave()">💾 ${tr('save')}</button></div><div class="panel-body form-grid" style="grid-template-columns:repeat(6,minmax(0,1fr))">
+  <div class="field"><label>${t2('生效日','Effective date')}</label><input type="date" id="rvEff" value="${esc(eff)}"></div>
+  <div class="field"><label>${t2('A 級帶入金額（$／月）','Grade A amount ($/month)')}</label><input type="number" step="0.5" id="rvA" value="${esc(c.amtA)}"></div>
+  <div class="field"><label>${t2('B 級帶入金額','Grade B amount')}</label><input type="number" step="0.5" id="rvB" value="${esc(c.amtB)}"></div>
+  <div class="field"><label>${t2('C 級帶入金額','Grade C amount')}</label><input type="number" step="0.5" id="rvC" value="${esc(c.amtC)}"></div>
+  <div class="field"><label>${t2('狀態','Status')}</label><select id="rvSt">${Object.keys(st).map(k=>`<option value="${k}" ${k===c.status?'selected':''}>${st[k]}</option>`).join('')}</select></div>
+  <div class="field"><label>${t2('備註','Note')}</label><input id="rvNote" value="${esc(c.note||'')}"></div></div>
+  <div class="panel-body" style="padding-top:0"><div class="notice">💡 ${t2('法定底薪的調整（底薪表「年度」那一筆）全員自動套用，不用在這裡填。下面每人一格「考核調薪」：可以手填，或按「依等級帶入」用上面 A／B／C 金額帶入沒填的人。歷年參考：管理部考核調薪平均約 $23–40／人（2020 $40、2022 $23、2023 $29、2026 $33）；生產組長／助理約 $2–16、大組長／專員約 $4–33（2021–2023）。','The statutory base change (the year row in the base-wage table) applies to everyone automatically. Below, one “appraisal increase” cell per person: type it, or press “Fill by grade” to fill blanks with the A / B / C amounts above. History: admin appraisal raises averaged about $23–40 per person (2020 $40, 2022 $23, 2023 $29, 2026 $33); production leaders / assistants about $2–16 and supervisors / specialists about $4–33 (2021–2023).')}</div></div></div>
+ <div class="panel"><div class="panel-head"><h2>🏢 ${t2('部門小計','By department')}</h2></div><div class="table-wrap"><table><thead><tr><th>${tr('dept')}</th><th class="num">${tr('headcount')}</th><th class="num">${t2('調前固定薪資','Fixed pay before')}</th><th class="num">${t2('底薪調整','Base change')}</th><th class="num">${t2('考核調薪人數','People raised')}</th><th class="num">${t2('考核調薪','Appraisal increase')}</th><th class="num">${t2('每月增加','Increase / month')}</th></tr></thead><tbody>${Object.keys(byDept).sort().map(d=>{const x=byDept[d];return `<tr><td>${esc(d)}</td><td class="num">${x.hc}</td><td class="num">${money(x.before)}</td><td class="num">${money(x.base)}</td><td class="num">${x.n}</td><td class="num">${money(x.raise)}</td><td class="num"><b>${money(x.base+x.raise)}</b></td></tr>`}).join('')||`<tr><td colspan="7" class="empty">—</td></tr>`}<tr style="font-weight:900;background:#f6fbfc"><td>${tr('total')}</td><td class="num">${inS.length}</td><td class="num">${money(sumBefore)}</td><td class="num">${money(sumBase)}</td><td class="num">${nRaise}</td><td class="num">${money(sumRaise)}</td><td class="num">${money(sumBase+sumRaise)}</td></tr></tbody></table></div></div>
+ <div class="panel"><div class="panel-head"><h2>💵 ${y} ${t2('年度調薪明細','increase list')}</h2><div class="grow"></div>${filterBar(inS)}<button class="btn small" onclick="RVfillAmt()">${t2('依等級帶入','Fill by grade')}</button><button class="btn small" onclick="RVexport()">⇩ Excel</button><button class="btn small primary" onclick="RVraiseSave()">💾 ${tr('save')}</button></div>
+ <div class="table-wrap"><table class="edit"><thead><tr><th>${tr('empId')}</th><th>${tr('name')}</th><th>${tr('dept')}</th><th>${tr('position')}</th><th>${t2('等級','Grade')}</th><th class="num">${t2('調前合計','Before')}</th><th class="num">${t2('底薪調整','Base')}</th><th class="num" style="width:110px">${t2('考核調薪','Appraisal')}</th><th class="num">${t2('調後合計','After')}</th><th>${t2('說明','Comment')}</th></tr></thead><tbody>${calc.filter(x=>show.has(String(x.e.empId))).map(({e,r,p0,baseUp,raise})=>`<tr data-id="${esc(e.empId)}"><td class="mono">${esc(e.empId)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.dept)}</td><td>${esc(e.position)}</td><td>${r.grade?`<span class="badge ${r.grade==='A'?'b-regular':r.grade==='B'?'b-override':'b-probation'}">${r.grade}</span>`:''}</td><td class="num">${money(p0.total)}</td><td class="num">${baseUp?'+'+money(baseUp):''}</td><td class="num"><input class="num" type="number" step="0.5" data-rf="raise" value="${r.raise!=null?esc(r.raise):''}"></td><td class="num"><b>${money(p0.total+baseUp+raise)}</b></td><td><input data-rf="note" value="${esc(r.raiseNote||'')}"></td></tr>`).join('')||`<tr><td colspan="10" class="empty">—</td></tr>`}</tbody></table></div></div>${exclPanel(out)}
+ <p class="hint">${t2('個人薪資只存在這頁的本機與 HRA 雲端（不公開、不發 Telegram）。送台北仍照 Paul 的簽呈格式；這頁的 Excel 給人事作業用。歷年（2020–2026）調薪彙總在 VRT HR → 薪資架構 → 各年度「年度調薪」分頁。','Personal pay stays in this page’s local storage and the HRA cloud (not public, no Telegram). Taipei approval still uses Paul’s memo format; this Excel is for HR. Yearly raise summaries 2020–2026 are in VRT HR → Salary structure → each year’s “Annual raise” tab.')}</p>`;
+ box.innerHTML=h};
+window.RVcfgSave=async()=>{putCfg(RV.year,{effective:$('rvEff').value||`${RV.year}-01-01`,amtA:$('rvA').value,amtB:$('rvB').value,amtC:$('rvC').value,status:$('rvSt').value,note:$('rvNote').value.trim()});await persist('raise-cfg');renderRaise();toast('✅ '+t2('已儲存','Saved'))};
+window.RVfillAmt=()=>{const c=cfg(RV.year),m={A:c.amtA,B:c.amtB,C:c.amtC};let k=0;document.querySelectorAll('#view-raise tr[data-id]').forEach(tr=>{const id=tr.getAttribute('data-id'),g=(rv(RV.year,id)||{}).grade,inp=tr.querySelector('[data-rf=raise]');if(g&&m[g]!==''&&m[g]!=null&&inp&&inp.value===''){inp.value=m[g];k++}});toast(k?t2(`已帶入 ${k} 人，記得按儲存`,`Filled ${k} — press Save`):t2('沒有可帶入的（要先有等級和 A／B／C 金額）','Nothing to fill (needs grades and A / B / C amounts)'))};
+window.RVraiseSave=async()=>{const y=RV.year;let k=0;grabRows('raise').forEach(o=>{const r=rv(y,o.id)||{},v=o.raise===''?null:num(o.raise);if((r.raise==null?null:num(r.raise))!==v||(r.raiseNote||'')!==o.note){putRv(y,o.id,{raise:v,raiseNote:o.note});k++}});if(!k){toast(t2('沒有變更','No changes'));return}await persist('raise-save');renderRaise();toast(`✅ ${t2('已儲存','Saved')} ${k}`)};
+window.RVexport=()=>{if(!window.XLSX){toast('XLSX ✗');return}const y=RV.year,{inS}=scope(y),eff=cfg(y).effective||`${y}-01-01`,pre=`${+y-1}-12-31`;const rows=inS.map(({e})=>{const r=rv(y,e.empId)||{},p0=payFor(e,pre),p1=payFor(e,eff),b=Math.max(0,p1.basic-p0.basic),ra=r.raise!=null?num(r.raise):0;return {ID:e.empId,Name:e.name,Dept:e.dept,Position:e.position,Join:e.joinDate||'',Grade:r.grade||'',Review_note:r.note||'',Before:Math.round(p0.total*100)/100,Base_change:b,Appraisal_increase:ra,After:Math.round((p0.total+b+ra)*100)/100,Comment:r.raiseNote||''}});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Increase '+y);XLSX.writeFile(wb,`VRT_Annual_Increase_${y}.xlsx`)};
+})();
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
