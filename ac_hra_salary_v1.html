@@ -736,11 +736,11 @@ function exclReason(e,y){const r=rv(y,e.empId);if(r&&r.excluded)return t2('手�
 const RE_PRODDEPT=/sew|line|cut|qc|qa|finish|pack|iron|press|warehouse|wh\b|store|mechanic|machine|maint|embroid|print|生產|車縫|裁剪|品管|包裝|整燙|倉|機修/i;
 function grpOf(e){const p=String(e.position||'')+' '+String(e.section||''),d=String(e.dept||'');
  if(/manager|經理|主任|課長|chief|head\b|主管|director|廠長|superintendent/i.test(p))return 'mgmt';
- if(/大組長|組長|班長|leader|supervisor/i.test(p))return RE_PRODDEPT.test(d+' '+p)?'lead':'mgmt';
+ if(/大組長|組長|班長|leader|supervisor/i.test(p))return RE_PRODDEPT.test(d+' '+p)?'lead':'staff';/* 2026-11-24 Paul：管理部的主管級（如 Sophea）用管理部考核表（一般文員及班/組長級主管適用） */
  if(/assistant|asst|助理/i.test(p)&&RE_PRODDEPT.test(d+' '+p)&&!/office|clerk|文員|pc\b|planning/i.test(p))return 'lead';
  if(/clerk|文員|officer|specialist|專員|secretary|秘書|nurse|護士|driver|司機|electric|電工|\bIT\b|admin|行政|人事|總務|account|planner|計劃|merchan|跟單|assistant|asst|助理|compliance|security officer|interpreter|翻譯/i.test(p)||/admin|行政|hra|\bhr\b|\bga\b|office|planning|pc\b|compliance/i.test(d))return 'staff';
  return 'worker'}
-const GRP={mgmt:['管理層（主管）','Management'],staff:['職員（辦公室）','Office staff'],lead:['生產幹部（大組長／組長／助理）','Production leaders'],worker:['一般員工','Workers']};
+const GRP={mgmt:['管理層（主管）','Management'],staff:['管理部（文員＋主管級）','Admin staff & supervisors'],lead:['生產幹部（大組長／組長／助理）','Production leaders'],worker:['一般員工','Workers']};
 const GRPS=t=>GRP[t][zh()?0:1].split('（')[0].split(' (')[0];
 /* 考核項目（權重合計 100；5 分制）。依據：Paul 的規則——工人看效率＋實際出勤；HR 看流動率、培訓、招募、警告；大組長等綜合評估；獎勵金不當依據 */
 const CRIT={
