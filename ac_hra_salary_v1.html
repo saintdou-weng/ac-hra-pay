@@ -774,11 +774,11 @@ const MODE={none:['只評等級，不發錢','Grades only, no money'],bonus:['�
    薪資架構裡有的人以這頁為準，沒有的從員工資訊補上（只讀，不寫回）。 */
 let ROSTER=[],ROSTER_SRC='';
 async function loadRoster(){try{const db=await new Promise((res,rej)=>{const r=indexedDB.open('ac_hra_emp');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(_){}}});if(![...db.objectStoreNames].includes('snapshots')){db.close();return}
-  const all=await new Promise(r=>{const q=db.transaction('snapshots','readonly').objectStore('snapshots').getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([])});db.close();
-  const snap=all.filter(x=>x&&Array.isArray(x.rows)&&x.rows.length).sort((a,b)=>String(b.key).localeCompare(String(a.key)))[0];if(!snap)return;
+  /* 只讀最新一期（key 是 YYYY-MM，往回找第一筆有資料的）；不要 getAll——全部 23 期一次讀會把頁面卡死 */
+  const snap=await new Promise(r=>{let n=0;const q=db.transaction('snapshots','readonly').objectStore('snapshots').openCursor(null,'prev');q.onsuccess=()=>{const c=q.result;if(!c||n++>6){r(null);return}const v=c.value;if(v&&Array.isArray(v.rows)&&v.rows.length)r(v);else c.continue()};q.onerror=()=>r(null)});db.close();if(!snap)return;
   ROSTER_SRC=(snap.label||snap.key)+(snap.asOf?' · '+snap.asOf:'');
   ROSTER=snap.rows.filter(r=>r&&r.id&&!/離職|resign|left|ឈប់|terminat/i.test(String(r.status||'')+' '+String(r.empStatus||''))).map(r=>({empId:String(r.id),name:r.nameEn||r.name||r.nameKm||'',dept:r.dept||'',section:r.section||'',position:r.position||'',joinDate:String(r.join||'').slice(0,10),nationality:r.nationality||'',note:r.workStatus||'',_roster:1}));
-  if(ACTIVE_TAB==='review'||ACTIVE_TAB==='raise')rerender()}catch(e){console.warn('[review] roster',e)}}
+  try{if(ACTIVE_TAB==='review'||ACTIVE_TAB==='raise')rerender()}catch(_){}}catch(e){console.warn('[review] roster',e)}}
 loadRoster();
 function people(y){const d=refDate(y),have=new Set(live(STATE.employees).map(e=>String(e.empId)));const base=live(STATE.employees).filter(e=>{const st=empStatus(e,d);return st==='probation'||st==='regular'});
  const extra=ROSTER.filter(e=>!have.has(e.empId)&&(!e.joinDate||e.joinDate<=d));return base.concat(extra).sort((a,b)=>String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}))}
