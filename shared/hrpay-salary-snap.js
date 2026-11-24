@@ -99,7 +99,9 @@ var LAST=[];
 function toast2(s){try{if(typeof toast==='function')return toast(s)}catch(e){}alert(s)}
 function paint(){var b=document.getElementById('snapBusy');if(b)b.textContent=BUSY?t2('匯入中…','Importing…'):''}
 /* ── 查快照 ── */
-function recFor(year,id){return snaps().find(function(r){return +r.year===+year&&String(r.empId)===String(id)})||null}
+var IDX=null,IDX_SIG='';
+function idx(){var st=S(),a=st&&st.snaps||[];var sig=a.length+'|'+(a.length?a[a.length-1].updatedAt:'')+'|'+(st&&st.version);if(IDX&&sig===IDX_SIG)return IDX;IDX=new Map();live(a).forEach(function(r){IDX.set(+r.year+'|'+String(r.empId),r)});IDX_SIG=sig;return IDX}
+function recFor(year,id){return idx().get(+year+'|'+String(id))||null}
 /* 某年的固定月薪：先看隔年調薪表的「調前」，再看當年調薪表的「調後」 */
 function payOfYear(X,id){var a=recFor(+X+1,id);if(a&&a.before&&a.before.total)return Object.assign({src:a.src,kind:'before'},a.before);var b=recFor(X,id);if(b&&b.after&&b.after.total)return Object.assign({src:b.src,kind:'after'},b.after);return null}
 function years(){var s=new Set();snaps().forEach(function(r){if(r.fromYear)s.add(+r.fromYear);s.add(+r.year)});return [...s].sort()}
@@ -114,7 +116,7 @@ window.HRPaySnap={
 var Q='';
 function panel(y,inScopeIds){
   var ys=years(),fs=files(),ids=inScopeIds||null;
-  var rowsBy={};ys.forEach(function(X){var tot=0,hc=0,adjN=0,adjS=0;snaps().forEach(function(r){});var seen={};snaps().forEach(function(r){var id=String(r.empId);if(seen[id])return;var p=payOfYear(X,id);if(!p)return;seen[id]=1;hc++;tot+=n(p.total)});snaps().filter(function(r){return +r.year===X}).forEach(function(r){if(n(r.adjust)>0){adjN++;adjS+=n(r.adjust)}});rowsBy[X]={hc:hc,tot:tot,avg:hc?tot/hc:0,adjN:adjN,adjS:adjS}});
+  var rowsBy={},ALL=snaps();ys.forEach(function(X){var tot=0,hc=0,adjN=0,adjS=0;var seen={};ALL.forEach(function(r){var id=String(r.empId);if(seen[id])return;var p=payOfYear(X,id);if(!p)return;seen[id]=1;hc++;tot+=n(p.total)});ALL.filter(function(r){return +r.year===X}).forEach(function(r){if(n(r.adjust)>0){adjN++;adjS+=n(r.adjust)}});rowsBy[X]={hc:hc,tot:tot,avg:hc?tot/hc:0,adjN:adjN,adjS:adjS}});
   var maxT=Math.max.apply(null,[1].concat(ys.map(function(X){return rowsBy[X].tot})));
   var cur=+y-1;
   var h='<div class="panel" id="snapPanel"><div class="panel-head"><h2>🗂 '+t2('每年薪資快照','Yearly pay snapshots')+' <span class="badge b-regular">'+snaps().length+'</span></h2><div class="grow"></div><span class="hint" id="snapBusy"></span><label class="btn small primary" style="cursor:pointer">⬆ '+t2('匯入 salary adjust report','Import salary adjust report')+'<input type="file" accept=".xlsx,.xls" multiple style="display:none" onchange="HRPaySnap.importFiles(this.files);this.value=\'\'"></label></div>';
