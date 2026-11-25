@@ -40,8 +40,12 @@
     return '<div class="hkn-ch"><div class="hkn-st">'+esc(o.title||'')+'</div><svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="none" style="display:block;height:'+H+'px">'+out+'</svg></div>';}
   function kfmt(v){v=n(v);return v>=10000?(v/1000).toFixed(0)+'k':v>=1000?(v/1000).toFixed(1)+'k':Math.round(v);}
   function bars(list,o){o=o||{};if(!list.length)return '';var mx=Math.max.apply(null,list.map(function(x){return Math.abs(x.v);}))||1;
-    return list.map(function(x){return '<div class="hkn-br"><span class="n">'+esc(x.n)+(x.s?'<small>'+esc(x.s)+'</small>':'')+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(x.v)/mx*100))+'%;background:'+(x.c||o.c||'#60a5fa')+'"></i></span><span class="v">'+esc(x.vt!=null?x.vt:$0(x.v))+'</span></div>';}).join('')+
+    return list.map(function(x){var bi=x.rows&&x.rows.length?BREG.push(x.rows)-1:-1;return '<div class="hkn-br'+(bi>=0?' hkn-bk':'')+'"'+(bi>=0?' data-hkb="'+bi+'"':'')+'><span class="n">'+(bi>=0?'<i class="hkn-ar">▸</i>':'')+esc(x.n)+(x.s?'<small>'+esc(x.s)+'</small>':'')+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(x.v)/mx*100))+'%;background:'+(x.c||o.c||'#60a5fa')+'"></i></span><span class="v">'+esc(x.vt!=null?x.vt:$0(x.v))+'</span></div>';}).join('')+
       (o.total?'<div class="hkn-br hkn-tot"><span class="n">'+esc(o.total[0])+'</span><span class="t"></span><span class="v">'+esc(o.total[1])+'</span></div>':'');}
+  var BREG=[];
+  function plist(rows){var pp={};rows.forEach(function(r){if(!pp[r.id])pp[r.id]={id:r.id,name:r.name,dept:r.dept,v:0};pp[r.id].v+=r.v;});var l=Object.keys(pp).map(function(k){return pp[k];}).sort(function(a,b){return b.v-a.v;});
+    return '<div style="padding:2px 0 8px">'+l.slice(0,80).map(function(x){return '<div class="hkn-pp"><span><b>'+esc(x.id)+'</b> '+esc(x.name)+'</span><span>'+$m(x.v)+'</span></div>';}).join('')+(l.length>80?'<div class="hkn-note">…'+(l.length-80)+' more</div>':'')+'</div>';}
+  document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.hkn-bk');if(!b)return;e.stopPropagation();var nx=b.nextElementSibling;if(nx&&nx.classList.contains('hkn-bx')){nx.remove();b.classList.remove('open');return;}var d=document.createElement('div');d.className='hkn-bx';d.innerHTML=plist(BREG[+b.getAttribute('data-hkb')]||[]);b.classList.add('open');b.parentNode.insertBefore(d,b.nextSibling);},true);
   function build(el){
     if(typeof window.pick!=='function'||!(typeof MOD!=='undefined'?MOD:window.MOD))return null;var def=defOf(el);if(!def||!def.p.length)return null;
     var P=(document.getElementById('sel-period')||{}).value||'';if(!P)return null;
@@ -63,7 +67,7 @@
       (def.p.length>1?'<div class="hkn-st">🧩 本期組成</div>'+bars(A.parts.filter(function(p){return !p.miss;}).map(function(p){var d=PARTS[p.k];return {n:d.l,s:p.cnt+' 人',v:p.tot,c:d.c};}),{total:['合計',$m(A.amt)]}):'')+'</div>';
     /* 部門 */
     var dp={};A.rows.forEach(function(r){var k=r.dept||'—';if(!dp[k])dp[k]={v:0,ids:{}};dp[k].v+=r.v;dp[k].ids[r.id]=1;});
-    var dl=Object.keys(dp).map(function(k){var c=Object.keys(dp[k].ids).length;return {n:k,v:dp[k].v,s:c+' 人 · 平均 '+$0(dp[k].v/(c||1))};}).sort(function(a,b){return b.v-a.v;});
+    var dl=Object.keys(dp).map(function(k){var c=Object.keys(dp[k].ids).length;return {n:k,v:dp[k].v,s:c+' 人 · 平均 '+$0(dp[k].v/(c||1)),rows:A.rows.filter(function(r){return (r.dept||'—')===k;})};}).sort(function(a,b){return b.v-a.v;});
     var rowsSum=A.rows.reduce(function(s,r){return s+r.v;},0);
     grp='<div class="hkn"><div class="hkn-st">🏢 各部門金額（'+dl.length+' 個部門）</div>'+bars(dl.slice(0,30),{total:['合計（逐人加總）',$m(rowsSum)]})+(dl.length>30?'<div class="hkn-note">只列金額最高的 30 個部門</div>':'')+'</div>';
     /* 明細 */
@@ -82,6 +86,7 @@
    +'.hkn-st{font-size:13px;font-weight:700;margin:12px 0 6px;color:#1e293b}.hkn-ch{border:1px solid #e2e8f0;border-radius:12px;padding:4px 8px 6px;margin:8px 0;background:#fff}.hkn-ch .hkn-st{margin:4px 0 2px;font-size:12px}'
    +'.hkn-br{display:grid;grid-template-columns:minmax(90px,40%) 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:13px}.hkn-br .n{font-weight:600;line-height:1.2;word-break:break-word}.hkn-br .n small{display:block;font-weight:400;color:#64748b;font-size:10.5px}'
    +'.hkn-br .t{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}.hkn-br .t i{display:block;height:100%;border-radius:4px}.hkn-br .v{font-weight:700;text-align:right;min-width:64px}.hkn-tot{border-top:2px solid #cbd5e1;border-bottom:0}.hkn-tot .n,.hkn-tot .v{color:#4f46e5}'
+   +'.hkn-bk{cursor:pointer;border-radius:8px}.hkn-bk:hover{background:#f1f5f9}.hkn-ar{font-style:normal;color:#6366f1;margin-right:4px;display:inline-block;transition:transform .15s}.hkn-bk.open .hkn-ar{transform:rotate(90deg)}.hkn-bx{border-left:3px solid #c7d2fe;margin:2px 0 8px 6px;padding-left:8px}.hkn-pp{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}'
    +'.hkn-note{font-size:11.5px;color:#64748b;margin-top:6px}.hkn-tb>div{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:13px;align-items:baseline}.hkn-tb>div.on{background:#eef2ff;border-radius:8px}.hkn-tb small{color:#64748b;font-size:11px}';
   try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(e){}
   window.acKeynoteCardEl=function(el){try{return el.closest('#kpis .kpi,#cost-grid .cost-box');}catch(e){return null;}};
